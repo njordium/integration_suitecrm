@@ -1,6 +1,6 @@
 import { createApp } from 'vue'
-import { applyGlobals } from './bootstrap.js'
 import Dashboard from './views/Dashboard.vue'
+import { applyGlobals } from './bootstrap.js'
 
 document.addEventListener('DOMContentLoaded', function() {
 	OCA.Dashboard.register('suitecrm_events', (el, { widget }) => {

@@ -1,10 +1,12 @@
 <template>
-	<NcDashboardWidget :items="items"
-		:show-more-url="showMoreUrl"
-		:show-more-text="title"
+	<NcDashboardWidget
+		:items="items"
+		:showMoreUrl="showMoreUrl"
+		:showMoreText="title"
 		:loading="state === 'loading'">
 		<template #empty-content>
-			<NcEmptyContent v-if="emptyContentMessage"
+			<NcEmptyContent
+				v-if="emptyContentMessage"
 				:name="emptyContentMessage">
 				<template #action>
 					<div v-if="state === 'no-token' || state === 'error'" class="connect-button">
@@ -20,13 +22,13 @@
 
 <script>
 import axios from '@nextcloud/axios'
-import { generateUrl, imagePath } from '@nextcloud/router'
-import { NcDashboardWidget, NcEmptyContent } from '@nextcloud/vue'
 import { showError } from '@nextcloud/dialogs'
 import moment from '@nextcloud/moment'
+import { generateUrl, imagePath } from '@nextcloud/router'
+import { NcDashboardWidget, NcEmptyContent } from '@nextcloud/vue'
 
 export default {
-	name: 'Dashboard',
+	name: 'SuiteCRMDashboard',
 
 	components: {
 		NcDashboardWidget,
@@ -55,6 +57,7 @@ export default {
 		showMoreUrl() {
 			return this.suitecrmUrl + '/index.php?module=Home&action=index'
 		},
+
 		items() {
 			return this.notifications.map((n) => {
 				return {
@@ -67,13 +70,16 @@ export default {
 				}
 			})
 		},
+
 		lastDate() {
 			const nbNotif = this.notifications.length
 			return (nbNotif > 0) ? this.notifications[0].date_start : null
 		},
+
 		lastMoment() {
 			return moment(this.lastDate)
 		},
+
 		emptyContentMessage() {
 			if (this.state === 'no-token') {
 				return t('integration_suitecrm', 'No SuiteCRM account connected')
@@ -109,19 +115,23 @@ export default {
 		changeWindowVisibility() {
 			this.windowVisibility = !document.hidden
 		},
+
 		stopLoop() {
 			clearInterval(this.loop)
 		},
+
 		async launchLoop() {
 			try {
 				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
 				this.suitecrmUrl = response.data.replace(/\/+$/, '')
-			} catch (error) {
-				console.debug(error)
+			} catch {
+				// URL probe is best-effort: dashboard still works without it,
+				// the "show more" link just won't have an absolute prefix.
 			}
 			this.fetchNotifications()
 			this.loop = setInterval(() => this.fetchNotifications(), 120000)
 		},
+
 		fetchNotifications() {
 			const req = {
 				params: {
@@ -138,27 +148,31 @@ export default {
 				} else if (error.response && error.response.status === 401) {
 					showError(t('integration_suitecrm', 'Failed to get SuiteCRM reminders'))
 					this.state = 'error'
-				} else {
-					console.debug(error)
 				}
 			})
 		},
+
 		processNotifications(newNotifications) {
 			this.notifications = this.filter(newNotifications)
 		},
+
 		filter(notifications) {
 			return notifications
 		},
+
 		getNotificationTarget(n) {
 			return this.suitecrmUrl + '/index.php?module=' + n.attributes.related_event_module
 				+ '&action=DetailView&record=' + n.attributes.related_event_module_id
 		},
+
 		getUniqueKey(n) {
 			return n.id
 		},
+
 		getAuthorShortName(n) {
 			return n.attributes.created_by_name
 		},
+
 		getAvatarUrl(n) {
 			if (n.attributes.related_event_module === 'Calls') {
 				return imagePath('integration_suitecrm', 'call.png')
@@ -167,6 +181,7 @@ export default {
 			}
 			return ''
 		},
+
 		getSubline(n) {
 			const mom = moment.unix(n.attributes.date_willexecute)
 			const date = mom.format('L') + ' ' + mom.format('HH:mm')
@@ -177,6 +192,7 @@ export default {
 			}
 			return ''
 		},
+
 		getTargetTitle(n) {
 			return n.title
 		},

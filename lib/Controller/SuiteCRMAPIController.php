@@ -18,54 +18,40 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Controller;
 
 use OCA\SuiteCRM\Service\SuiteCRMAPIService;
+use OCA\SuiteCRM\Service\TokenStorage;
 use OCA\SuiteCRM\AppInfo\Application;
 
 class SuiteCRMAPIController extends Controller {
 
-	/**
-	 * @var IConfig
-	 */
+	/** @var IConfig */
 	private $config;
-	/**
-	 * @var SuiteCRMAPIService
-	 */
+	/** @var SuiteCRMAPIService */
 	private $suitecrmAPIService;
-	/**
-	 * @var string|null
-	 */
+	/** @var TokenStorage */
+	private $tokens;
+	/** @var string|null */
 	private $userId;
-	/**
-	 * @var string
-	 */
+	/** @var string */
 	private $accessToken;
-	/**
-	 * @var string
-	 */
-	private $refreshToken;
-	/**
-	 * @var string
-	 */
+	/** @var string */
 	private $clientID;
-	/**
-	 * @var string
-	 */
+	/** @var string */
 	private $clientSecret;
-	/**
-	 * @var string
-	 */
+	/** @var string */
 	private $suitecrmUrl;
 
 	public function __construct(string $appName,
 								IRequest $request,
 								IConfig $config,
 								SuiteCRMAPIService $suitecrmAPIService,
+								TokenStorage $tokens,
 								?string $userId) {
 		parent::__construct($appName, $request);
 		$this->config = $config;
 		$this->suitecrmAPIService = $suitecrmAPIService;
+		$this->tokens = $tokens;
 		$this->userId = $userId;
-		$this->accessToken = $this->config->getUserValue($this->userId, Application::APP_ID, 'token');
-		$this->refreshToken = $this->config->getUserValue($this->userId, Application::APP_ID, 'refresh_token');
+		$this->accessToken = $userId !== null ? $this->tokens->getAccessToken($userId) : '';
 		$this->clientID = $this->config->getAppValue(Application::APP_ID, 'client_id');
 		$this->clientSecret = $this->config->getAppValue(Application::APP_ID, 'client_secret');
 		$this->suitecrmUrl = $this->config->getAppValue(Application::APP_ID, 'oauth_instance_url');

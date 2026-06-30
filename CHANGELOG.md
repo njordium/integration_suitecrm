@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 1.2.0 – 2026-07-01
+### Added
+- TokenStorage service: OAuth access tokens + refresh tokens are now encrypted at rest via OCP\Security\ICrypto
+- Backward-compatible plaintext-to-encrypted migration on first read for installs upgraded from <= 1.1.x
+- Calendar Companion panel in Personal Settings exposing Nextcloud URL, login, and a deep link to /settings/user/security for app-password generation — feeds the per-user setup flow of the [suitecrm_nextcloud_calendar](https://github.com/njordium/suitecrm_nextcloud_calendar) SuiteCRM-side module
+- GitHub Actions CI: lint + build (JS) and php -l (PHP 8.1/8.2/8.3) on push and PR
+
+### Changed
+- All token reads/writes now go through TokenStorage (ConfigController, SuiteCRMAPIController, SuiteCRMAPIService, SuiteCRMSearchProvider)
+- Fixed CospendSearchProvider copy-paste docblock in SuiteCRMSearchProvider
+
 ## 1.1.0 – 2026-06-30
 ### Changed
 - Fork: updated Nextcloud compatibility to NC25–34

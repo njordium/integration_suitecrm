@@ -16,35 +16,41 @@
 					<a class="icon icon-link" />
 					{{ t('integration_suitecrm', 'SuiteCRM instance address') }}
 				</label>
-				<input id="suitecrm-url"
+				<input
+					id="suitecrm-url"
 					v-model="state.oauth_instance_url"
 					type="text"
 					:disabled="true"
 					:placeholder="t('integration_suitecrm', 'https://my.suitecrm.org')">
-				<label v-show="!connected"
+				<label
+					v-show="!connected"
 					for="suitecrm-login">
 					<a class="icon icon-user" />
 					{{ t('integration_suitecrm', 'User name') }}
 				</label>
-				<input v-show="!connected"
+				<input
+					v-show="!connected"
 					id="suitecrm-login"
 					v-model="login"
 					type="text"
 					:placeholder="t('integration_suitecrm', 'SuiteCRM login')"
 					@keyup.enter="onConnect">
-				<label v-show="!connected"
+				<label
+					v-show="!connected"
 					for="suitecrm-password">
 					<a class="icon icon-password" />
 					{{ t('integration_suitecrm', 'Password') }}
 				</label>
-				<input v-show="!connected"
+				<input
+					v-show="!connected"
 					id="suitecrm-password"
 					v-model="password"
 					type="password"
 					:placeholder="t('integration_suitecrm', 'SuiteCRM password')"
 					@keyup.enter="onConnect">
 			</div>
-			<button v-if="!connected"
+			<button
+				v-if="!connected"
 				id="suitecrm-oauth"
 				:disabled="loading === true"
 				:class="{ loading }"
@@ -83,15 +89,54 @@
 					@input="onNotificationChange">
 				<label for="notification-suitecrm">{{ t('integration_suitecrm', 'Enable notifications for reminders on calls and meetings') }}</label>
 			</div>
+
+			<div v-if="connected" id="suitecrm-calendar-companion" class="suitecrm-companion">
+				<h3>
+					<a class="icon icon-calendar" />
+					{{ t('integration_suitecrm', 'Calendar sync (SuiteCRM module)') }}
+				</h3>
+				<p class="settings-hint">
+					{{ t('integration_suitecrm', 'The companion SuiteCRM module pulls your Nextcloud calendar into SuiteCRM and pushes Meetings/Calls back. Configure it inside SuiteCRM (User Profile → Nextcloud Calendar Integration) with the values below.') }}
+				</p>
+				<div v-if="companion" class="suitecrm-companion__rows">
+					<div class="suitecrm-companion__row">
+						<label>{{ t('integration_suitecrm', 'Nextcloud URL') }}</label>
+						<code>{{ companion.nextcloud_url }}</code>
+						<button @click="copy(companion.nextcloud_url, $event)">
+							{{ t('integration_suitecrm', 'Copy') }}
+						</button>
+					</div>
+					<div class="suitecrm-companion__row">
+						<label>{{ t('integration_suitecrm', 'Nextcloud login') }}</label>
+						<code>{{ companion.login }}</code>
+						<button @click="copy(companion.login, $event)">
+							{{ t('integration_suitecrm', 'Copy') }}
+						</button>
+					</div>
+					<div class="suitecrm-companion__row">
+						<a
+							:href="companion.app_password_url"
+							target="_blank"
+							rel="noopener noreferrer"
+							class="button">
+							<span class="icon icon-password" />
+							{{ t('integration_suitecrm', 'Generate Nextcloud App Password') }}
+						</a>
+					</div>
+				</div>
+				<p v-else class="settings-hint">
+					{{ t('integration_suitecrm', 'Loading companion details…') }}
+				</p>
+			</div>
 		</div>
 	</div>
 </template>
 
 <script>
+import axios from '@nextcloud/axios'
+import { showError, showSuccess } from '@nextcloud/dialogs'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
-import axios from '@nextcloud/axios'
-import { showSuccess, showError } from '@nextcloud/dialogs'
 
 export default {
 	name: 'PersonalSettings',
@@ -107,6 +152,7 @@ export default {
 			login: '',
 			password: '',
 			loading: false,
+			companion: null,
 		}
 	},
 
@@ -114,6 +160,7 @@ export default {
 		oAuthConfigured() {
 			return this.state.oauth_instance_url && this.state.client_id && this.state.client_secret
 		},
+
 		connected() {
 			return this.oAuthConfigured && this.state.user_name && this.state.user_name !== ''
 		},
@@ -121,7 +168,7 @@ export default {
 
 	mounted() {
 		const paramString = window.location.search.substr(1)
-		// eslint-disable-next-line
+
 		const urlParams = new URLSearchParams(paramString)
 		const zmToken = urlParams.get('suitecrmToken')
 		if (zmToken === 'success') {
@@ -129,41 +176,66 @@ export default {
 		} else if (zmToken === 'error') {
 			showError(t('integration_suitecrm', 'OAuth access token could not be obtained:') + ' ' + urlParams.get('message'))
 		}
+		this.loadCompanion()
 	},
 
 	methods: {
+		async loadCompanion() {
+			try {
+				const response = await axios.get(generateUrl('/apps/integration_suitecrm/calendar-companion'))
+				this.companion = response.data
+			} catch {
+				// Companion is a best-effort enhancement; failure is silent so it
+				// doesn't block the rest of the personal settings UI.
+			}
+		},
+
+		async copy(value, event) {
+			try {
+				await navigator.clipboard.writeText(value)
+				showSuccess(t('integration_suitecrm', 'Copied to clipboard'))
+			} catch {
+				const range = document.createRange()
+				range.selectNodeContents(event.target.previousElementSibling)
+				const selection = window.getSelection()
+				selection.removeAllRanges()
+				selection.addRange(range)
+			}
+		},
+
 		onLogoutClick() {
 			this.state.user_name = ''
 			this.saveOptions({ user_name: '' })
 		},
+
 		onNotificationChange(e) {
 			this.state.notification_enabled = e.target.checked
 			this.saveOptions({ notification_enabled: this.state.notification_enabled ? '1' : '0' })
 		},
+
 		onSearchChange(e) {
 			this.state.search_enabled = e.target.checked
 			this.saveOptions({ search_enabled: this.state.search_enabled ? '1' : '0' })
 		},
+
 		saveOptions(values) {
 			const req = {
 				values,
 			}
 			const url = generateUrl('/apps/integration_suitecrm/config')
 			axios.put(url, req)
-				.then((response) => {
+				.then(() => {
 					showSuccess(t('integration_suitecrm', 'SuiteCRM options saved'))
 				})
 				.catch((error) => {
-					console.debug(error)
-					showError(
-						t('integration_suitecrm', 'Failed to save SuiteCRM options')
-						+ ': ' + error.response.request.responseText
-					)
+					showError(t('integration_suitecrm', 'Failed to save SuiteCRM options')
+						+ ': ' + error.response.request.responseText)
 				})
 				.then(() => {
 					this.loading = false
 				})
 		},
+
 		onConnect() {
 			this.loading = true
 			const url = generateUrl('/apps/integration_suitecrm/oauth-connect')
@@ -177,19 +249,14 @@ export default {
 					this.password = ''
 				})
 				.catch((error) => {
-					console.debug(error)
 					if (error.response) {
 						// if (error.response.data && error.response.data.error) {
 						if (error.response?.data?.error) {
-							showError(
-								t('integration_suitecrm', 'Failed')
-								+ ': ' + error.response.data.error
-							)
+							showError(t('integration_suitecrm', 'Failed')
+								+ ': ' + error.response.data.error)
 						} else if (error.response.request && error.response.request.responseText) {
-							showError(
-								t('integration_suitecrm', 'Failed')
-								+ ': ' + error.response.request.responseText
-							)
+							showError(t('integration_suitecrm', 'Failed')
+								+ ': ' + error.response.request.responseText)
 						}
 					}
 				})
@@ -204,11 +271,11 @@ export default {
 <style scoped lang="scss">
 #suitecrm_prefs {
 	> .settings-hint {
-		margin-left: 40px;
+		margin-inline-start: 40px;
 	}
 
 	#suitecrm-content {
-		margin-left: 40px;
+		margin-inline-start: 40px;
 	}
 
 	#suitecrm-search-block {
@@ -251,5 +318,40 @@ export default {
 
 body.theme--dark .icon-suitecrm {
 	background-image: url(./../../img/app.svg);
+}
+
+.suitecrm-companion {
+	margin-top: 30px;
+	margin-inline-start: 40px;
+	padding-top: 20px;
+	border-top: 1px solid var(--color-border);
+
+	h3 {
+		margin-bottom: 8px;
+	}
+
+	.suitecrm-companion__rows {
+		margin-top: 12px;
+	}
+
+	.suitecrm-companion__row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 8px;
+
+		label {
+			min-width: 150px;
+			color: var(--color-text-maxcontrast);
+		}
+
+		code {
+			background: var(--color-background-dark);
+			padding: 4px 8px;
+			border-radius: 4px;
+			font-family: monospace;
+			user-select: all;
+		}
+	}
 }
 </style>

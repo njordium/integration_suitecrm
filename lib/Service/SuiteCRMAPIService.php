@@ -55,9 +55,13 @@ class SuiteCRMAPIService {
 	 * @var \OCP\Http\Client\IClient
 	 */
 	private $client;
+	/**
+	 * @var TokenStorage
+	 */
+	private $tokens;
 
 	/**
-	 * Service to make requests to SuiteCRM v3 (JSON) API
+	 * Service to make requests to SuiteCRM v8 REST (JSON:API)
 	 */
 	public function __construct (string $appName,
 								IUserManager $userManager,
@@ -65,7 +69,8 @@ class SuiteCRMAPIService {
 								IL10N $l10n,
 								IConfig $config,
 								INotificationManager $notificationManager,
-								IClientService $clientService) {
+								IClientService $clientService,
+								TokenStorage $tokens) {
 		$this->appName = $appName;
 		$this->userManager = $userManager;
 		$this->logger = $logger;
@@ -73,6 +78,7 @@ class SuiteCRMAPIService {
 		$this->config = $config;
 		$this->notificationManager = $notificationManager;
 		$this->client = $clientService->newClient();
+		$this->tokens = $tokens;
 	}
 
 	/**
@@ -92,7 +98,7 @@ class SuiteCRMAPIService {
 	 * @return void
 	 */
 	private function checkAlertsForUser(string $userId): void {
-		$accessToken = $this->config->getUserValue($userId, Application::APP_ID, 'token');
+		$accessToken = $this->tokens->getAccessToken($userId);
 		$notificationEnabled = ($this->config->getUserValue($userId, Application::APP_ID, 'notification_enabled', '0') === '1');
 		if ($accessToken && $notificationEnabled) {
 			$suitecrmUrl = $this->config->getAppValue(Application::APP_ID, 'oauth_instance_url');
@@ -496,7 +502,7 @@ class SuiteCRMAPIService {
 			// try to refresh token if it's invalid
 			if ($response->getStatusCode() === 401) {
 				$this->logger->info('Trying to REFRESH the access token', ['app' => $this->appName]);
-				$refreshToken = $this->config->getUserValue($userId, Application::APP_ID, 'refresh_token');
+				$refreshToken = $this->tokens->getRefreshToken($userId);
 				$clientID = $this->config->getAppValue(Application::APP_ID, 'client_id');
 				$clientSecret = $this->config->getAppValue(Application::APP_ID, 'client_secret');
 				// try to refresh the token
@@ -508,9 +514,8 @@ class SuiteCRMAPIService {
 				], 'POST');
 				if (isset($result['access_token'], $result['refresh_token'])) {
 					$accessToken = $result['access_token'];
-					$this->config->setUserValue($userId, Application::APP_ID, 'token', $accessToken);
-					$refreshToken = $result['refresh_token'];
-					$this->config->setUserValue($userId, Application::APP_ID, 'refresh_token', $refreshToken);
+					$this->tokens->setAccessToken($userId, $accessToken);
+					$this->tokens->setRefreshToken($userId, $result['refresh_token']);
 					// retry the request with new access token
 					return $this->request(
 						$suitecrmUrl, $accessToken, $userId, $endPoint, $params, $method

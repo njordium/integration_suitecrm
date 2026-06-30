@@ -13,35 +13,44 @@ namespace OCA\SuiteCRM\Controller;
 
 use OCP\IConfig;
 use OCP\IRequest;
+use OCP\IURLGenerator;
+use OCP\IUserSession;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Controller;
 
 use OCA\SuiteCRM\Service\SuiteCRMAPIService;
+use OCA\SuiteCRM\Service\TokenStorage;
 use OCA\SuiteCRM\AppInfo\Application;
 
 class ConfigController extends Controller {
 
-	/**
-	 * @var IConfig
-	 */
+	/** @var IConfig */
 	private $config;
-	/**
-	 * @var SuiteCRMAPIService
-	 */
+	/** @var SuiteCRMAPIService */
 	private $suitecrmAPIService;
-	/**
-	 * @var string|null
-	 */
+	/** @var TokenStorage */
+	private $tokens;
+	/** @var IURLGenerator */
+	private $urlGenerator;
+	/** @var IUserSession */
+	private $userSession;
+	/** @var string|null */
 	private $userId;
 
 	public function __construct(string $appName,
 								IRequest $request,
 								IConfig $config,
 								SuiteCRMAPIService $suitecrmAPIService,
+								TokenStorage $tokens,
+								IURLGenerator $urlGenerator,
+								IUserSession $userSession,
 								?string $userId) {
 		parent::__construct($appName, $request);
 		$this->config = $config;
 		$this->suitecrmAPIService = $suitecrmAPIService;
+		$this->tokens = $tokens;
+		$this->urlGenerator = $urlGenerator;
+		$this->userSession = $userSession;
 		$this->userId = $userId;
 	}
 
@@ -59,18 +68,14 @@ class ConfigController extends Controller {
 		$result = [];
 
 		if (isset($values['user_name']) && $values['user_name'] === '') {
-			$accessToken = $this->config->getUserValue($this->userId, Application::APP_ID, 'token');
-//			$refreshToken = $this->config->getUserValue($this->userId, Application::APP_ID, 'refresh_token', '');
+			$accessToken = $this->tokens->getAccessToken($this->userId);
 			$suitecrmUrl = $this->config->getAppValue(Application::APP_ID, 'oauth_instance_url');
-//			$clientID = $this->config->getAppValue(Application::APP_ID, 'client_id');
-//			$clientSecret = $this->config->getAppValue(Application::APP_ID, 'client_secret');
 			$this->suitecrmAPIService->request(
 				$suitecrmUrl, $accessToken, $this->userId, 'logout', [], 'POST'
 			);
 			$this->config->setUserValue($this->userId, Application::APP_ID, 'user_id', '');
 			$this->config->setUserValue($this->userId, Application::APP_ID, 'user_name', '');
-			$this->config->setUserValue($this->userId, Application::APP_ID, 'token', '');
-			$this->config->setUserValue($this->userId, Application::APP_ID, 'refresh_token', '');
+			$this->tokens->clear($this->userId);
 			$this->config->setUserValue($this->userId, Application::APP_ID, 'last_reminder_check', '');
 			$result = [
 				'user_name' => '',
@@ -115,9 +120,8 @@ class ConfigController extends Controller {
 		], 'POST');
 		if (isset($result['access_token'], $result['refresh_token'])) {
 			$accessToken = $result['access_token'];
-			$this->config->setUserValue($this->userId, Application::APP_ID, 'token', $accessToken);
-			$refreshToken = $result['refresh_token'];
-			$this->config->setUserValue($this->userId, Application::APP_ID, 'refresh_token', $refreshToken);
+			$this->tokens->setAccessToken($this->userId, $accessToken);
+			$this->tokens->setRefreshToken($this->userId, $result['refresh_token']);
 
 			$filter = urlencode('filter[user_name][eq]') . '=' . urlencode($login);
 			$info = $this->suitecrmAPIService->request(
@@ -141,5 +145,29 @@ class ConfigController extends Controller {
 		} else {
 			return new DataResponse(['error' => 'Invalid login/password'], 401);
 		}
+	}
+
+	/**
+	 * Companion info for the SuiteCRM Calendar Sync module.
+	 *
+	 * Returns the values the user would otherwise have to look up manually when
+	 * configuring the SuiteCRM-side {@link https://github.com/njordium/suitecrm_nextcloud_calendar}
+	 * Nextcloud connection: their Nextcloud base URL, login, and a deep link
+	 * to the Security settings page for app-password generation.
+	 *
+	 * @NoAdminRequired
+	 *
+	 * @return DataResponse
+	 */
+	public function getCalendarCompanion(): DataResponse {
+		$user = $this->userSession->getUser();
+		$login = $user !== null ? $user->getUID() : ($this->userId ?? '');
+		$nextcloudUrl = rtrim($this->urlGenerator->getAbsoluteURL('/'), '/');
+		$appPasswordUrl = $this->urlGenerator->linkToRouteAbsolute('settings.PersonalSettings.index', ['section' => 'security']);
+		return new DataResponse([
+			'nextcloud_url' => $nextcloudUrl,
+			'login' => $login,
+			'app_password_url' => $appPasswordUrl,
+		]);
 	}
 }

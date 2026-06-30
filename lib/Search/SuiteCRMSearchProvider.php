@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace OCA\SuiteCRM\Search;
 
 use OCA\SuiteCRM\Service\SuiteCRMAPIService;
+use OCA\SuiteCRM\Service\TokenStorage;
 use OCA\SuiteCRM\AppInfo\Application;
 use OCP\App\IAppManager;
 use OCP\IL10N;
@@ -45,34 +46,25 @@ class SuiteCRMSearchProvider implements IProvider {
 
 	/** @var IURLGenerator */
 	private $urlGenerator;
-	/**
-	 * @var IConfig
-	 */
+	/** @var IConfig */
 	private $config;
-	/**
-	 * @var SuiteCRMAPIService
-	 */
+	/** @var SuiteCRMAPIService */
 	private $service;
+	/** @var TokenStorage */
+	private $tokens;
 
-	/**
-	 * CospendSearchProvider constructor.
-	 *
-	 * @param IAppManager $appManager
-	 * @param IL10N $l10n
-	 * @param IConfig $config
-	 * @param IURLGenerator $urlGenerator
-	 * @param SuiteCRMAPIService $service
-	 */
 	public function __construct(IAppManager $appManager,
 								IL10N $l10n,
 								IConfig $config,
 								IURLGenerator $urlGenerator,
-								SuiteCRMAPIService $service) {
+								SuiteCRMAPIService $service,
+								TokenStorage $tokens) {
 		$this->appManager = $appManager;
 		$this->l10n = $l10n;
 		$this->config = $config;
 		$this->urlGenerator = $urlGenerator;
 		$this->service = $service;
+		$this->tokens = $tokens;
 	}
 
 	/**
@@ -118,7 +110,7 @@ class SuiteCRMSearchProvider implements IProvider {
 		$thumbnailUrl = $this->urlGenerator->imagePath(Application::APP_ID, 'app-color.svg');
 
 		$suitecrmUrl = $this->config->getAppValue(Application::APP_ID, 'oauth_instance_url');
-		$accessToken = $this->config->getUserValue($user->getUID(), Application::APP_ID, 'token');
+		$accessToken = $this->tokens->getAccessToken($user->getUID());
 
 		$searchEnabled = $this->config->getUserValue($user->getUID(), Application::APP_ID, 'search_enabled', '0') === '1';
 		if ($accessToken === '' || !$searchEnabled) {

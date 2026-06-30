@@ -19,7 +19,8 @@
 				<a class="icon icon-link" />
 				{{ t('integration_suitecrm', 'SuiteCRM instance address') }}
 			</label>
-			<input id="suitecrm-oauth-instance"
+			<input
+				id="suitecrm-oauth-instance"
 				v-model="state.oauth_instance_url"
 				type="text"
 				:placeholder="t('integration_suitecrm', 'SuiteCRM address')"
@@ -28,7 +29,8 @@
 				<a class="icon icon-category-auth" />
 				{{ t('integration_suitecrm', 'Application ID') }}
 			</label>
-			<input id="suitecrm-client-id"
+			<input
+				id="suitecrm-client-id"
 				v-model="state.client_id"
 				type="password"
 				:readonly="readonly"
@@ -39,7 +41,8 @@
 				<a class="icon icon-category-auth" />
 				{{ t('integration_suitecrm', 'Application secret') }}
 			</label>
-			<input id="suitecrm-client-secret"
+			<input
+				id="suitecrm-client-secret"
 				v-model="state.client_secret"
 				type="password"
 				:readonly="readonly"
@@ -51,11 +54,11 @@
 </template>
 
 <script>
+import axios from '@nextcloud/axios'
+import { showError, showSuccess } from '@nextcloud/dialogs'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
-import axios from '@nextcloud/axios'
-import { delay } from '../utils'
-import { showSuccess, showError } from '@nextcloud/dialogs'
+import { delay } from '../utils.js'
 
 export default {
 	name: 'AdminSettings',
@@ -81,11 +84,11 @@ export default {
 
 	methods: {
 		onInput() {
-			const that = this
 			delay(() => {
-				that.saveOptions()
+				this.saveOptions()
 			}, 2000)()
 		},
+
 		saveOptions() {
 			const req = {
 				values: {
@@ -96,16 +99,12 @@ export default {
 			}
 			const url = generateUrl('/apps/integration_suitecrm/admin-config')
 			axios.put(url, req)
-				.then((response) => {
+				.then(() => {
 					showSuccess(t('integration_suitecrm', 'SuiteCRM admin options saved'))
 				})
 				.catch((error) => {
-					showError(
-						t('integration_suitecrm', 'Failed to save SuiteCRM admin options')
-						+ ': ' + error.response.request.responseText
-					)
-				})
-				.then(() => {
+					showError(t('integration_suitecrm', 'Failed to save SuiteCRM admin options')
+						+ ': ' + error.response.request.responseText)
 				})
 		},
 	},
@@ -128,7 +127,7 @@ export default {
 		max-width: 500px;
 		display: grid;
 		grid-template: 1fr / 1fr 1fr;
-		margin-left: 30px;
+		margin-inline-start: 30px;
 		label {
 			line-height: 38px;
 		}
