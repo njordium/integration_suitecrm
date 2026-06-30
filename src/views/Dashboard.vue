@@ -1,38 +1,36 @@
 <template>
-	<DashboardWidget :items="items"
+	<NcDashboardWidget :items="items"
 		:show-more-url="showMoreUrl"
 		:show-more-text="title"
 		:loading="state === 'loading'">
 		<template #empty-content>
-			<EmptyContent
-				v-if="emptyContentMessage"
-				:icon="emptyContentIcon">
-				<template #desc>
-					{{ emptyContentMessage }}
+			<NcEmptyContent v-if="emptyContentMessage"
+				:name="emptyContentMessage">
+				<template #action>
 					<div v-if="state === 'no-token' || state === 'error'" class="connect-button">
 						<a class="button" :href="settingsUrl">
 							{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
 						</a>
 					</div>
 				</template>
-			</EmptyContent>
+			</NcEmptyContent>
 		</template>
-	</DashboardWidget>
+	</NcDashboardWidget>
 </template>
 
 <script>
 import axios from '@nextcloud/axios'
 import { generateUrl, imagePath } from '@nextcloud/router'
-import { DashboardWidget } from '@nextcloud/vue-dashboard'
+import { NcDashboardWidget, NcEmptyContent } from '@nextcloud/vue'
 import { showError } from '@nextcloud/dialogs'
 import moment from '@nextcloud/moment'
-import EmptyContent from '@nextcloud/vue/dist/Components/EmptyContent'
 
 export default {
 	name: 'Dashboard',
 
 	components: {
-		DashboardWidget, EmptyContent,
+		NcDashboardWidget,
+		NcEmptyContent,
 	},
 
 	props: {
@@ -49,7 +47,6 @@ export default {
 			loop: null,
 			state: 'loading',
 			settingsUrl: generateUrl('/settings/user/connected-accounts'),
-			themingColor: OCA.Theming ? OCA.Theming.color.replace('#', '') : '0082C9',
 			windowVisibility: true,
 		}
 	},
@@ -65,7 +62,6 @@ export default {
 					targetUrl: this.getNotificationTarget(n),
 					avatarUrl: this.getAvatarUrl(n),
 					avatarUsername: this.getAuthorShortName(n),
-					// overlayIconUrl: this.getNotificationTypeImage(n),
 					mainText: this.getTargetTitle(n),
 					subText: this.getSubline(n),
 				}
@@ -88,16 +84,6 @@ export default {
 			}
 			return ''
 		},
-		emptyContentIcon() {
-			if (this.state === 'no-token') {
-				return 'icon-suitecrm'
-			} else if (this.state === 'error') {
-				return 'icon-close'
-			} else if (this.state === 'ok') {
-				return 'icon-checkmark'
-			}
-			return 'icon-checkmark'
-		},
 	},
 
 	watch: {
@@ -110,16 +96,13 @@ export default {
 		},
 	},
 
-	beforeDestroy() {
+	beforeUnmount() {
 		document.removeEventListener('visibilitychange', this.changeWindowVisibility)
 	},
 
 	beforeMount() {
 		this.launchLoop()
 		document.addEventListener('visibilitychange', this.changeWindowVisibility)
-	},
-
-	mounted() {
 	},
 
 	methods: {
@@ -130,14 +113,12 @@ export default {
 			clearInterval(this.loop)
 		},
 		async launchLoop() {
-			// get suitecrm URL first
 			try {
 				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
 				this.suitecrmUrl = response.data.replace(/\/+$/, '')
 			} catch (error) {
 				console.debug(error)
 			}
-			// then launch the loop
 			this.fetchNotifications()
 			this.loop = setInterval(() => this.fetchNotifications(), 120000)
 		},
@@ -158,14 +139,11 @@ export default {
 					showError(t('integration_suitecrm', 'Failed to get SuiteCRM reminders'))
 					this.state = 'error'
 				} else {
-					// there was an error in notif processing
 					console.debug(error)
 				}
 			})
 		},
 		processNotifications(newNotifications) {
-			// always replace reminders as one might have been added
-			// in the middle of the ones we already have
 			this.notifications = this.filter(newNotifications)
 		},
 		filter(notifications) {
@@ -189,14 +167,6 @@ export default {
 			}
 			return ''
 		},
-		getNotificationTypeImage(n) {
-			if (n.attributes.related_event_module === 'Calls') {
-				return generateUrl('/svg/integration_suitecrm/rename?color=ffffff')
-			} else if (n.attributes.related_event_module === 'Meetings') {
-				return generateUrl('/svg/integration_suitecrm/add?color=ffffff')
-			}
-			return generateUrl('/svg/core/actions/sound?color=' + this.themingColor)
-		},
 		getSubline(n) {
 			const mom = moment.unix(n.attributes.date_willexecute)
 			const date = mom.format('L') + ' ' + mom.format('HH:mm')
@@ -215,7 +185,7 @@ export default {
 </script>
 
 <style scoped lang="scss">
-::v-deep .connect-button {
+:deep(.connect-button) {
 	margin-top: 10px;
 }
 </style>

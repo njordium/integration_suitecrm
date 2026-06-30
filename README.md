@@ -1,5 +1,9 @@
 # SuiteCRM integration into Nextcloud
 
+> **Actively maintained fork** of [julien-nc/integration_suitecrm](https://github.com/julien-nc/integration_suitecrm),
+> updated for Nextcloud 25–34 and SuiteCRM v8.x.
+> Original author: Julien Veyssier.
+
 ⊞ Interact with your CRM solution in Nextcloud!
 
 SuiteCRM integration provides a dashboard widget displaying your important notifications,

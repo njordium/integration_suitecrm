@@ -5,6 +5,18 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
+
+## 1.1.0 – 2026-06-30
+### Changed
+- Fork: updated Nextcloud compatibility to NC25–34
+- Migrated frontend from Vue 2 to Vue 3
+- Updated all @nextcloud/* dependencies to current versions (axios v2, dialogs v5, vue v8, etc.)
+- Replaced deprecated `Vue.prototype` globals with `app.config.globalProperties`
+- Replaced `DashboardWidget`/`EmptyContent` (vue-dashboard) with `NcDashboardWidget`/`NcEmptyContent` from @nextcloud/vue
+- Replaced `beforeDestroy` with `beforeUnmount` (Vue 3)
+- Replaced `::v-deep` with `:deep()` (Vue 3)
+- Moved notifier registration from Application constructor to `register()` (NC25+ best practice)
+- Bumped Node engine requirement to >=20
 ## 1.0.2 – 2021-09-06
 ### Changed
 - bump js libs
