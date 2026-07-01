@@ -1,4 +1,4 @@
-name: Lint
+name: Lint & Test
 
 on:
   push:
@@ -21,8 +21,8 @@ jobs:
       - run: npm run stylelint
       - run: npm run build
 
-  php:
-    name: PHP lint
+  php-lint:
+    name: PHP syntax
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -33,4 +33,37 @@ jobs:
         with:
           php-version: ${{ matrix.php-version }}
       - name: php -l
-        run: find lib appinfo -name '*.php' -print0 | xargs -0 -n1 php -l
+        run: find lib appinfo tests -name '*.php' -print0 | xargs -0 -n1 php -l
+
+  php-test:
+    name: PHPUnit
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-version: ['8.1', '8.2', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          coverage: none
+          tools: composer:v2
+      - name: Install composer deps
+        run: composer install --prefer-dist --no-progress
+      - name: Run PHPUnit
+        run: vendor/bin/phpunit --configuration phpunit.xml
+
+  php-stan:
+    name: PHPStan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: composer:v2
+      - name: Install composer deps
+        run: composer install --prefer-dist --no-progress
+      - name: Run PHPStan
+        run: vendor/bin/phpstan analyse --configuration phpstan.neon --no-progress

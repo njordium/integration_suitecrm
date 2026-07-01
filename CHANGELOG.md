@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 1.7.0 – 2026-07-01
+### Added
+- **composer.json** for PHP tooling (PHPUnit 10, PHPStan 1.11, nextcloud/ocp stubs, PSR-4 autoload for `OCA\SuiteCRM\`)
+- **phpunit.xml** with tests/php coverage of lib/
+- **phpstan.neon** at level 5 covering all of lib/ (Application.php excluded because it depends on OC AppFramework stubs that don't survive plain analyse without a live NC codebase)
+- **Test suite**:
+  - `TokenStorageTest`: encryption on write, decryption on read, backward-compat plaintext migration, clear-all, empty-string short-circuits
+  - `RecordUrlParserTest`: 5 valid-URL data-provider cases (query-string ordering, HTML-encoded ampersands, embedded in prose, mixed case), 6 rejection cases, module list assertion
+- Extracted `RecordUrlParser` from `SuiteCRMReferenceProvider` as a pure static class — testable without instantiating IConfig/IL10N/IURLGenerator/etc.
+- CI workflow expanded to run PHPUnit across PHP 8.1/8.2/8.3 and PHPStan on 8.2
+
+### Changed
+- CI workflow renamed to "Lint & Test"
+
 ## 1.6.0 – 2026-07-01
 ### Added
 - **Reference provider** for SuiteCRM record URLs: paste a link like `.../index.php?module=Contacts&record=abc-123` into Talk, Notes, Deck, or any Nextcloud text field and it renders a rich card with the record's name and key attributes

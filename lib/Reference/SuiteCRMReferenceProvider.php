@@ -22,19 +22,6 @@ use OCP\IURLGenerator;
  */
 class SuiteCRMReferenceProvider extends ADiscoverableReferenceProvider implements ISearchableReferenceProvider {
 
-	private const RECORD_URL_PATTERN = '/\/index\.php\?[^"\s]*module=([A-Za-z]+)(?:&|&amp;)[^"\s]*record=([a-zA-Z0-9\-]+)/';
-
-	private const SUPPORTED_MODULES = [
-		'Contacts',
-		'Accounts',
-		'Leads',
-		'Opportunities',
-		'Cases',
-		'Meetings',
-		'Calls',
-		'Tasks',
-	];
-
 	public function __construct(
 		private IConfig $config,
 		private IL10N $l10n,
@@ -68,19 +55,17 @@ class SuiteCRMReferenceProvider extends ADiscoverableReferenceProvider implement
 	}
 
 	public function matchReference(string $referenceText): bool {
-		return $this->extractRecord($referenceText) !== null;
+		return RecordUrlParser::parse($referenceText) !== null;
 	}
 
 	public function resolveReference(string $referenceText): ?IReference {
-		if (!$this->matchReference($referenceText)) {
-			return null;
-		}
-		$record = $this->extractRecord($referenceText);
+		$record = RecordUrlParser::parse($referenceText);
 		if ($record === null || $this->userId === null) {
 			return null;
 		}
 
-		[$module, $recordId] = $record;
+		$module = $record['module'];
+		$recordId = $record['recordId'];
 
 		$suitecrmUrl = $this->config->getAppValue(Application::APP_ID, 'oauth_instance_url');
 		$accessToken = $this->tokens->getAccessToken($this->userId);
@@ -116,32 +101,15 @@ class SuiteCRMReferenceProvider extends ADiscoverableReferenceProvider implement
 	}
 
 	public function getCachePrefix(string $referenceId): string {
-		$record = $this->extractRecord($referenceId);
+		$record = RecordUrlParser::parse($referenceId);
 		if ($record === null) {
 			return '';
 		}
-		return $record[0] . ':' . $record[1];
+		return $record['module'] . ':' . $record['recordId'];
 	}
 
 	public function getCacheKey(string $referenceId): ?string {
 		return $this->userId;
-	}
-
-	/**
-	 * @return array{0: string, 1: string}|null [module, recordId] or null if the
-	 *                                          text doesn't look like a SuiteCRM
-	 *                                          record URL.
-	 */
-	private function extractRecord(string $text): ?array {
-		if (!preg_match(self::RECORD_URL_PATTERN, $text, $matches)) {
-			return null;
-		}
-		$module = $matches[1];
-		$recordId = $matches[2];
-		if (!in_array($module, self::SUPPORTED_MODULES, true)) {
-			return null;
-		}
-		return [$module, $recordId];
 	}
 
 	private function titleFor(string $module, array $attrs): string {
