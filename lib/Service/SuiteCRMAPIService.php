@@ -319,101 +319,52 @@ class SuiteCRMAPIService {
 	}
 
 	/**
-	 * @param string $url
-	 * @param string $accessToken
-	 * @param string $userId
-	 * @param string $query
-	 * @param int $offset
-	 * @param int $limit
-	 * @return array
+	 * The modules searched by {@see search()} and how their attributes map to
+	 * the result payload.
+	 *
+	 * `module`      = SuiteCRM v8 module endpoint segment
+	 * `type`        = tag emitted on each result; consumed by SuiteCRMSearchProvider
+	 *                 to pick main text / subline / icon / URL
+	 * `fields`      = comma-separated attribute list for the JSON:API fields[] filter
+	 * `name_attr`   = attribute used to match against the search query
+	 */
+	private const SEARCH_MODULES = [
+		['module' => 'Contacts', 'type' => 'contact', 'fields' => 'name,first_name,last_name,full_name', 'name_attr' => 'full_name'],
+		['module' => 'Accounts', 'type' => 'account', 'fields' => 'name', 'name_attr' => 'name'],
+		['module' => 'Leads', 'type' => 'lead', 'fields' => 'name,full_name', 'name_attr' => 'full_name'],
+		['module' => 'Opportunities', 'type' => 'opportunity', 'fields' => 'name,amount,currency_symbol,currency_name', 'name_attr' => 'name'],
+		['module' => 'Cases', 'type' => 'case', 'fields' => 'name,case_number,status', 'name_attr' => 'name'],
+		['module' => 'Meetings', 'type' => 'meeting', 'fields' => 'name,date_start,status,location', 'name_attr' => 'name'],
+		['module' => 'Tasks', 'type' => 'task', 'fields' => 'name,date_due,priority,status', 'name_attr' => 'name'],
+		['module' => 'Emails', 'type' => 'email', 'fields' => 'name,from_addr_name,date_sent,status', 'name_attr' => 'name'],
+	];
+
+	/**
+	 * @return array Combined result rows, each tagged with a `type` field.
+	 *               On upstream API failure, returns the SuiteCRM error payload
+	 *               so callers can distinguish "no results" from "no connection".
 	 */
 	public function search(string $url, string $accessToken, string $userId, string $query, int $offset = 0, int $limit = 5): array {
 		$combinedResults = [];
-		// contacts
-		$filters = [
-			'fields[Contacts]=name,first_name,last_name,full_name',
-		];
-		$result = $this->request(
-			$url, $accessToken, $userId, 'module/Contacts?' . implode('&', $filters)
-		);
-		if (isset($result['error'])) {
-			return $result;
-		}
-		foreach ($result['data'] as $contact) {
-			$fullName = $contact['attributes']['full_name'];
-			if (preg_match('/' . $query . '/i', $fullName)) {
-				$contact['type'] = 'contact';
-				$combinedResults[] = $contact;
+		$queryRegex = '/' . preg_quote($query, '/') . '/i';
+
+		foreach (self::SEARCH_MODULES as $moduleDef) {
+			$response = $this->request(
+				$url, $accessToken, $userId,
+				'module/' . $moduleDef['module'] . '?fields[' . $moduleDef['module'] . ']=' . $moduleDef['fields']
+			);
+			if (isset($response['error'])) {
+				return $response;
+			}
+			foreach ($response['data'] ?? [] as $row) {
+				$candidate = $row['attributes'][$moduleDef['name_attr']] ?? '';
+				if ($candidate !== '' && preg_match($queryRegex, $candidate)) {
+					$row['type'] = $moduleDef['type'];
+					$combinedResults[] = $row;
+				}
 			}
 		}
-		// accounts
-		$filters = [
-			'fields[Accounts]=name',
-		];
-		$result = $this->request(
-			$url, $accessToken, $userId, 'module/Accounts?' . implode('&', $filters)
-		);
-		if (isset($result['error'])) {
-			return $result;
-		}
-		foreach ($result['data'] as $account) {
-			$name = $account['attributes']['name'];
-			if (preg_match('/' . $query . '/i', $name)) {
-				$account['type'] = 'account';
-				$combinedResults[] = $account;
-			}
-		}
-		// leads
-		$filters = [
-			'fields[Leads]=name,full_name',
-		];
-		$result = $this->request(
-			$url, $accessToken, $userId, 'module/Leads?' . implode('&', $filters)
-		);
-		if (isset($result['error'])) {
-			return $result;
-		}
-		foreach ($result['data'] as $elem) {
-			$name = $elem['attributes']['full_name'];
-			if (preg_match('/' . $query . '/i', $name)) {
-				$elem['type'] = 'lead';
-				$combinedResults[] = $elem;
-			}
-		}
-		// Opportunities
-		$filters = [
-			'fields[Opportunities]=name,amount,currency_symbol,currency_name',
-		];
-		$result = $this->request(
-			$url, $accessToken, $userId, 'module/Opportunities?' . implode('&', $filters)
-		);
-		if (isset($result['error'])) {
-			return $result;
-		}
-		foreach ($result['data'] as $elem) {
-			$name = $elem['attributes']['name'];
-			if (preg_match('/' . $query . '/i', $name)) {
-				$elem['type'] = 'opportunity';
-				$combinedResults[] = $elem;
-			}
-		}
-		// Cases
-		$filters = [
-			'fields[Cases]=name',
-		];
-		$result = $this->request(
-			$url, $accessToken, $userId, 'module/Cases?' . implode('&', $filters)
-		);
-		if (isset($result['error'])) {
-			return $result;
-		}
-		foreach ($result['data'] as $elem) {
-			$name = $elem['attributes']['name'];
-			if (preg_match('/' . $query . '/i', $name)) {
-				$elem['type'] = 'case';
-				$combinedResults[] = $elem;
-			}
-		}
+
 		return array_slice($combinedResults, $offset, $limit);
 	}
 

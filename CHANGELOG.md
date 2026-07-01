@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 1.4.0 – 2026-07-01
+### Added
+- Unified search now covers **Meetings**, **Tasks**, and **Emails** in addition to Contacts / Accounts / Leads / Opportunities / Cases
+- Meeting results show start date; Task results show due date and priority; Email results show the sender name
+- Cases show their case number in the subline
+
+### Changed
+- `SuiteCRMAPIService::search()` refactored to a data-driven loop over a `SEARCH_MODULES` table — new modules can be added by appending a single row
+- `SuiteCRMSearchProvider` result formatting replaced repeated if/elseif chains with a `TYPE_TO_MODULE` map and `match()` expressions
+
+### Fixed
+- Regex-injection vulnerability in search: the user query was interpolated directly into `preg_match()`. Now passed through `preg_quote()` — searches for characters like `.`, `/`, `(`, `?`, `+` no longer break the pattern or throw
+
 ## 1.3.0 – 2026-07-01
 ### Changed
 - Modernised the settings UI to the Nextcloud v9 design system: replaced raw `<input>` and native `<button>` elements with `NcTextField`, `NcPasswordField`, `NcButton`, `NcCheckboxRadioSwitch`, and `NcNoteCard`

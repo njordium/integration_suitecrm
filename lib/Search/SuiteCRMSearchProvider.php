@@ -142,62 +142,70 @@ class SuiteCRMSearchProvider implements IProvider {
 	}
 
 	/**
-	 * @param array $entry
-	 * @return string
+	 * Maps the `type` tag emitted by SuiteCRMAPIService::search() to the
+	 * corresponding SuiteCRM v8 module segment for detail-view URLs.
 	 */
+	private const TYPE_TO_MODULE = [
+		'contact' => 'Contacts',
+		'account' => 'Accounts',
+		'lead' => 'Leads',
+		'opportunity' => 'Opportunities',
+		'case' => 'Cases',
+		'meeting' => 'Meetings',
+		'task' => 'Tasks',
+		'email' => 'Emails',
+	];
+
 	protected function getMainText(array $entry): string {
-		if ($entry['type'] === 'contact') {
-			return $entry['attributes']['full_name'];
-		} elseif ($entry['type'] === 'account') {
-			return $entry['attributes']['name'];
-		} elseif ($entry['type'] === 'lead') {
-			return $entry['attributes']['full_name'];
-		} elseif ($entry['type'] === 'opportunity') {
-			return $entry['attributes']['name'];
-		} elseif ($entry['type'] === 'case') {
-			return $entry['attributes']['name'];
-		}
-		return '';
+		$attrs = $entry['attributes'] ?? [];
+		return match ($entry['type'] ?? '') {
+			'contact', 'lead' => $attrs['full_name'] ?? $attrs['name'] ?? '',
+			'account', 'opportunity', 'case', 'meeting', 'task', 'email' => $attrs['name'] ?? '',
+			default => '',
+		};
 	}
 
-	/**
-	 * @param array $entry
-	 * @return string
-	 */
 	protected function getSubline(array $entry): string {
-		if ($entry['type'] === 'contact') {
-			return '👤 ' . $this->l10n->t('Contact');
-		} elseif ($entry['type'] === 'account') {
-			return '🛡 ' . $this->l10n->t('Account');
-		} elseif ($entry['type'] === 'lead') {
-			return '💥 ' . $this->l10n->t('Lead');
-		} elseif ($entry['type'] === 'opportunity') {
-			return '💡 ' . $this->l10n->t('Opportunity')
-				. ' (' . $entry['attributes']['amount'] . ' ' . ($entry['attributes']['currency_symbol'] ?? $entry['attributes']['currency_name']) . ')';
-		} elseif ($entry['type'] === 'case') {
-			return '📁 ' . $this->l10n->t('Case');
-		}
-		return '';
+		$attrs = $entry['attributes'] ?? [];
+		return match ($entry['type'] ?? '') {
+			'contact' => '👤 ' . $this->l10n->t('Contact'),
+			'account' => '🛡 ' . $this->l10n->t('Account'),
+			'lead' => '💥 ' . $this->l10n->t('Lead'),
+			'opportunity' => '💡 ' . $this->l10n->t('Opportunity')
+				. ' (' . ($attrs['amount'] ?? '') . ' '
+				. ($attrs['currency_symbol'] ?? $attrs['currency_name'] ?? '') . ')',
+			'case' => '📁 ' . $this->l10n->t('Case')
+				. (isset($attrs['case_number']) ? ' #' . $attrs['case_number'] : ''),
+			'meeting' => '📅 ' . $this->l10n->t('Meeting')
+				. $this->formatDate($attrs['date_start'] ?? null),
+			'task' => '✅ ' . $this->l10n->t('Task')
+				. $this->formatDate($attrs['date_due'] ?? null)
+				. (isset($attrs['priority']) ? ' [' . $attrs['priority'] . ']' : ''),
+			'email' => '✉ ' . $this->l10n->t('Email')
+				. (isset($attrs['from_addr_name']) && $attrs['from_addr_name'] !== ''
+					? ' — ' . $attrs['from_addr_name'] : ''),
+			default => '',
+		};
 	}
 
-	/**
-	 * @param array $entry
-	 * @param string $url
-	 * @return string
-	 */
 	protected function getLinkToSuiteCRM(array $entry, string $url): string {
-		if ($entry['type'] === 'contact') {
-			return $url . '/index.php?module=Contacts&action=DetailView&record=' . $entry['id'];
-		} elseif ($entry['type'] === 'account') {
-			return $url . '/index.php?module=Accounts&action=DetailView&record=' . $entry['id'];
-		} elseif ($entry['type'] === 'lead') {
-			return $url . '/index.php?module=Leads&action=DetailView&record=' . $entry['id'];
-		} elseif ($entry['type'] === 'opportunity') {
-			return $url . '/index.php?module=Opportunities&action=DetailView&record=' . $entry['id'];
-		} elseif ($entry['type'] === 'case') {
-			return $url . '/index.php?module=Cases&action=DetailView&record=' . $entry['id'];
+		$module = self::TYPE_TO_MODULE[$entry['type'] ?? ''] ?? null;
+		if ($module === null) {
+			return '';
 		}
-		return '';
+		return $url . '/index.php?module=' . $module . '&action=DetailView&record=' . $entry['id'];
+	}
+
+	private function formatDate(?string $iso): string {
+		if ($iso === null || $iso === '') {
+			return '';
+		}
+		try {
+			$date = new \DateTimeImmutable($iso);
+			return ' — ' . $date->format('Y-m-d H:i');
+		} catch (\Exception) {
+			return '';
+		}
 	}
 
 	/**
