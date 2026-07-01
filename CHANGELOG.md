@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 1.6.0 – 2026-07-01
+### Added
+- **Reference provider** for SuiteCRM record URLs: paste a link like `.../index.php?module=Contacts&record=abc-123` into Talk, Notes, Deck, or any Nextcloud text field and it renders a rich card with the record's name and key attributes
+- **Smart picker support**: the same provider implements `ISearchableReferenceProvider`, so the `@` smart picker in Talk/Notes exposes SuiteCRM as a search source (reusing the same `SuiteCRMSearchProvider`)
+- Provider is registered via `IRegistrationContext::registerReferenceProvider` and cached per-user with the record's module:id key
+- Supported modules for reference cards: Contacts, Accounts, Leads, Opportunities, Cases, Meetings, Calls, Tasks
+
 ## 1.5.0 – 2026-07-01
 ### Added
 - New **SuiteCRM calendar** Nextcloud dashboard widget listing today's + next-7-days Meetings, Calls, and Tasks assigned to the current user, sorted chronologically
