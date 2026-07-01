@@ -4,124 +4,117 @@
 			<a class="icon icon-suitecrm" />
 			{{ t('integration_suitecrm', 'SuiteCRM integration') }}
 		</h2>
-		<p v-if="!oAuthConfigured" class="settings-hint">
+
+		<NcNoteCard v-if="!oAuthConfigured" type="warning">
 			{{ t('integration_suitecrm', 'No SuiteCRM OAuth app configured. Ask your Nextcloud administrator to configure SuiteCRM connected accounts admin section.') }}
-		</p>
+		</NcNoteCard>
+
 		<div v-else id="suitecrm-content">
-			<p v-if="!connected" class="settings-hint">
+			<NcNoteCard v-if="!connected" type="info">
 				{{ t('integration_suitecrm', 'Your login and password are not stored. They are just used once to get an access token which will be used to interact with your account.') }}
-			</p>
-			<div class="suitecrm-grid-form">
-				<label for="suitecrm-url">
-					<a class="icon icon-link" />
-					{{ t('integration_suitecrm', 'SuiteCRM instance address') }}
-				</label>
-				<input
-					id="suitecrm-url"
+			</NcNoteCard>
+
+			<div class="fields">
+				<NcTextField
 					v-model="state.oauth_instance_url"
-					type="text"
-					:disabled="true"
-					:placeholder="t('integration_suitecrm', 'https://my.suitecrm.org')">
-				<label
-					v-show="!connected"
-					for="suitecrm-login">
-					<a class="icon icon-user" />
-					{{ t('integration_suitecrm', 'User name') }}
-				</label>
-				<input
-					v-show="!connected"
-					id="suitecrm-login"
+					:label="t('integration_suitecrm', 'SuiteCRM instance address')"
+					:placeholder="t('integration_suitecrm', 'https://my.suitecrm.org')"
+					:disabled="true" />
+
+				<NcTextField
+					v-if="!connected"
 					v-model="login"
-					type="text"
+					:label="t('integration_suitecrm', 'User name')"
 					:placeholder="t('integration_suitecrm', 'SuiteCRM login')"
-					@keyup.enter="onConnect">
-				<label
-					v-show="!connected"
-					for="suitecrm-password">
-					<a class="icon icon-password" />
-					{{ t('integration_suitecrm', 'Password') }}
-				</label>
-				<input
-					v-show="!connected"
-					id="suitecrm-password"
+					@keyup.enter="onConnect" />
+
+				<NcPasswordField
+					v-if="!connected"
 					v-model="password"
-					type="password"
+					:label="t('integration_suitecrm', 'Password')"
 					:placeholder="t('integration_suitecrm', 'SuiteCRM password')"
-					@keyup.enter="onConnect">
-			</div>
-			<button
-				v-if="!connected"
-				id="suitecrm-oauth"
-				:disabled="loading === true"
-				:class="{ loading }"
-				@click="onConnect">
-				<span class="icon icon-external" />
-				{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
-			</button>
-			<div v-if="connected" class="suitecrm-grid-form">
-				<label class="suitecrm-connected">
-					<a class="icon icon-checkmark-color" />
-					{{ t('integration_suitecrm', 'Connected as {user}', { user: state.user_name }) }}
-				</label>
-				<button id="suitecrm-rm-cred" @click="onLogoutClick">
-					<span class="icon icon-close" />
-					{{ t('integration_suitecrm', 'Disconnect from SuiteCRM') }}
-				</button>
-			</div>
-			<div v-if="connected" id="suitecrm-search-block">
-				<input
-					id="search-suitecrm"
-					type="checkbox"
-					class="checkbox"
-					:checked="state.search_enabled"
-					@input="onSearchChange">
-				<label for="search-suitecrm">{{ t('integration_suitecrm', 'Enable unified search for contacts, accounts, leads, opportunities and cases') }}</label>
-				<br><br>
-				<p v-if="state.search_enabled" class="settings-hint">
-					<span class="icon icon-details" />
-					{{ t('integration_suitecrm', 'Warning, everything you type in the search bar will be sent to your SuiteCRM instance.') }}
-				</p>
-				<input
-					id="notification-suitecrm"
-					type="checkbox"
-					class="checkbox"
-					:checked="state.notification_enabled"
-					@input="onNotificationChange">
-				<label for="notification-suitecrm">{{ t('integration_suitecrm', 'Enable notifications for reminders on calls and meetings') }}</label>
+					@keyup.enter="onConnect" />
 			</div>
 
-			<div v-if="connected" id="suitecrm-calendar-companion" class="suitecrm-companion">
+			<div class="actions">
+				<NcButton
+					v-if="!connected"
+					variant="primary"
+					:disabled="loading"
+					@click="onConnect">
+					<template #icon>
+						<LoginIcon :size="20" />
+					</template>
+					{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
+				</NcButton>
+
+				<template v-if="connected">
+					<span class="connected-label">
+						<CheckCircleIcon :size="20" class="connected-icon" />
+						{{ t('integration_suitecrm', 'Connected as {user}', { user: state.user_name }) }}
+					</span>
+					<NcButton variant="secondary" @click="onLogoutClick">
+						<template #icon>
+							<LogoutIcon :size="20" />
+						</template>
+						{{ t('integration_suitecrm', 'Disconnect from SuiteCRM') }}
+					</NcButton>
+				</template>
+			</div>
+
+			<div v-if="connected" class="toggles">
+				<NcCheckboxRadioSwitch
+					:modelValue="!!state.search_enabled"
+					@update:checked="onSearchChange">
+					{{ t('integration_suitecrm', 'Enable unified search for contacts, accounts, leads, opportunities and cases') }}
+				</NcCheckboxRadioSwitch>
+				<NcNoteCard v-if="state.search_enabled" type="warning">
+					{{ t('integration_suitecrm', 'Warning, everything you type in the search bar will be sent to your SuiteCRM instance.') }}
+				</NcNoteCard>
+
+				<NcCheckboxRadioSwitch
+					:modelValue="!!state.notification_enabled"
+					@update:checked="onNotificationChange">
+					{{ t('integration_suitecrm', 'Enable notifications for reminders on calls and meetings') }}
+				</NcCheckboxRadioSwitch>
+			</div>
+
+			<div v-if="connected" class="suitecrm-companion">
 				<h3>
-					<a class="icon icon-calendar" />
+					<CalendarSyncIcon :size="20" class="companion-heading-icon" />
 					{{ t('integration_suitecrm', 'Calendar sync (SuiteCRM module)') }}
 				</h3>
-				<p class="settings-hint">
+				<NcNoteCard type="info">
 					{{ t('integration_suitecrm', 'The companion SuiteCRM module pulls your Nextcloud calendar into SuiteCRM and pushes Meetings/Calls back. Configure it inside SuiteCRM (User Profile → Nextcloud Calendar Integration) with the values below.') }}
-				</p>
+				</NcNoteCard>
 				<div v-if="companion" class="suitecrm-companion__rows">
 					<div class="suitecrm-companion__row">
 						<label>{{ t('integration_suitecrm', 'Nextcloud URL') }}</label>
 						<code>{{ companion.nextcloud_url }}</code>
-						<button @click="copy(companion.nextcloud_url, $event)">
+						<NcButton variant="tertiary" @click="copy(companion.nextcloud_url, $event)">
+							<template #icon>
+								<ContentCopyIcon :size="18" />
+							</template>
 							{{ t('integration_suitecrm', 'Copy') }}
-						</button>
+						</NcButton>
 					</div>
 					<div class="suitecrm-companion__row">
 						<label>{{ t('integration_suitecrm', 'Nextcloud login') }}</label>
 						<code>{{ companion.login }}</code>
-						<button @click="copy(companion.login, $event)">
+						<NcButton variant="tertiary" @click="copy(companion.login, $event)">
+							<template #icon>
+								<ContentCopyIcon :size="18" />
+							</template>
 							{{ t('integration_suitecrm', 'Copy') }}
-						</button>
+						</NcButton>
 					</div>
 					<div class="suitecrm-companion__row">
-						<a
-							:href="companion.app_password_url"
-							target="_blank"
-							rel="noopener noreferrer"
-							class="button">
-							<span class="icon icon-password" />
+						<NcButton variant="secondary" :href="companion.app_password_url" target="_blank">
+							<template #icon>
+								<KeyPlusIcon :size="20" />
+							</template>
 							{{ t('integration_suitecrm', 'Generate Nextcloud App Password') }}
-						</a>
+						</NcButton>
 					</div>
 				</div>
 				<p v-else class="settings-hint">
@@ -137,11 +130,33 @@ import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
+import NcButton from '@nextcloud/vue/components/NcButton'
+import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
+import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
+import NcPasswordField from '@nextcloud/vue/components/NcPasswordField'
+import NcTextField from '@nextcloud/vue/components/NcTextField'
+import CalendarSyncIcon from 'vue-material-design-icons/CalendarSync.vue'
+import CheckCircleIcon from 'vue-material-design-icons/CheckCircle.vue'
+import ContentCopyIcon from 'vue-material-design-icons/ContentCopy.vue'
+import KeyPlusIcon from 'vue-material-design-icons/KeyPlus.vue'
+import LoginIcon from 'vue-material-design-icons/Login.vue'
+import LogoutIcon from 'vue-material-design-icons/Logout.vue'
 
 export default {
 	name: 'PersonalSettings',
 
 	components: {
+		NcButton,
+		NcCheckboxRadioSwitch,
+		NcNoteCard,
+		NcPasswordField,
+		NcTextField,
+		CalendarSyncIcon,
+		CheckCircleIcon,
+		ContentCopyIcon,
+		KeyPlusIcon,
+		LoginIcon,
+		LogoutIcon,
 	},
 
 	props: {},
@@ -208,14 +223,14 @@ export default {
 			this.saveOptions({ user_name: '' })
 		},
 
-		onNotificationChange(e) {
-			this.state.notification_enabled = e.target.checked
-			this.saveOptions({ notification_enabled: this.state.notification_enabled ? '1' : '0' })
+		onNotificationChange(checked) {
+			this.state.notification_enabled = checked
+			this.saveOptions({ notification_enabled: checked ? '1' : '0' })
 		},
 
-		onSearchChange(e) {
-			this.state.search_enabled = e.target.checked
-			this.saveOptions({ search_enabled: this.state.search_enabled ? '1' : '0' })
+		onSearchChange(checked) {
+			this.state.search_enabled = checked
+			this.saveOptions({ search_enabled: checked ? '1' : '0' })
 		},
 
 		saveOptions(values) {
@@ -250,7 +265,6 @@ export default {
 				})
 				.catch((error) => {
 					if (error.response) {
-						// if (error.response.data && error.response.data.error) {
 						if (error.response?.data?.error) {
 							showError(t('integration_suitecrm', 'Failed')
 								+ ': ' + error.response.data.error)
@@ -270,42 +284,49 @@ export default {
 
 <style scoped lang="scss">
 #suitecrm_prefs {
-	> .settings-hint {
-		margin-inline-start: 40px;
+	h2 {
+		display: flex;
+		align-items: center;
+		gap: 8px;
 	}
 
 	#suitecrm-content {
-		margin-inline-start: 40px;
+		margin-inline-start: 30px;
 	}
 
-	#suitecrm-search-block {
-		margin-top: 30px;
-		.icon {
-			width: 22px;
-		}
+	.fields {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		max-width: 500px;
+		margin-block-start: 12px;
 	}
 
-	.icon {
-		display: inline-block;
-		width: 32px;
+	.actions {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		margin-block-start: 16px;
+		flex-wrap: wrap;
 	}
 
-	.suitecrm-grid-form {
-		max-width: 600px;
-		display: grid;
-		grid-template: 1fr / 1fr 1fr;
-		.icon {
-			margin-bottom: -3px;
-		}
-		button .icon {
-			margin-bottom: -1px;
-		}
-		label {
-			line-height: 38px;
-		}
-		input {
-			width: 100%;
-		}
+	.connected-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		color: var(--color-success);
+	}
+
+	.connected-icon {
+		color: var(--color-success);
+	}
+
+	.toggles {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin-block-start: 24px;
+		max-width: 500px;
 	}
 }
 
@@ -313,7 +334,8 @@ export default {
 	background-image: url(./../../img/app-dark.svg);
 	background-size: 23px 23px;
 	height: 23px;
-	margin-bottom: -4px;
+	width: 23px;
+	display: inline-block;
 }
 
 body.theme--dark .icon-suitecrm {
@@ -321,24 +343,27 @@ body.theme--dark .icon-suitecrm {
 }
 
 .suitecrm-companion {
-	margin-top: 30px;
-	margin-inline-start: 40px;
-	padding-top: 20px;
-	border-top: 1px solid var(--color-border);
+	margin-block-start: 32px;
+	padding-block-start: 20px;
+	border-block-start: 1px solid var(--color-border);
 
 	h3 {
-		margin-bottom: 8px;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-block-end: 8px;
 	}
 
 	.suitecrm-companion__rows {
-		margin-top: 12px;
+		margin-block-start: 12px;
 	}
 
 	.suitecrm-companion__row {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		margin-bottom: 8px;
+		margin-block-end: 8px;
+		flex-wrap: wrap;
 
 		label {
 			min-width: 150px;
@@ -347,7 +372,8 @@ body.theme--dark .icon-suitecrm {
 
 		code {
 			background: var(--color-background-dark);
-			padding: 4px 8px;
+			padding-block: 4px;
+			padding-inline: 8px;
 			border-radius: 4px;
 			font-family: monospace;
 			user-select: all;

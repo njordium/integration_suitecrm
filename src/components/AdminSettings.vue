@@ -4,51 +4,42 @@
 			<a class="icon icon-suitecrm" />
 			{{ t('integration_suitecrm', 'SuiteCRM integration') }}
 		</h2>
-		<p class="settings-hint">
-			{{ t('integration_suitecrm', 'If you want to allow your Nextcloud users to use OAuth to authenticate to a SuiteCRM instance, create a "new password client" in your SuiteCRM admin settings ("OAuth2 Clients and Tokens" section) and put the client ID and secret below.') }}
-			<br><br>
-			<span class="icon icon-details" />
-			{{ t('integration_suitecrm', 'Make sure you created private and public keys for your SuiteCRM instance. Authentication won\'t work if those keys are missing.') }}
-			<a href="https://docs.suitecrm.com/developer/api/developer-setup-guide/json-api/#_generate_private_and_public_key_for_oauth2" target="_blank" class="external">
-				<span class="icon icon-external" />
-				{{ t('integration_suitecrm', 'SuiteCRM OAuth2 documentation') }}
-			</a>
-		</p>
-		<div class="grid-form">
-			<label for="suitecrm-oauth-instance">
-				<a class="icon icon-link" />
-				{{ t('integration_suitecrm', 'SuiteCRM instance address') }}
-			</label>
-			<input
-				id="suitecrm-oauth-instance"
+
+		<NcNoteCard type="info">
+			<p>
+				{{ t('integration_suitecrm', 'If you want to allow your Nextcloud users to use OAuth to authenticate to a SuiteCRM instance, create a "new password client" in your SuiteCRM admin settings ("OAuth2 Clients and Tokens" section) and put the client ID and secret below.') }}
+			</p>
+			<p>
+				{{ t('integration_suitecrm', 'Make sure you created private and public keys for your SuiteCRM instance. Authentication won\'t work if those keys are missing.') }}
+				<a
+					href="https://docs.suitecrm.com/developer/api/developer-setup-guide/json-api/#_generate_private_and_public_key_for_oauth2"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="external-link">
+					{{ t('integration_suitecrm', 'SuiteCRM OAuth2 documentation') }}
+					<OpenInNewIcon :size="14" />
+				</a>
+			</p>
+		</NcNoteCard>
+
+		<div class="fields">
+			<NcTextField
 				v-model="state.oauth_instance_url"
-				type="text"
-				:placeholder="t('integration_suitecrm', 'SuiteCRM address')"
-				@input="onInput">
-			<label for="suitecrm-client-id">
-				<a class="icon icon-category-auth" />
-				{{ t('integration_suitecrm', 'Application ID') }}
-			</label>
-			<input
-				id="suitecrm-client-id"
+				:label="t('integration_suitecrm', 'SuiteCRM instance address')"
+				:placeholder="t('integration_suitecrm', 'https://my.suitecrm.org')"
+				@update:value="onInput" />
+
+			<NcPasswordField
 				v-model="state.client_id"
-				type="password"
-				:readonly="readonly"
+				:label="t('integration_suitecrm', 'Application ID')"
 				:placeholder="t('integration_suitecrm', 'ID of your application')"
-				@focus="readonly = false"
-				@input="onInput">
-			<label for="suitecrm-client-secret">
-				<a class="icon icon-category-auth" />
-				{{ t('integration_suitecrm', 'Application secret') }}
-			</label>
-			<input
-				id="suitecrm-client-secret"
+				@update:value="onInput" />
+
+			<NcPasswordField
 				v-model="state.client_secret"
-				type="password"
-				:readonly="readonly"
+				:label="t('integration_suitecrm', 'Application secret')"
 				:placeholder="t('integration_suitecrm', 'Client secret of your application')"
-				@focus="readonly = false"
-				@input="onInput">
+				@update:value="onInput" />
 		</div>
 	</div>
 </template>
@@ -58,12 +49,20 @@ import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
+import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
+import NcPasswordField from '@nextcloud/vue/components/NcPasswordField'
+import NcTextField from '@nextcloud/vue/components/NcTextField'
+import OpenInNewIcon from 'vue-material-design-icons/OpenInNew.vue'
 import { delay } from '../utils.js'
 
 export default {
 	name: 'AdminSettings',
 
 	components: {
+		NcNoteCard,
+		NcPasswordField,
+		NcTextField,
+		OpenInNewIcon,
 	},
 
 	props: {},
@@ -71,15 +70,7 @@ export default {
 	data() {
 		return {
 			state: loadState('integration_suitecrm', 'admin-config'),
-			// to prevent some browsers to fill fields with remembered passwords
-			readonly: true,
 		}
-	},
-
-	watch: {
-	},
-
-	mounted() {
 	},
 
 	methods: {
@@ -113,38 +104,34 @@ export default {
 
 <style scoped lang="scss">
 #suitecrm_prefs {
-	.icon {
-		display: inline-block;
-		width: 32px;
+	h2 {
+		display: flex;
+		align-items: center;
+		gap: 8px;
 	}
 
-	.icon-external {
-		width: 15px;
-		margin-bottom: -3px;
-	}
-
-	.grid-form {
+	.fields {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
 		max-width: 500px;
-		display: grid;
-		grid-template: 1fr / 1fr 1fr;
+		margin-block-start: 20px;
 		margin-inline-start: 30px;
-		label {
-			line-height: 38px;
-		}
-		input {
-			width: 100%;
-		}
-		.icon {
-			margin-bottom: -3px;
-		}
 	}
 
-	.icon-suitecrm {
-		background-image: url(./../../img/app-dark.svg);
-		background-size: 23px 23px;
-		height: 23px;
-		margin-bottom: -4px;
+	.external-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
 	}
+}
+
+.icon-suitecrm {
+	background-image: url(./../../img/app-dark.svg);
+	background-size: 23px 23px;
+	height: 23px;
+	width: 23px;
+	display: inline-block;
 }
 
 body.theme--dark .icon-suitecrm {

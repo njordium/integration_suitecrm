@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 1.3.0 – 2026-07-01
+### Changed
+- Modernised the settings UI to the Nextcloud v9 design system: replaced raw `<input>` and native `<button>` elements with `NcTextField`, `NcPasswordField`, `NcButton`, `NcCheckboxRadioSwitch`, and `NcNoteCard`
+- Replaced legacy icon-class markup with Material Design icons from `vue-material-design-icons` (Login, Logout, CheckCircle, ContentCopy, KeyPlus, OpenInNew, CalendarSync)
+- Adopted v9 prop naming: `v-model` on inputs, `variant` on buttons, `modelValue`/`update:modelValue` on switches
+- Personal + Admin settings now inherit dark-mode, focus-ring, and accessibility styling from the design system automatically
+
+### Added
+- New `vue-material-design-icons` dependency
+
 ## 1.2.0 – 2026-07-01
 ### Added
 - TokenStorage service: OAuth access tokens + refresh tokens are now encrypted at rest via OCP\Security\ICrypto
