@@ -108,4 +108,24 @@ class SuiteCRMAPIController extends Controller {
 		return $response;
 	}
 
+	/**
+	 * Upcoming Meetings/Calls/Tasks for the calendar dashboard widget.
+	 * @NoAdminRequired
+	 *
+	 * @param int $horizonDays How far into the future to look.
+	 * @param int $limit Cap on total results.
+	 */
+	public function getUpcoming(int $horizonDays = 7, int $limit = 20): DataResponse {
+		if ($this->accessToken === '' || $this->userId === null) {
+			return new DataResponse('', 400);
+		}
+		$result = $this->suitecrmAPIService->getUpcoming(
+			$this->suitecrmUrl, $this->accessToken, $this->userId, $horizonDays, $limit
+		);
+		if (!isset($result['error'])) {
+			return new DataResponse($result);
+		}
+		return new DataResponse($result, 401);
+	}
+
 }

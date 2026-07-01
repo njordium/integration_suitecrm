@@ -14,6 +14,7 @@ webpackConfig.entry = {
     personalSettings: { import: path.join(__dirname, 'src', 'personalSettings.js'), filename: 'integration_suitecrm-personalSettings.js' },
     adminSettings: { import: path.join(__dirname, 'src', 'adminSettings.js'), filename: 'integration_suitecrm-adminSettings.js' },
     dashboard: { import: path.join(__dirname, 'src', 'dashboard.js'), filename: 'integration_suitecrm-dashboard.js' },
+    calendar: { import: path.join(__dirname, 'src', 'calendar.js'), filename: 'integration_suitecrm-calendar.js' },
 }
 
 module.exports = webpackConfig

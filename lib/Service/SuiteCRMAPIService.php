@@ -328,6 +328,21 @@ class SuiteCRMAPIService {
 	 * `fields`      = comma-separated attribute list for the JSON:API fields[] filter
 	 * `name_attr`   = attribute used to match against the search query
 	 */
+	/**
+	 * The modules queried by {@see getUpcoming()} for the calendar widget.
+	 *
+	 * `module`    = SuiteCRM v8 module endpoint segment
+	 * `type`      = tag emitted on each result (drives icon + link building on the
+	 *               frontend)
+	 * `fields`    = attribute list for the JSON:API fields[] filter
+	 * `date_attr` = attribute used as the primary sort/date key ("when it happens")
+	 */
+	private const UPCOMING_MODULES = [
+		['module' => 'Meetings', 'type' => 'meeting', 'fields' => 'name,date_start,date_end,location,status,assigned_user_id', 'date_attr' => 'date_start'],
+		['module' => 'Calls', 'type' => 'call', 'fields' => 'name,date_start,duration_hours,duration_minutes,status,assigned_user_id', 'date_attr' => 'date_start'],
+		['module' => 'Tasks', 'type' => 'task', 'fields' => 'name,date_due,priority,status,assigned_user_id', 'date_attr' => 'date_due'],
+	];
+
 	private const SEARCH_MODULES = [
 		['module' => 'Contacts', 'type' => 'contact', 'fields' => 'name,first_name,last_name,full_name', 'name_attr' => 'full_name'],
 		['module' => 'Accounts', 'type' => 'account', 'fields' => 'name', 'name_attr' => 'name'],
@@ -344,6 +359,55 @@ class SuiteCRMAPIService {
 	 *               On upstream API failure, returns the SuiteCRM error payload
 	 *               so callers can distinguish "no results" from "no connection".
 	 */
+	/**
+	 * Returns SuiteCRM Meetings/Calls/Tasks assigned to the user, upcoming within
+	 * the next `$horizonDays` days, sorted chronologically. Used by the calendar
+	 * dashboard widget.
+	 *
+	 * @return array Sorted result rows, each tagged with `type` and a normalised
+	 *               `event_ts` int timestamp for client-side sorting/formatting.
+	 *               On upstream API failure, returns the SuiteCRM error payload.
+	 */
+	public function getUpcoming(string $url, string $accessToken, string $userId, int $horizonDays = 7, int $limit = 20): array {
+		$scrmUserId = $this->config->getUserValue($userId, Application::APP_ID, 'user_id');
+		$now = new DateTime();
+		$horizon = (clone $now)->add(new DateInterval('P' . $horizonDays . 'D'));
+
+		$combined = [];
+		foreach (self::UPCOMING_MODULES as $moduleDef) {
+			$filters = [
+				'fields[' . $moduleDef['module'] . ']=' . $moduleDef['fields'],
+				urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId),
+				urlencode('filter[' . $moduleDef['date_attr'] . '][gt]') . '=' . urlencode($now->format('Y-m-d\TH:i:s')),
+				urlencode('filter[' . $moduleDef['date_attr'] . '][lt]') . '=' . urlencode($horizon->format('Y-m-d\TH:i:s')),
+				'filter[operator]=and',
+			];
+			$response = $this->request(
+				$url, $accessToken, $userId,
+				'module/' . $moduleDef['module'] . '?' . implode('&', $filters)
+			);
+			if (isset($response['error'])) {
+				return $response;
+			}
+			foreach ($response['data'] ?? [] as $row) {
+				$dateStr = $row['attributes'][$moduleDef['date_attr']] ?? null;
+				if ($dateStr === null || $dateStr === '') {
+					continue;
+				}
+				try {
+					$row['event_ts'] = (new DateTime($dateStr))->getTimestamp();
+				} catch (Exception) {
+					continue;
+				}
+				$row['type'] = $moduleDef['type'];
+				$combined[] = $row;
+			}
+		}
+
+		usort($combined, fn ($a, $b) => $a['event_ts'] <=> $b['event_ts']);
+		return array_slice($combined, 0, $limit);
+	}
+
 	public function search(string $url, string $accessToken, string $userId, string $query, int $offset = 0, int $limit = 5): array {
 		$combinedResults = [];
 		$queryRegex = '/' . preg_quote($query, '/') . '/i';

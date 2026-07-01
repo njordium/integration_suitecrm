@@ -16,6 +16,7 @@ return [
         ['name' => 'config#setAdminConfig', 'url' => '/admin-config', 'verb' => 'PUT'],
         ['name' => 'config#getCalendarCompanion', 'url' => '/calendar-companion', 'verb' => 'GET'],
         ['name' => 'suiteCRMAPI#getReminders', 'url' => '/reminders', 'verb' => 'GET'],
+        ['name' => 'suiteCRMAPI#getUpcoming', 'url' => '/upcoming', 'verb' => 'GET'],
         ['name' => 'suiteCRMAPI#getSuiteCRMUrl', 'url' => '/url', 'verb' => 'GET'],
         ['name' => 'suiteCRMAPI#getSuiteCRMAvatar', 'url' => '/avatar', 'verb' => 'GET'],
     ]

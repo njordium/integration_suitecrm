@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 1.5.0 – 2026-07-01
+### Added
+- New **SuiteCRM calendar** Nextcloud dashboard widget listing today's + next-7-days Meetings, Calls, and Tasks assigned to the current user, sorted chronologically
+- `SuiteCRMAPIService::getUpcoming()` — data-driven fetch across Meetings/Calls/Tasks with server-side date + assignee filters; returns rows tagged with `type` and a normalised `event_ts` for client-side sorting
+- New `GET /apps/integration_suitecrm/upcoming` endpoint
+- Vue component `Calendar.vue` with the same visibility-loop pattern as the reminders widget
+
+### Changed
+- Widget order: reminders widget stays at order 10, the new calendar widget at order 20
+
 ## 1.4.0 – 2026-07-01
 ### Added
 - Unified search now covers **Meetings**, **Tasks**, and **Emails** in addition to Contacts / Accounts / Leads / Opportunities / Cases
