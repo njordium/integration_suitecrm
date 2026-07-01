@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 1.8.0 – 2026-07-01
+### Changed
+- Modernised PHP 7.4-style classes to PHP 8 constructor property promotion: `SuiteCRMWidget`, `Settings\Personal`, `Settings\Admin` (property docblocks removed, all readonly-style dependencies now declared in the constructor signature)
+- README rewritten as a proper user-facing document: feature list, requirements, install/config instructions, development workflow, contributing pointer, updated license credit — replaces the previous ~30-line placeholder
+
+### Deferred
+- Iteration 6 (NC Mail contact card via `IMailContactProvider`) — depends on `nextcloud/mail` being installed for meaningful testing; will land after a docker-based test environment is stood up
+- Full l10n restoration (Transifex or committed `en.json` baseline) — English strings work fine as fallback; deferred until translations are actually needed
+
 ## 1.7.0 – 2026-07-01
 ### Added
 - **composer.json** for PHP tooling (PHPUnit 10, PHPStan 1.11, nextcloud/ocp stubs, PSR-4 autoload for `OCA\SuiteCRM\`)

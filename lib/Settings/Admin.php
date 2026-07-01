@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 namespace OCA\SuiteCRM\Settings;
 
 use OCP\AppFramework\Http\TemplateResponse;
@@ -10,35 +12,18 @@ use OCA\SuiteCRM\AppInfo\Application;
 
 class Admin implements ISettings {
 
-	/**
-	 * @var IConfig
-	 */
-	private $config;
-	/**
-	 * @var IInitialState
-	 */
-	private $initialStateService;
-
-	public function __construct(IConfig $config,
-								IInitialState $initialStateService) {
-		$this->config = $config;
-		$this->initialStateService = $initialStateService;
+	public function __construct(
+		private IConfig $config,
+		private IInitialState $initialStateService,
+	) {
 	}
 
-	/**
-	 * @return TemplateResponse
-	 */
 	public function getForm(): TemplateResponse {
-		$clientID = $this->config->getAppValue(Application::APP_ID, 'client_id');
-		$clientSecret = $this->config->getAppValue(Application::APP_ID, 'client_secret');
-		$oauthUrl = $this->config->getAppValue(Application::APP_ID, 'oauth_instance_url');
-
-		$adminConfig = [
-			'client_id' => $clientID,
-			'client_secret' => $clientSecret,
-			'oauth_instance_url' => $oauthUrl
-		];
-		$this->initialStateService->provideInitialState('admin-config', $adminConfig);
+		$this->initialStateService->provideInitialState('admin-config', [
+			'client_id' => $this->config->getAppValue(Application::APP_ID, 'client_id'),
+			'client_secret' => $this->config->getAppValue(Application::APP_ID, 'client_secret'),
+			'oauth_instance_url' => $this->config->getAppValue(Application::APP_ID, 'oauth_instance_url'),
+		]);
 		return new TemplateResponse(Application::APP_ID, 'adminSettings');
 	}
 
