@@ -25,14 +25,6 @@ use OCA\SuiteCRM\AppInfo\Application;
 
 class SuiteCRMAPIController extends Controller {
 
-	/** @var IConfig */
-	private $config;
-	/** @var SuiteCRMAPIService */
-	private $suitecrmAPIService;
-	/** @var TokenStorage */
-	private $tokens;
-	/** @var string|null */
-	private $userId;
 	/** @var string */
 	private $accessToken;
 	/** @var string */
@@ -40,15 +32,11 @@ class SuiteCRMAPIController extends Controller {
 
 	public function __construct(string $appName,
 								IRequest $request,
-								IConfig $config,
-								SuiteCRMAPIService $suitecrmAPIService,
-								TokenStorage $tokens,
-								?string $userId) {
+								private IConfig $config,
+								private SuiteCRMAPIService $suitecrmAPIService,
+								private TokenStorage $tokens,
+								private ?string $userId) {
 		parent::__construct($appName, $request);
-		$this->config = $config;
-		$this->suitecrmAPIService = $suitecrmAPIService;
-		$this->tokens = $tokens;
-		$this->userId = $userId;
 		$this->accessToken = $userId !== null ? $this->tokens->getAccessToken($userId) : '';
 		$this->suitecrmUrl = $this->config->getAppValue(Application::APP_ID, 'oauth_instance_url');
 	}

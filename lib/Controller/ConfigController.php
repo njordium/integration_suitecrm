@@ -38,34 +38,15 @@ class ConfigController extends Controller {
 		'notification_enabled',
 	];
 
-	/** @var IConfig */
-	private $config;
-	/** @var SuiteCRMAPIService */
-	private $suitecrmAPIService;
-	/** @var TokenStorage */
-	private $tokens;
-	/** @var IURLGenerator */
-	private $urlGenerator;
-	/** @var IUserSession */
-	private $userSession;
-	/** @var string|null */
-	private $userId;
-
 	public function __construct(string $appName,
 								IRequest $request,
-								IConfig $config,
-								SuiteCRMAPIService $suitecrmAPIService,
-								TokenStorage $tokens,
-								IURLGenerator $urlGenerator,
-								IUserSession $userSession,
-								?string $userId) {
+								private IConfig $config,
+								private SuiteCRMAPIService $suitecrmAPIService,
+								private TokenStorage $tokens,
+								private IURLGenerator $urlGenerator,
+								private IUserSession $userSession,
+								private ?string $userId) {
 		parent::__construct($appName, $request);
-		$this->config = $config;
-		$this->suitecrmAPIService = $suitecrmAPIService;
-		$this->tokens = $tokens;
-		$this->urlGenerator = $urlGenerator;
-		$this->userSession = $userSession;
-		$this->userId = $userId;
 	}
 
 	/**
