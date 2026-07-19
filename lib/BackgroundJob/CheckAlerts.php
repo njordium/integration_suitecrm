@@ -19,8 +19,7 @@ declare(strict_types=1);
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * @Code Changes by: Kim Haverblad <khav@semanticminds.se>, 2026
- * Contributions remain licensed under AGPL-3.0-or-later per the project COPYING file.
+ * @Code Changes by: Kim Haverblad, 2026
  */
 
 namespace OCA\SuiteCRM\BackgroundJob;
