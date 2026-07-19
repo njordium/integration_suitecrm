@@ -381,24 +381,51 @@ class SuiteCRMAPIService {
 		return array_slice($combined, 0, $limit);
 	}
 
+	/**
+	 * Cross-module free-text search.
+	 *
+	 * Iteration 18 (Finding 16): the filter is now pushed to SuiteCRM v8 REST
+	 * via `filter[<name_attr>][like]=%<query>%` instead of fetching every row
+	 * per module and grepping client-side with `preg_match`. The old approach
+	 * did not scale to real CRM sizes — a tenant with 100k Contacts would pull
+	 * 100k rows over the wire per keystroke.
+	 *
+	 * Behaviour notes:
+	 * - `%` characters inside the user's query are escaped so a stray `%` cannot
+	 *   turn into an unintended LIKE wildcard (defence in depth against a
+	 *   LIKE-injection style probe).
+	 * - If a single module rejects the filter (e.g. `name_attr` is missing in a
+	 *   custom schema, or the field is not filterable), that module is skipped
+	 *   rather than aborting the whole search — one broken module used to kill
+	 *   results for every other module.
+	 *
+	 * @return array Combined result rows, each tagged with a `type` field.
+	 */
 	public function search(string $url, string $accessToken, string $userId, string $query, int $offset = 0, int $limit = 5): array {
 		$combinedResults = [];
-		$queryRegex = '/' . preg_quote($query, '/') . '/i';
+		// SuiteCRM v8 REST supports filter[<field>][like]=%<value>%. We wrap the
+		// query in wildcards so a substring match works the way the previous
+		// client-side preg_match did. Escape any literal `%` in the user input so
+		// it cannot act as a wildcard itself.
+		$likeValue = '%' . str_replace('%', '\%', $query) . '%';
 
 		foreach (self::SEARCH_MODULES as $moduleDef) {
+			$filters = [
+				'fields[' . $moduleDef['module'] . ']=' . $moduleDef['fields'],
+				urlencode('filter[' . $moduleDef['name_attr'] . '][like]') . '=' . urlencode($likeValue),
+			];
 			$response = $this->request(
 				$url, $accessToken, $userId,
-				'module/' . $moduleDef['module'] . '?fields[' . $moduleDef['module'] . ']=' . $moduleDef['fields']
+				'module/' . $moduleDef['module'] . '?' . implode('&', $filters)
 			);
 			if (isset($response['error'])) {
-				return $response;
+				// A single module rejecting the filter (e.g. name_attr missing in a
+				// custom schema) shouldn't kill the whole search — skip and continue.
+				continue;
 			}
 			foreach ($response['data'] ?? [] as $row) {
-				$candidate = $row['attributes'][$moduleDef['name_attr']] ?? '';
-				if ($candidate !== '' && preg_match($queryRegex, $candidate)) {
-					$row['type'] = $moduleDef['type'];
-					$combinedResults[] = $row;
-				}
+				$row['type'] = $moduleDef['type'];
+				$combinedResults[] = $row;
 			}
 		}
 
