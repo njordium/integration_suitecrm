@@ -1,3 +1,6 @@
+<!--
+	@Code Changes by: Kim Haverblad, 2026
+-->
 <template>
 	<div id="suitecrm_prefs" class="section">
 		<h2>
