@@ -8,7 +8,7 @@ namespace OCA\SuiteCRM\Settings;
 
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
-use OCP\IConfig;
+use OCP\IAppConfig;
 use OCP\Settings\ISettings;
 
 use OCA\SuiteCRM\AppInfo\Application;
@@ -16,7 +16,7 @@ use OCA\SuiteCRM\AppInfo\Application;
 class Admin implements ISettings {
 
 	public function __construct(
-		private IConfig $config,
+		private IAppConfig $appConfig,
 		private IInitialState $initialStateService,
 	) {
 	}
@@ -26,10 +26,14 @@ class Admin implements ISettings {
 		// admin form only needs to know whether one is stored so it can render
 		// a "stored — type to replace" placeholder; the value stays on the
 		// server until the admin explicitly overwrites it.
+		$clientId = $this->appConfig->getValueString(Application::APP_ID, 'client_id');
+		$clientSecret = $this->appConfig->getValueString(Application::APP_ID, 'client_secret');
+		$oauthUrl = $this->appConfig->getValueString(Application::APP_ID, 'oauth_instance_url');
+
 		$this->initialStateService->provideInitialState('admin-config', [
-			'client_id' => $this->config->getAppValue(Application::APP_ID, 'client_id'),
-			'client_secret_set' => ($this->config->getAppValue(Application::APP_ID, 'client_secret') !== ''),
-			'oauth_instance_url' => $this->config->getAppValue(Application::APP_ID, 'oauth_instance_url'),
+			'client_id' => $clientId,
+			'client_secret_set' => $clientSecret !== '',
+			'oauth_instance_url' => $oauthUrl,
 		]);
 		return new TemplateResponse(Application::APP_ID, 'adminSettings');
 	}

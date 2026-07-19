@@ -8,6 +8,7 @@ namespace OCA\SuiteCRM\Settings;
 
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
+use OCP\IAppConfig;
 use OCP\IConfig;
 use OCP\Settings\ISettings;
 
@@ -17,6 +18,7 @@ class Personal implements ISettings {
 
 	public function __construct(
 		private IConfig $config,
+		private IAppConfig $appConfig,
 		private IInitialState $initialStateService,
 		private ?string $userId,
 	) {
@@ -32,9 +34,9 @@ class Personal implements ISettings {
 		$searchEnabled = $this->config->getUserValue($userId, Application::APP_ID, 'search_enabled', '0');
 		$notificationEnabled = $this->config->getUserValue($userId, Application::APP_ID, 'notification_enabled', '0');
 
-		$clientID = $this->config->getAppValue(Application::APP_ID, 'client_id');
-		$clientSecret = ($this->config->getAppValue(Application::APP_ID, 'client_secret') !== '');
-		$oauthUrl = $this->config->getAppValue(Application::APP_ID, 'oauth_instance_url');
+		$clientID = $this->appConfig->getValueString(Application::APP_ID, 'client_id');
+		$clientSecret = ($this->appConfig->getValueString(Application::APP_ID, 'client_secret') !== '');
+		$oauthUrl = $this->appConfig->getValueString(Application::APP_ID, 'oauth_instance_url');
 
 		$this->initialStateService->provideInitialState('user-config', [
 			'client_id' => $clientID,
