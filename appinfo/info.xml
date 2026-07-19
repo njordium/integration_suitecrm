@@ -8,7 +8,7 @@
 	<version>1.8.0</version>
 	<licence>agpl</licence>
 	<author>Julien Veyssier</author>
-	<author>khnjrdm</author>
+	<author mail="khav@njordium.net" homepage="https://njordium.com">Kim Haverblad</author>
 	<namespace>SuiteCRM</namespace>
 	<documentation>
 		<developer>https://github.com/njordium/integration_suitecrm</developer>
