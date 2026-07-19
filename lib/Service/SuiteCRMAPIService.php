@@ -115,7 +115,8 @@ class SuiteCRMAPIService {
 	 * @return void
 	 */
 	private function checkAlertsForUser(string $userId): void {
-		if (!$this->appManager->isEnabledForUser(Application::APP_ID, $userId)) {
+		$user = $this->userManager->get($userId);
+		if ($user === null || !$this->appManager->isEnabledForUser(Application::APP_ID, $user)) {
 			return;
 		}
 		$accessToken = $this->tokens->getAccessToken($userId);
