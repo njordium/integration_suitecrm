@@ -96,10 +96,11 @@ class Notifier implements INotifier {
 		switch ($notification->getSubject()) {
 		case 'reminder':
 			$p = $notification->getSubjectParameters();
-			$type = $p['type'];
-			$title = $p['title'];
+			$type = $p['type'] ?? '';
+			$title = $p['title'] ?? '';
 			$link = $p['link'] ?? '';
-			$formattedDate = $this->dateFormatter->formatDateTime($p['event_timestamp']);
+			$eventTimestamp = $p['event_timestamp'] ?? null;
+			$formattedDate = $eventTimestamp !== null ? $this->dateFormatter->formatDateTime($eventTimestamp) : '';
 
 			$content = '';
 			if ($type === 'Calls') {
@@ -109,9 +110,11 @@ class Notifier implements INotifier {
 			}
 
 			$notification->setParsedSubject($content)
-				->setLink($link)
 				->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app-dark.svg')));
 				//->setIcon($this->url->getAbsoluteURL($iconUrl));
+			if ($link !== '') {
+				$notification->setLink($link);
+			}
 			return $notification;
 
 		default:
