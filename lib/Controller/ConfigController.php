@@ -7,6 +7,9 @@
  *
  * @author Julien Veyssier <eneiluj@posteo.net>
  * @copyright Julien Veyssier 2020
+ *
+ * @Code Changes by: Kim Haverblad <khav@semanticminds.se>, 2026
+ * Contributions remain licensed under AGPL-3.0-or-later per the project COPYING file.
  */
 
 namespace OCA\SuiteCRM\Controller;
@@ -23,6 +26,18 @@ use OCA\SuiteCRM\Service\TokenStorage;
 use OCA\SuiteCRM\AppInfo\Application;
 
 class ConfigController extends Controller {
+
+	/**
+	 * User settings keys that PersonalSettings.vue is allowed to write via
+	 * setConfig(). Any other key in the request payload is silently discarded.
+	 * Prevents an authenticated user from writing arbitrary rows into
+	 * oc_preferences via the setConfig endpoint.
+	 */
+	private const USER_ALLOWED_KEYS = [
+		'user_name',
+		'search_enabled',
+		'notification_enabled',
+	];
 
 	/** @var IConfig */
 	private $config;
@@ -62,8 +77,17 @@ class ConfigController extends Controller {
 	 * @return DataResponse
 	 */
 	public function setConfig(array $values): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => 'No user session'], 401);
+		}
 		foreach ($values as $key => $value) {
-			$this->config->setUserValue($this->userId, Application::APP_ID, $key, $value);
+			if (!in_array($key, self::USER_ALLOWED_KEYS, true)) {
+				continue;
+			}
+			// IConfig::setUserValue requires string; a bool/int in the payload
+			// (Vue's NcCheckboxRadioSwitch can emit either) would TypeError on
+			// NC 29+ without this cast.
+			$this->config->setUserValue($this->userId, Application::APP_ID, $key, (string) $value);
 		}
 		$result = [];
 

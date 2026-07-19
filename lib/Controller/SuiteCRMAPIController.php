@@ -7,6 +7,9 @@
  *
  * @author Julien Veyssier <eneiluj@posteo.net>
  * @copyright Julien Veyssier 2020
+ *
+ * @Code Changes by: Kim Haverblad <khav@semanticminds.se>, 2026
+ * Contributions remain licensed under AGPL-3.0-or-later per the project COPYING file.
  */
 
 namespace OCA\SuiteCRM\Controller;
@@ -34,10 +37,6 @@ class SuiteCRMAPIController extends Controller {
 	/** @var string */
 	private $accessToken;
 	/** @var string */
-	private $clientID;
-	/** @var string */
-	private $clientSecret;
-	/** @var string */
 	private $suitecrmUrl;
 
 	public function __construct(string $appName,
@@ -52,8 +51,6 @@ class SuiteCRMAPIController extends Controller {
 		$this->tokens = $tokens;
 		$this->userId = $userId;
 		$this->accessToken = $userId !== null ? $this->tokens->getAccessToken($userId) : '';
-		$this->clientID = $this->config->getAppValue(Application::APP_ID, 'client_id');
-		$this->clientSecret = $this->config->getAppValue(Application::APP_ID, 'client_secret');
 		$this->suitecrmUrl = $this->config->getAppValue(Application::APP_ID, 'oauth_instance_url');
 	}
 
@@ -93,7 +90,7 @@ class SuiteCRMAPIController extends Controller {
 	 * @param int|null $limit
 	 * @return DataResponse
 	 */
-	public function getReminders(int $eventSinceTimestamp = null, ?int $limit = null): DataResponse {
+	public function getReminders(?int $eventSinceTimestamp = null, ?int $limit = null): DataResponse {
 		if ($this->accessToken === '') {
 			return new DataResponse('', 400);
 		}
