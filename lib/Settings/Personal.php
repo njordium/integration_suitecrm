@@ -20,9 +20,14 @@ class Personal implements ISettings {
 	}
 
 	public function getForm(): TemplateResponse {
-		$userName = $this->config->getUserValue($this->userId, Application::APP_ID, 'user_name');
-		$searchEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'search_enabled', '0');
-		$notificationEnabled = $this->config->getUserValue($this->userId, Application::APP_ID, 'notification_enabled', '0');
+		// IConfig::getUserValue requires a string uid; $this->userId is nullable
+		// (guests, background contexts, cli), so guard here rather than blowing
+		// up when the settings page is rendered outside a normal session.
+		$userId = $this->userId ?? '';
+
+		$userName = $this->config->getUserValue($userId, Application::APP_ID, 'user_name');
+		$searchEnabled = $this->config->getUserValue($userId, Application::APP_ID, 'search_enabled', '0');
+		$notificationEnabled = $this->config->getUserValue($userId, Application::APP_ID, 'notification_enabled', '0');
 
 		$clientID = $this->config->getAppValue(Application::APP_ID, 'client_id');
 		$clientSecret = ($this->config->getAppValue(Application::APP_ID, 'client_secret') !== '');
