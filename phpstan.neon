@@ -3,11 +3,10 @@ parameters:
   paths:
     - lib
   excludePaths:
+    # nextcloud/ocp's abstract App class does not fully resolve under phpstan; scanning Application.php produces spurious errors on parent::__construct.
     - lib/AppInfo/Application.php
   reportUnmatchedIgnoredErrors: false
   ignoreErrors:
-    # SuiteCRM v8 REST responses are dynamic JSON, so we accept typed arrays.
-    - '#Cannot access offset .* on array\|string#'
     # Legacy properties from the julien-nc port that are set in the constructor
     # but only consumed elsewhere; not worth touching in a CI-focused pass.
     - '#Property .* is never read, only written\.#'
