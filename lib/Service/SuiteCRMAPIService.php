@@ -22,6 +22,7 @@ use OCP\App\IAppManager;
 use OCP\IConfig;
 use OCP\IUserManager;
 use OCP\IUser;
+use OCP\Http\Client\IClient;
 use OCP\Http\Client\IClientService;
 use OCP\Notification\IManager as INotificationManager;
 use GuzzleHttp\Exception\ClientException;
@@ -31,63 +32,23 @@ use OCA\SuiteCRM\AppInfo\Application;
 
 class SuiteCRMAPIService {
 	/**
-	 * @var string
+	 * @var IClient
 	 */
-	private $appName;
-	/**
-	 * @var IUserManager
-	 */
-	private $userManager;
-	/**
-	 * @var LoggerInterface
-	 */
-	private $logger;
-	/**
-	 * @var IL10N
-	 */
-	private $l10n;
-	/**
-	 * @var IConfig
-	 */
-	private $config;
-	/**
-	 * @var INotificationManager
-	 */
-	private $notificationManager;
-	/**
-	 * @var \OCP\Http\Client\IClient
-	 */
-	private $client;
-	/**
-	 * @var TokenStorage
-	 */
-	private $tokens;
-	/**
-	 * @var IAppManager
-	 */
-	private $appManager;
+	private IClient $client;
 
 	/**
 	 * Service to make requests to SuiteCRM v8 REST (JSON:API)
 	 */
-	public function __construct (string $appName,
-								IUserManager $userManager,
-								LoggerInterface $logger,
-								IL10N $l10n,
-								IConfig $config,
-								INotificationManager $notificationManager,
+	public function __construct(private string $appName,
+								private IUserManager $userManager,
+								private LoggerInterface $logger,
+								private IL10N $l10n,
+								private IConfig $config,
+								private INotificationManager $notificationManager,
 								IClientService $clientService,
-								TokenStorage $tokens,
-								IAppManager $appManager) {
-		$this->appName = $appName;
-		$this->userManager = $userManager;
-		$this->logger = $logger;
-		$this->l10n = $l10n;
-		$this->config = $config;
-		$this->notificationManager = $notificationManager;
+								private TokenStorage $tokens,
+								private IAppManager $appManager) {
 		$this->client = $clientService->newClient();
-		$this->tokens = $tokens;
-		$this->appManager = $appManager;
 	}
 
 	/**
@@ -132,11 +93,9 @@ class SuiteCRMAPIService {
 			}
 
 			$tsNow = (new DateTime())->getTimestamp();
-			//error_log('notif limits: '.$lastReminderCheck.' -> '.$tsNow);
 			$reminders = $this->getReminders($suitecrmUrl, $accessToken, $userId, $lastReminderCheck, $tsNow);
 			if (!isset($reminders['error']) && count($reminders) > 0) {
 				foreach ($reminders as $reminder) {
-					// error_log('reminder found: '.$reminder['title']);
 					if ($reminder['real_reminder_timestamp'] > $lastReminderCheck) {
 						$lastReminderCheck = $reminder['real_reminder_timestamp'];
 					}
@@ -218,8 +177,6 @@ class SuiteCRMAPIService {
 		if (isset($result['error'])) {
 			return $result;
 		}
-		// get target date for calls and meetings
-//		$tsNow = (new DateTime())->getTimestamp();
 		$finalResults = [];
 		foreach (($result['data'] ?? []) as $reminder) {
 			// apply time filter on real reminder date
@@ -247,11 +204,7 @@ class SuiteCRMAPIService {
 			}
 		}
 
-		usort($finalResults, function($a, $b) {
-			$ta = $a['real_reminder_timestamp'];
-			$tb = $b['real_reminder_timestamp'];
-			return ($ta < $tb) ? -1 : 1;
-		});
+		usort($finalResults, fn ($a, $b) => $a['real_reminder_timestamp'] <=> $b['real_reminder_timestamp']);
 		if ($limit) {
 			$finalResults = array_slice($finalResults, 0, $limit);
 		}
@@ -329,11 +282,7 @@ class SuiteCRMAPIService {
 			});
 		}
 		// sort by reminder execution date
-		usort($finalAlerts, function($a, $b) {
-			$ta = $a['date_willexecute'];
-			$tb = $b['date_willexecute'];
-			return ($ta < $tb) ? -1 : 1;
-		});
+		usort($finalAlerts, fn ($a, $b) => $a['date_willexecute'] <=> $b['date_willexecute']);
 		if ($limit) {
 			$finalAlerts = array_slice($finalAlerts, 0, $limit);
 		}
@@ -524,15 +473,14 @@ class SuiteCRMAPIService {
 				}
 			}
 
-			if ($method === 'GET') {
-				$response = $this->client->get($url, $options);
-			} else if ($method === 'POST') {
-				$response = $this->client->post($url, $options);
-			} else if ($method === 'PUT') {
-				$response = $this->client->put($url, $options);
-			} else if ($method === 'DELETE') {
-				$response = $this->client->delete($url, $options);
-			} else {
+			$response = match ($method) {
+				'GET' => $this->client->get($url, $options),
+				'POST' => $this->client->post($url, $options),
+				'PUT' => $this->client->put($url, $options),
+				'DELETE' => $this->client->delete($url, $options),
+				default => null,
+			};
+			if ($response === null) {
 				return ['error' => $this->l10n->t('Bad HTTP method')];
 			}
 			$body = $response->getBody();
@@ -602,15 +550,14 @@ class SuiteCRMAPIService {
 				}
 			}
 
-			if ($method === 'GET') {
-				$response = $this->client->get($url, $options);
-			} else if ($method === 'POST') {
-				$response = $this->client->post($url, $options);
-			} else if ($method === 'PUT') {
-				$response = $this->client->put($url, $options);
-			} else if ($method === 'DELETE') {
-				$response = $this->client->delete($url, $options);
-			} else {
+			$response = match ($method) {
+				'GET' => $this->client->get($url, $options),
+				'POST' => $this->client->post($url, $options),
+				'PUT' => $this->client->put($url, $options),
+				'DELETE' => $this->client->delete($url, $options),
+				default => null,
+			};
+			if ($response === null) {
 				return ['error' => $this->l10n->t('Bad HTTP method')];
 			}
 			$body = $response->getBody();
