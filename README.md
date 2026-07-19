@@ -1,7 +1,7 @@
 # SuiteCRM integration for Nextcloud
 
 > **Actively maintained fork** of [julien-nc/integration_suitecrm](https://github.com/julien-nc/integration_suitecrm) by Julien Veyssier.
-> Updated for **Nextcloud 25–34** and **SuiteCRM 8.x**, migrated to Vue 3 / `@nextcloud/vue` v9, and extended with reference cards, smart picker, calendar widget, encrypted token storage, and a companion CalDAV sync module.
+> Updated for **Nextcloud 30–34** and **SuiteCRM 8.x**, migrated to Vue 3 / `@nextcloud/vue` v9, and extended with reference cards, smart picker, calendar widget, encrypted token storage, and a companion CalDAV sync module.
 
 Interact with your SuiteCRM instance from inside Nextcloud — search records, see upcoming events on your dashboard, get notified about meeting reminders, and paste CRM links into Talk/Notes for rich preview cards.
 
@@ -39,7 +39,7 @@ The Personal Settings panel includes a Calendar Companion section that streamlin
 
 ## Requirements
 
-- Nextcloud **25 – 34**
+- Nextcloud **30 – 34**
 - SuiteCRM **8.x** with the v8 REST API enabled and OpenSSL keys generated
 - PHP **8.2+**
 
