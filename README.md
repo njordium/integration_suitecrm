@@ -41,7 +41,7 @@ The Personal Settings panel includes a Calendar Companion section that streamlin
 
 - Nextcloud **25 – 34**
 - SuiteCRM **8.x** with the v8 REST API enabled and OpenSSL keys generated
-- PHP **8.1+**
+- PHP **8.2+**
 
 ---
 
@@ -92,7 +92,7 @@ vendor/bin/phpunit  # unit tests
 vendor/bin/phpstan analyse -c phpstan.neon
 ```
 
-CI (`.github/workflows/lint.yml`) runs all of the above on every push and PR across PHP 8.1 / 8.2 / 8.3 and Node 20.
+CI (`.github/workflows/lint.yml`) runs all of the above on every push and PR across PHP 8.2 / 8.3 / 8.4 and Node 20.
 
 ---
 
