@@ -38,33 +38,12 @@ use OCP\Search\SearchResult;
 
 class SuiteCRMSearchProvider implements IProvider {
 
-	/** @var IAppManager */
-	private $appManager;
-
-	/** @var IL10N */
-	private $l10n;
-
-	/** @var IURLGenerator */
-	private $urlGenerator;
-	/** @var IConfig */
-	private $config;
-	/** @var SuiteCRMAPIService */
-	private $service;
-	/** @var TokenStorage */
-	private $tokens;
-
-	public function __construct(IAppManager $appManager,
-								IL10N $l10n,
-								IConfig $config,
-								IURLGenerator $urlGenerator,
-								SuiteCRMAPIService $service,
-								TokenStorage $tokens) {
-		$this->appManager = $appManager;
-		$this->l10n = $l10n;
-		$this->config = $config;
-		$this->urlGenerator = $urlGenerator;
-		$this->service = $service;
-		$this->tokens = $tokens;
+	public function __construct(private IAppManager $appManager,
+								private IL10N $l10n,
+								private IConfig $config,
+								private IURLGenerator $urlGenerator,
+								private SuiteCRMAPIService $service,
+								private TokenStorage $tokens) {
 	}
 
 	/**
@@ -105,7 +84,6 @@ class SuiteCRMSearchProvider implements IProvider {
 		$term = $query->getTerm();
 		$offset = $query->getCursor() ?? 0;
 
-//		$theme = $this->config->getUserValue($user->getUID(), 'accessibility', 'theme', '');
 		$thumbnailUrl = $this->urlGenerator->imagePath(Application::APP_ID, 'app-color.svg');
 
 		$suitecrmUrl = $this->config->getAppValue(Application::APP_ID, 'oauth_instance_url');
