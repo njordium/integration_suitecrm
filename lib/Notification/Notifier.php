@@ -24,39 +24,18 @@ use OCA\SuiteCRM\AppInfo\Application;
 
 class Notifier implements INotifier {
 
-	/** @var IFactory */
-	protected $factory;
-
-	/** @var IUserManager */
-	protected $userManager;
-
-	/** @var INotificationManager */
-	protected $notificationManager;
-
-	/** @var IURLGenerator */
-	protected $url;
-	/**
-	 * @var IDateTimeFormatter
-	 */
-	private $dateFormatter;
-
 	/**
 	 * @param IFactory $factory
 	 * @param IUserManager $userManager
 	 * @param INotificationManager $notificationManager
 	 * @param IDateTimeFormatter $dateFormatter
-	 * @param IURLGenerator $urlGenerator
+	 * @param IURLGenerator $url
 	 */
-	public function __construct(IFactory $factory,
-								IUserManager $userManager,
-								INotificationManager $notificationManager,
-								IDateTimeFormatter $dateFormatter,
-								IURLGenerator $urlGenerator) {
-		$this->factory = $factory;
-		$this->userManager = $userManager;
-		$this->notificationManager = $notificationManager;
-		$this->url = $urlGenerator;
-		$this->dateFormatter = $dateFormatter;
+	public function __construct(protected IFactory $factory,
+								protected IUserManager $userManager,
+								protected INotificationManager $notificationManager,
+								private IDateTimeFormatter $dateFormatter,
+								protected IURLGenerator $url) {
 	}
 
 	/**
@@ -66,7 +45,7 @@ class Notifier implements INotifier {
 	 * @since 17.0.0
 	 */
 	public function getID(): string {
-		return 'integration_suitecrm';
+		return Application::APP_ID;
 	}
 	/**
 	 * Human readable name describing the notifier
@@ -75,7 +54,7 @@ class Notifier implements INotifier {
 	 * @since 17.0.0
 	 */
 	public function getName(): string {
-		return $this->factory->get('integration_suitecrm')->t('SuiteCRM');
+		return $this->factory->get(Application::APP_ID)->t('SuiteCRM');
 	}
 
 	/**
