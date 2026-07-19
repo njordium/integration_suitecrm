@@ -11,7 +11,7 @@ namespace OCA\SuiteCRM\Reference;
  */
 final class RecordUrlParser {
 
-	private const RECORD_URL_PATTERN = '/\/index\.php\?[^"\s]*module=([A-Za-z]+)(?:&|&amp;)[^"\s]*record=([a-zA-Z0-9\-]+)/';
+	private const RECORD_URL_PATTERN = '/\/index\.php\?[^"\s]*module=([A-Za-z0-9_]+)(?:&|&amp;)[^"\s]*record=([a-zA-Z0-9\-]+)/';
 
 	public const SUPPORTED_MODULES = [
 		'Contacts',

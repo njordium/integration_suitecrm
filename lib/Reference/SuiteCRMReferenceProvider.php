@@ -109,6 +109,9 @@ class SuiteCRMReferenceProvider extends ADiscoverableReferenceProvider implement
 	}
 
 	public function getCacheKey(string $referenceId): ?string {
+		if ($this->userId === null) {
+			return null;
+		}
 		return $this->userId;
 	}
 
