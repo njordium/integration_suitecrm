@@ -19,6 +19,7 @@ use Exception;
 use OCP\IL10N;
 use Psr\Log\LoggerInterface;
 use OCP\App\IAppManager;
+use OCP\IAppConfig;
 use OCP\IConfig;
 use OCP\IUserManager;
 use OCP\IUser;
@@ -44,6 +45,7 @@ class SuiteCRMAPIService {
 								private LoggerInterface $logger,
 								private IL10N $l10n,
 								private IConfig $config,
+								private IAppConfig $appConfig,
 								private INotificationManager $notificationManager,
 								IClientService $clientService,
 								private TokenStorage $tokens,
@@ -83,7 +85,7 @@ class SuiteCRMAPIService {
 		$accessToken = $this->tokens->getAccessToken($userId);
 		$notificationEnabled = ($this->config->getUserValue($userId, Application::APP_ID, 'notification_enabled', '0') === '1');
 		if ($accessToken && $notificationEnabled) {
-			$suitecrmUrl = $this->config->getAppValue(Application::APP_ID, 'oauth_instance_url');
+			$suitecrmUrl = $this->appConfig->getValueString(Application::APP_ID, 'oauth_instance_url');
 			$lastReminderCheck = (int) $this->config->getUserValue($userId, Application::APP_ID, 'last_reminder_check', '0');
 			if ($lastReminderCheck === 0) {
 				// back one week
@@ -498,8 +500,8 @@ class SuiteCRMAPIService {
 			if ($response !== null && $response->getStatusCode() === 401 && $retryCount < 1) {
 				$this->logger->info('Trying to REFRESH the access token', ['app' => $this->appName]);
 				$refreshToken = $this->tokens->getRefreshToken($userId);
-				$clientID = $this->config->getAppValue(Application::APP_ID, 'client_id');
-				$clientSecret = $this->config->getAppValue(Application::APP_ID, 'client_secret');
+				$clientID = $this->appConfig->getValueString(Application::APP_ID, 'client_id');
+				$clientSecret = $this->appConfig->getValueString(Application::APP_ID, 'client_secret');
 				// try to refresh the token
 				$result = $this->requestOAuthAccessToken($suitecrmUrl, [
 					'client_id' => $clientID,
