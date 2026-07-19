@@ -1,23 +1,14 @@
 <?php
 /**
- * Nextcloud - SuiteCRM
+ * Route registration moved to PHP attributes on controller methods
+ * (see lib/Controller/*.php with #[FrontpageRoute]).
  *
- * This file is licensed under the Affero General Public License version 3 or
- * later. See the COPYING file.
+ * This file is kept because NC still expects it to exist; the empty
+ * routes array is intentional and safe alongside attribute routes.
  *
- * @author Julien Veyssier <eneiluj@posteo.net>
- * @copyright Julien Veyssier 2020
+ * @Code Changes by: Kim Haverblad, 2026
  */
 
 return [
-    'routes' => [
-        ['name' => 'config#oauthConnect', 'url' => '/oauth-connect', 'verb' => 'POST'],
-        ['name' => 'config#setConfig', 'url' => '/config', 'verb' => 'PUT'],
-        ['name' => 'config#setAdminConfig', 'url' => '/admin-config', 'verb' => 'PUT'],
-        ['name' => 'config#getCalendarCompanion', 'url' => '/calendar-companion', 'verb' => 'GET'],
-        ['name' => 'suiteCRMAPI#getReminders', 'url' => '/reminders', 'verb' => 'GET'],
-        ['name' => 'suiteCRMAPI#getUpcoming', 'url' => '/upcoming', 'verb' => 'GET'],
-        ['name' => 'suiteCRMAPI#getSuiteCRMUrl', 'url' => '/url', 'verb' => 'GET'],
-        ['name' => 'suiteCRMAPI#getSuiteCRMAvatar', 'url' => '/avatar', 'verb' => 'GET'],
-    ]
+    'routes' => [],
 ];
