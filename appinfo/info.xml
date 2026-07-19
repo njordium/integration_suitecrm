@@ -2,10 +2,11 @@
 <info>
 	<id>integration_suitecrm</id>
 	<name>SuiteCRM integration</name>
-	<summary>Integration of SuiteCRM Customer Relationship Management application</summary>
-	<description><![CDATA[SuiteCRM integration provides a dashboard widget displaying your important notifications,
-	a search provider for content and notifications for activity in SuiteCRM.]]></description>
-	<version>1.8.0</version>
+	<summary>Integration of SuiteCRM 8.x Customer Relationship Management application</summary>
+	<description><![CDATA[SuiteCRM 8.x integration provides a dashboard widget displaying your important notifications,
+	a search provider for content and notifications for activity in SuiteCRM 8.x.
+	SuiteCRM 7.x is no longer supported.]]></description>
+	<version>1.9.0</version>
 	<licence>agpl</licence>
 	<author>Julien Veyssier</author>
 	<author mail="khav@njordium.net" homepage="https://njordium.com">Kim Haverblad</author>
