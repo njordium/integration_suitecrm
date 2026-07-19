@@ -36,9 +36,9 @@
 				@update:value="onInput" />
 
 			<NcPasswordField
-				v-model="state.client_secret"
+				v-model="newSecret"
 				:label="t('integration_suitecrm', 'Application secret')"
-				:placeholder="t('integration_suitecrm', 'Client secret of your application')"
+				:placeholder="secretPlaceholder"
 				@update:value="onInput" />
 		</div>
 	</div>
@@ -70,7 +70,30 @@ export default {
 	data() {
 		return {
 			state: loadState('integration_suitecrm', 'admin-config'),
+			// Secret input is separate from `state` so we can distinguish
+			// "user typed a new value" (send it) from "user hasn't touched
+			// this field" (leave the stored secret untouched).
+			newSecret: '',
 		}
+	},
+
+	computed: {
+		/**
+		 * Supports both the current PHP payload (client_secret_set: bool) and the
+		 * legacy payload where client_secret was a plaintext string. Legacy is
+		 * kept for one release so a partial deploy doesn't break the UI.
+		 */
+		secretIsStored() {
+			if (this.state.client_secret_set === true) {
+				return true
+			}
+			return typeof this.state.client_secret === 'string' && this.state.client_secret !== ''
+		},
+		secretPlaceholder() {
+			return this.secretIsStored
+				? t('integration_suitecrm', 'A secret is stored — type to replace')
+				: t('integration_suitecrm', 'Client secret of your application')
+		},
 	},
 
 	methods: {
@@ -81,17 +104,29 @@ export default {
 		},
 
 		saveOptions() {
-			const req = {
-				values: {
-					client_id: this.state.client_id,
-					client_secret: this.state.client_secret,
-					oauth_instance_url: this.state.oauth_instance_url,
-				},
+			const values = {
+				client_id: this.state.client_id,
+				oauth_instance_url: this.state.oauth_instance_url,
 			}
+			// Only include client_secret when the admin actually typed a new
+			// value. Sending the empty string would clear the stored secret,
+			// which is almost never what an admin editing the other fields
+			// intends.
+			if (this.newSecret !== '') {
+				values.client_secret = this.newSecret
+			}
+			const req = { values }
 			const url = generateUrl('/apps/integration_suitecrm/admin-config')
 			axios.put(url, req)
 				.then(() => {
 					showSuccess(t('integration_suitecrm', 'SuiteCRM admin options saved'))
+					if (this.newSecret !== '') {
+						// Buffer consumed by the server; clear the input so the
+						// stored-secret placeholder returns and the next auto-save
+						// doesn't resend the same value.
+						this.newSecret = ''
+						this.state.client_secret_set = true
+					}
 				})
 				.catch((error) => {
 					showError(t('integration_suitecrm', 'Failed to save SuiteCRM admin options')
