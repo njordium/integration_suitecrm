@@ -5,6 +5,7 @@ namespace OCA\SuiteCRM\Tests\Controller;
 
 use OCA\SuiteCRM\AppInfo\Application;
 use OCA\SuiteCRM\Controller\ConfigController;
+use OCA\SuiteCRM\Service\OAuthStateStore;
 use OCA\SuiteCRM\Service\SuiteCRMAPIService;
 use OCA\SuiteCRM\Service\TokenStorage;
 use OCP\AppFramework\Http\DataResponse;
@@ -23,6 +24,8 @@ use PHPUnit\Framework\TestCase;
  * (Iteration 11) added a strict allowlist; without these tests a future
  * refactor could silently reintroduce arbitrary-preference writes from any
  * authenticated user.
+ *
+ * @Code Changes by: Kim Haverblad, 2026
  */
 class ConfigControllerTest extends TestCase {
 
@@ -31,6 +34,7 @@ class ConfigControllerTest extends TestCase {
 	private IAppConfig&MockObject $appConfig;
 	private SuiteCRMAPIService&MockObject $apiService;
 	private TokenStorage&MockObject $tokens;
+	private OAuthStateStore&MockObject $stateStore;
 	private IURLGenerator&MockObject $urlGenerator;
 	private IUserSession&MockObject $userSession;
 
@@ -41,6 +45,7 @@ class ConfigControllerTest extends TestCase {
 		$this->appConfig = $this->createMock(IAppConfig::class);
 		$this->apiService = $this->createMock(SuiteCRMAPIService::class);
 		$this->tokens = $this->createMock(TokenStorage::class);
+		$this->stateStore = $this->createMock(OAuthStateStore::class);
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
 		$this->userSession = $this->createMock(IUserSession::class);
 	}
@@ -53,6 +58,7 @@ class ConfigControllerTest extends TestCase {
 			$this->appConfig,
 			$this->apiService,
 			$this->tokens,
+			$this->stateStore,
 			$this->urlGenerator,
 			$this->userSession,
 			$userId,
