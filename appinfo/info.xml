@@ -20,7 +20,7 @@
 	<screenshot>https://github.com/njordium/integration_suitecrm/raw/master/img/screenshot1.jpg</screenshot>
 	<dependencies>
 		<php min-version="8.2"/>
-		<nextcloud min-version="25" max-version="34"/>
+		<nextcloud min-version="30" max-version="34"/>
 	</dependencies>
 	<background-jobs>
 		<job>OCA\SuiteCRM\BackgroundJob\CheckAlerts</job>
