@@ -7,6 +7,9 @@
  *
  * @author Julien Veyssier
  * @copyright Julien Veyssier 2020
+ *
+ * @Code Changes by: Kim Haverblad <khav@semanticminds.se>, 2026
+ * Contributions remain licensed under AGPL-3.0-or-later per the project COPYING file.
  */
 
 namespace OCA\SuiteCRM\Service;
@@ -89,7 +92,15 @@ class SuiteCRMAPIService {
 	 */
 	public function checkAlerts(): void {
 		$this->userManager->callForAllUsers(function (IUser $user) {
-			$this->checkAlertsForUser($user->getUID());
+			try {
+				$this->checkAlertsForUser($user->getUID());
+			} catch (\Throwable $e) {
+				$this->logger->warning('SuiteCRM checkAlertsForUser failed: ' . $e->getMessage(), [
+					'app' => $this->appName,
+					'user' => $user->getUID(),
+					'exception' => $e,
+				]);
+			}
 		});
 	}
 
@@ -123,6 +134,7 @@ class SuiteCRMAPIService {
 					$elemId = $reminder['attributes']['related_event_module_id'];
 					$this->sendNCNotification($userId, 'reminder', [
 						'type' => $module,
+						'elem_id' => $elemId,
 						'link' => $suitecrmUrl . '/index.php?module=' . $module . '&action=DetailView&record=' . $elemId,
 						'title' => $reminder['title'],
 						'event_timestamp' => $reminder['attributes']['date_willexecute'],
@@ -147,7 +159,7 @@ class SuiteCRMAPIService {
 		$notification->setApp(Application::APP_ID)
 			->setUser($userId)
 			->setDateTime(new DateTime())
-			->setObject('dum', 'dum')
+			->setObject((string) ($params['type'] ?? 'reminder'), (string) ($params['elem_id'] ?? uniqid()))
 			->setSubject($subject, $params);
 
 		$manager->notify($notification);
@@ -199,7 +211,7 @@ class SuiteCRMAPIService {
 		// get target date for calls and meetings
 //		$tsNow = (new DateTime())->getTimestamp();
 		$finalResults = [];
-		foreach ($result['data'] as $reminder) {
+		foreach (($result['data'] ?? []) as $reminder) {
 			// apply time filter on real reminder date
 			$realReminderTs = (int) $reminder['attributes']['date_willexecute'] - (int) $reminder['attributes']['timer_popup'];
 			if (!is_null($reminderSinceTs) && $realReminderTs <= $reminderSinceTs) {
@@ -267,7 +279,7 @@ class SuiteCRMAPIService {
 		// get target date for calls and meetings
 		$tsNow = (new DateTime())->getTimestamp();
 		$finalAlerts = [];
-		foreach ($result['data'] as $alert) {
+		foreach (($result['data'] ?? []) as $alert) {
 			$urlRedirect = $alert['attributes']['url_redirect'];
 			$isCall = preg_match('/module=Calls/', $urlRedirect);
 			$isMeeting = preg_match('/module=Meetings/', $urlRedirect);
@@ -508,9 +520,9 @@ class SuiteCRMAPIService {
 
 			if ($respCode >= 400) {
 				return ['error' => $this->l10n->t('Bad credentials')];
-			} else {
-				return json_decode($body, true);
 			}
+			$decoded = json_decode((string) $body, true);
+			return is_array($decoded) ? $decoded : ['error' => $this->l10n->t('Invalid JSON response from SuiteCRM')];
 		} catch (ServerException | ClientException $e) {
 			$response = $e->getResponse();
 //			$body = (string) $response->getBody();
