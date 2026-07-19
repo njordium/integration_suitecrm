@@ -14,7 +14,7 @@
 namespace OCA\SuiteCRM\Controller;
 
 use OCP\AppFramework\Http\DataDisplayResponse;
-use OCP\IConfig;
+use OCP\IAppConfig;
 use OCP\IRequest;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Controller;
@@ -32,13 +32,13 @@ class SuiteCRMAPIController extends Controller {
 
 	public function __construct(string $appName,
 								IRequest $request,
-								private IConfig $config,
+								IAppConfig $appConfig,
 								private SuiteCRMAPIService $suitecrmAPIService,
 								private TokenStorage $tokens,
 								private ?string $userId) {
 		parent::__construct($appName, $request);
 		$this->accessToken = $userId !== null ? $this->tokens->getAccessToken($userId) : '';
-		$this->suitecrmUrl = $this->config->getAppValue(Application::APP_ID, 'oauth_instance_url');
+		$this->suitecrmUrl = $appConfig->getValueString(Application::APP_ID, 'oauth_instance_url');
 	}
 
 	/**

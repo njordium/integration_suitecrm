@@ -13,6 +13,7 @@
 
 namespace OCA\SuiteCRM\Controller;
 
+use OCP\IAppConfig;
 use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IURLGenerator;
@@ -41,6 +42,7 @@ class ConfigController extends Controller {
 	public function __construct(string $appName,
 								IRequest $request,
 								private IConfig $config,
+								private IAppConfig $appConfig,
 								private SuiteCRMAPIService $suitecrmAPIService,
 								private TokenStorage $tokens,
 								private IURLGenerator $urlGenerator,
@@ -73,7 +75,7 @@ class ConfigController extends Controller {
 
 		if (isset($values['user_name']) && $values['user_name'] === '') {
 			$accessToken = $this->tokens->getAccessToken($this->userId);
-			$suitecrmUrl = $this->config->getAppValue(Application::APP_ID, 'oauth_instance_url');
+			$suitecrmUrl = $this->appConfig->getValueString(Application::APP_ID, 'oauth_instance_url');
 			$this->suitecrmAPIService->request(
 				$suitecrmUrl, $accessToken, $this->userId, 'logout', [], 'POST'
 			);
@@ -97,7 +99,14 @@ class ConfigController extends Controller {
 	 */
 	public function setAdminConfig(array $values): DataResponse {
 		foreach ($values as $key => $value) {
-			$this->config->setAppValue(Application::APP_ID, $key, $value);
+			$sensitive = $key === 'client_secret';
+			$this->appConfig->setValueString(
+				Application::APP_ID,
+				$key,
+				(string) $value,
+				lazy: true,
+				sensitive: $sensitive,
+			);
 		}
 		return new DataResponse(1);
 	}
@@ -114,9 +123,9 @@ class ConfigController extends Controller {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => 'No user session'], 401);
 		}
-		$suitecrmUrl = $this->config->getAppValue(Application::APP_ID, 'oauth_instance_url');
-		$clientID = $this->config->getAppValue(Application::APP_ID, 'client_id');
-		$clientSecret = $this->config->getAppValue(Application::APP_ID, 'client_secret');
+		$suitecrmUrl = $this->appConfig->getValueString(Application::APP_ID, 'oauth_instance_url');
+		$clientID = $this->appConfig->getValueString(Application::APP_ID, 'client_id');
+		$clientSecret = $this->appConfig->getValueString(Application::APP_ID, 'client_secret');
 
 		$result = $this->suitecrmAPIService->requestOAuthAccessToken($suitecrmUrl, [
 			'client_id' => $clientID,
