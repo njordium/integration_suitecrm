@@ -38,21 +38,12 @@ use OCA\SuiteCRM\Service\SuiteCRMAPIService;
  */
 class CheckAlerts extends TimedJob {
 
-	/** @var SuiteCRMAPIService */
-	protected $suitecrmAPIService;
-
-	/** @var LoggerInterface */
-	protected $logger;
-
 	public function __construct(ITimeFactory $time,
-								SuiteCRMAPIService $suitecrmAPIService,
-								LoggerInterface $logger) {
+								protected SuiteCRMAPIService $suitecrmAPIService,
+								protected LoggerInterface $logger) {
 		parent::__construct($time);
 		// Every 15 minutes
 		$this->setInterval(60 * 15);
-
-		$this->suitecrmAPIService = $suitecrmAPIService;
-		$this->logger = $logger;
 	}
 
 	protected function run($argument): void {
