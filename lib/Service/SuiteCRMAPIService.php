@@ -18,6 +18,7 @@ use DateTime;
 use Exception;
 use OCP\IL10N;
 use Psr\Log\LoggerInterface;
+use OCP\App\IAppManager;
 use OCP\IConfig;
 use OCP\IUserManager;
 use OCP\IUser;
@@ -61,6 +62,10 @@ class SuiteCRMAPIService {
 	 * @var TokenStorage
 	 */
 	private $tokens;
+	/**
+	 * @var IAppManager
+	 */
+	private $appManager;
 
 	/**
 	 * Service to make requests to SuiteCRM v8 REST (JSON:API)
@@ -72,7 +77,8 @@ class SuiteCRMAPIService {
 								IConfig $config,
 								INotificationManager $notificationManager,
 								IClientService $clientService,
-								TokenStorage $tokens) {
+								TokenStorage $tokens,
+								IAppManager $appManager) {
 		$this->appName = $appName;
 		$this->userManager = $userManager;
 		$this->logger = $logger;
@@ -81,6 +87,7 @@ class SuiteCRMAPIService {
 		$this->notificationManager = $notificationManager;
 		$this->client = $clientService->newClient();
 		$this->tokens = $tokens;
+		$this->appManager = $appManager;
 	}
 
 	/**
@@ -108,6 +115,9 @@ class SuiteCRMAPIService {
 	 * @return void
 	 */
 	private function checkAlertsForUser(string $userId): void {
+		if (!$this->appManager->isEnabledForUser(Application::APP_ID, $userId)) {
+			return;
+		}
 		$accessToken = $this->tokens->getAccessToken($userId);
 		$notificationEnabled = ($this->config->getUserValue($userId, Application::APP_ID, 'notification_enabled', '0') === '1');
 		if ($accessToken && $notificationEnabled) {
@@ -461,7 +471,15 @@ class SuiteCRMAPIService {
 				'User-Agent' => 'Nextcloud SuiteCRM integration',
 			]
 		];
-		return $this->client->get($url, $options)->getBody();
+		try {
+			return $this->client->get($url, $options)->getBody();
+		} catch (\Throwable $e) {
+			$this->logger->warning('SuiteCRM avatar fetch failed', [
+				'app' => $this->appName,
+				'exception' => $e,
+			]);
+			return '';
+		}
 	}
 
 	/**
@@ -471,10 +489,12 @@ class SuiteCRMAPIService {
 	 * @param string $endPoint
 	 * @param array $params
 	 * @param string $method
+	 * @param int $retryCount
 	 * @return array
 	 */
 	public function request(string $suitecrmUrl, string $accessToken, string $userId,
-							string $endPoint, array $params = [], string $method = 'GET'): array {
+							string $endPoint, array $params = [], string $method = 'GET',
+							int $retryCount = 0): array {
 		try {
 			$url = $suitecrmUrl . '/Api/index.php/V8/' . $endPoint;
 			$options = [
@@ -522,11 +542,11 @@ class SuiteCRMAPIService {
 			}
 			$decoded = json_decode((string) $body, true);
 			return is_array($decoded) ? $decoded : ['error' => $this->l10n->t('Invalid JSON response from SuiteCRM')];
-		} catch (ServerException | ClientException $e) {
-			$response = $e->getResponse();
-//			$body = (string) $response->getBody();
+		} catch (\Throwable $e) {
+			$response = method_exists($e, 'getResponse') ? $e->getResponse() : null;
+			$errorBody = $response !== null ? (string) $response->getBody() : null;
 			// try to refresh token if it's invalid
-			if ($response->getStatusCode() === 401) {
+			if ($response !== null && $response->getStatusCode() === 401 && $retryCount < 1) {
 				$this->logger->info('Trying to REFRESH the access token', ['app' => $this->appName]);
 				$refreshToken = $this->tokens->getRefreshToken($userId);
 				$clientID = $this->config->getAppValue(Application::APP_ID, 'client_id');
@@ -544,12 +564,16 @@ class SuiteCRMAPIService {
 					$this->tokens->setRefreshToken($userId, $result['refresh_token']);
 					// retry the request with new access token
 					return $this->request(
-						$suitecrmUrl, $accessToken, $userId, $endPoint, $params, $method
+						$suitecrmUrl, $accessToken, $userId, $endPoint, $params, $method, $retryCount + 1
 					);
 				}
 			}
-			$this->logger->warning('SuiteCRM API error : '.$e->getMessage(), ['app' => $this->appName]);
-			return ['error' => $e->getMessage()];
+			$this->logger->warning('SuiteCRM API error', [
+				'app' => $this->appName,
+				'exception' => $e,
+				'body' => $errorBody,
+			]);
+			return ['error' => $e->getMessage(), 'body' => $errorBody];
 		}
 	}
 
@@ -596,12 +620,19 @@ class SuiteCRMAPIService {
 			} else {
 				return json_decode($body, true);
 			}
-		} catch (Exception $e) {
-			$message = $e->getMessage();
-			if (isset($params['password'])) {
-				$message = str_replace($params['password'], '********', $message);
+		} catch (\Throwable $e) {
+			$redactedParams = $params;
+			if (isset($redactedParams['password'])) {
+				$redactedParams['password'] = '********';
 			}
-			$this->logger->warning('SuiteCRM OAuth error : ' . $message, ['app' => $this->appName]);
+			if (isset($redactedParams['client_secret'])) {
+				$redactedParams['client_secret'] = '********';
+			}
+			$this->logger->warning('SuiteCRM OAuth error', [
+				'app' => $this->appName,
+				'exception' => $e,
+				'params' => $redactedParams,
+			]);
 			return ['error' => $e->getMessage()];
 		}
 	}

@@ -7,6 +7,7 @@ use Exception;
 use OCP\IConfig;
 use OCP\Security\ICrypto;
 use OCA\SuiteCRM\AppInfo\Application;
+use Psr\Log\LoggerInterface;
 
 /**
  * Centralised storage for OAuth tokens.
@@ -19,6 +20,7 @@ class TokenStorage {
 	public function __construct(
 		private IConfig $config,
 		private ICrypto $crypto,
+		private LoggerInterface $logger,
 	) {
 	}
 
@@ -39,8 +41,8 @@ class TokenStorage {
 	}
 
 	public function clear(string $userId): void {
-		$this->config->setUserValue($userId, Application::APP_ID, 'token', '');
-		$this->config->setUserValue($userId, Application::APP_ID, 'refresh_token', '');
+		$this->config->deleteUserValue($userId, Application::APP_ID, 'token');
+		$this->config->deleteUserValue($userId, Application::APP_ID, 'refresh_token');
 	}
 
 	private function readSecret(string $userId, string $key): string {
@@ -50,9 +52,14 @@ class TokenStorage {
 		}
 		try {
 			return $this->crypto->decrypt($stored);
-		} catch (Exception) {
+		} catch (Exception $e) {
 			// Legacy plaintext from < 1.2.0 — migrate on first read so subsequent
 			// reads take the encrypted path.
+			$this->logger->warning('SuiteCRM TokenStorage: decrypt failed, treating value as legacy plaintext and re-encrypting', [
+				'app' => Application::APP_ID,
+				'key' => $key,
+				'exception' => $e,
+			]);
 			$this->writeSecret($userId, $key, $stored);
 			return $stored;
 		}
