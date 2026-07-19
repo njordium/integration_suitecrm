@@ -1,5 +1,8 @@
 <?php
 declare(strict_types=1);
+/**
+ * @Code Changes by: Kim Haverblad, 2026
+ */
 
 namespace OCA\SuiteCRM\Settings;
 
