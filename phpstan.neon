@@ -4,6 +4,7 @@ parameters:
     - lib
   excludePaths:
     - lib/AppInfo/Application.php
+  reportUnmatchedIgnoredErrors: false
   ignoreErrors:
     # SuiteCRM v8 REST responses are dynamic JSON, so we accept typed arrays.
     - '#Cannot access offset .* on array\|string#'
