@@ -8,8 +8,7 @@
  * @author Julien Veyssier
  * @copyright Julien Veyssier 2020
  *
- * @Code Changes by: Kim Haverblad <khav@semanticminds.se>, 2026
- * Contributions remain licensed under AGPL-3.0-or-later per the project COPYING file.
+ * @Code Changes by: Kim Haverblad, 2026
  */
 
 namespace OCA\SuiteCRM\Service;
