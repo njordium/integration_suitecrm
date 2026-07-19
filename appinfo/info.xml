@@ -11,14 +11,15 @@
 	<author>khnjrdm</author>
 	<namespace>SuiteCRM</namespace>
 	<documentation>
-		<developer>https://github.com/khnjrdm/integration_suitecrm</developer>
+		<developer>https://github.com/njordium/integration_suitecrm</developer>
 	</documentation>
 	<category>integration</category>
 	<category>dashboard</category>
-	<website>https://github.com/khnjrdm/integration_suitecrm</website>
-	<bugs>https://github.com/khnjrdm/integration_suitecrm/issues</bugs>
-	<screenshot>https://github.com/eneiluj/integration_suitecrm/raw/master/img/screenshot1.jpg</screenshot>
+	<website>https://github.com/njordium/integration_suitecrm</website>
+	<bugs>https://github.com/njordium/integration_suitecrm/issues</bugs>
+	<screenshot>https://github.com/njordium/integration_suitecrm/raw/master/img/screenshot1.jpg</screenshot>
 	<dependencies>
+		<php min-version="8.2"/>
 		<nextcloud min-version="25" max-version="34"/>
 	</dependencies>
 	<background-jobs>
