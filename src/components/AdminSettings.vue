@@ -89,6 +89,7 @@ export default {
 			}
 			return typeof this.state.client_secret === 'string' && this.state.client_secret !== ''
 		},
+
 		secretPlaceholder() {
 			return this.secretIsStored
 				? t('integration_suitecrm', 'A secret is stored — type to replace')
