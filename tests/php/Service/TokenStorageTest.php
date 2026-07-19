@@ -9,18 +9,21 @@ use OCP\IConfig;
 use OCP\Security\ICrypto;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 class TokenStorageTest extends TestCase {
 
 	private IConfig&MockObject $config;
 	private ICrypto&MockObject $crypto;
+	private LoggerInterface&MockObject $logger;
 	private TokenStorage $tokens;
 
 	protected function setUp(): void {
 		parent::setUp();
 		$this->config = $this->createMock(IConfig::class);
 		$this->crypto = $this->createMock(ICrypto::class);
-		$this->tokens = new TokenStorage($this->config, $this->crypto);
+		$this->logger = $this->createMock(LoggerInterface::class);
+		$this->tokens = new TokenStorage($this->config, $this->crypto, $this->logger);
 	}
 
 	public function testWriteEncryptsBeforeStoring(): void {
@@ -80,18 +83,18 @@ class TokenStorageTest extends TestCase {
 		$this->config->expects($this->once())
 			->method('setUserValue')
 			->with('alice', Application::APP_ID, 'token', 'new-cipher');
+		$this->logger->expects($this->once())->method('warning');
 
 		$this->assertSame('legacy-plaintext-token', $this->tokens->getAccessToken('alice'));
 	}
 
-	public function testClearWritesEmptyStrings(): void {
+	public function testClearDeletesUserValues(): void {
 		$this->config->expects($this->exactly(2))
-			->method('setUserValue')
-			->willReturnCallback(function ($uid, $app, $key, $value) {
+			->method('deleteUserValue')
+			->willReturnCallback(function ($uid, $app, $key) {
 				$this->assertSame('alice', $uid);
 				$this->assertSame(Application::APP_ID, $app);
 				$this->assertContains($key, ['token', 'refresh_token']);
-				$this->assertSame('', $value);
 			});
 
 		$this->tokens->clear('alice');
