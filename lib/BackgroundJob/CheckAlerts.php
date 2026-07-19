@@ -19,6 +19,8 @@ declare(strict_types=1);
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
+ * @Code Changes by: Kim Haverblad <khav@semanticminds.se>, 2026
+ * Contributions remain licensed under AGPL-3.0-or-later per the project COPYING file.
  */
 
 namespace OCA\SuiteCRM\BackgroundJob;
@@ -27,6 +29,7 @@ use OCP\BackgroundJob\TimedJob;
 use Psr\Log\LoggerInterface;
 use OCP\AppFramework\Utility\ITimeFactory;
 
+use OCA\SuiteCRM\AppInfo\Application;
 use OCA\SuiteCRM\Service\SuiteCRMAPIService;
 
 /**
@@ -54,7 +57,20 @@ class CheckAlerts extends TimedJob {
 	}
 
 	protected function run($argument): void {
-		$this->suitecrmAPIService->checkAlerts();
-		$this->logger->info('Checked if users have SuiteCRM alerts.');
+		// Swallow any transport or upstream failure so the cron dispatcher
+		// still marks this job as completed and moves on. Otherwise a single
+		// SuiteCRM outage would surface as an uncaught exception in the
+		// Nextcloud job runner and leave the whole job queue stuck.
+		try {
+			$this->suitecrmAPIService->checkAlerts();
+			$this->logger->info('Checked if users have SuiteCRM alerts.', [
+				'app' => Application::APP_ID,
+			]);
+		} catch (\Throwable $e) {
+			$this->logger->error('SuiteCRM checkAlerts background job failed: ' . $e->getMessage(), [
+				'app' => Application::APP_ID,
+				'exception' => $e,
+			]);
+		}
 	}
 }
