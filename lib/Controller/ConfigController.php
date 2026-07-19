@@ -20,9 +20,12 @@ use OCP\IURLGenerator;
 use OCP\IUserSession;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Controller;
 
+use OCA\SuiteCRM\Service\OAuthStateStore;
 use OCA\SuiteCRM\Service\SuiteCRMAPIService;
 use OCA\SuiteCRM\Service\TokenStorage;
 use OCA\SuiteCRM\AppInfo\Application;
@@ -47,6 +50,7 @@ class ConfigController extends Controller {
 								private IAppConfig $appConfig,
 								private SuiteCRMAPIService $suitecrmAPIService,
 								private TokenStorage $tokens,
+								private OAuthStateStore $stateStore,
 								private IURLGenerator $urlGenerator,
 								private IUserSession $userSession,
 								private ?string $userId) {
@@ -113,6 +117,140 @@ class ConfigController extends Controller {
 			);
 		}
 		return new DataResponse(1);
+	}
+
+	/**
+	 * Build the SuiteCRM 8.x OAuth authorize URL and hand it back to Vue so the
+	 * frontend can `window.location = authorize_url`.
+	 *
+	 * Iteration 20 (Finding 33): primary connect path is now the RFC 6749
+	 * authorization-code flow. The password grant on {@see oauthConnect()}
+	 * stays as an explicit "Advanced" fallback because some SuiteCRM 8.x
+	 * installs are still fronted by password clients and because a couple of
+	 * air-gapped setups can't complete a browser redirect back to Nextcloud.
+	 *
+	 * @return DataResponse
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/oauth-authorize-url')]
+	public function oauthAuthorizeUrl(): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => 'No user session'], 401);
+		}
+		$suitecrmUrl = rtrim($this->appConfig->getValueString(Application::APP_ID, 'oauth_instance_url'), '/');
+		$clientId = $this->appConfig->getValueString(Application::APP_ID, 'client_id');
+		// Path is configurable because SuiteCRM 8.x installs disagree on where
+		// the OAuth authorize endpoint sits: fresh 8.x installs use
+		// `/legacy/oauth2/authorize`, but installs upgraded from 7.x with the
+		// V8 API bolted on top expose `/Api/authorize` instead.
+		$authorizePath = ltrim(
+			$this->appConfig->getValueString(Application::APP_ID, 'oauth_authorize_path', '/legacy/oauth2/authorize'),
+			'/',
+		);
+		if ($suitecrmUrl === '' || $clientId === '') {
+			return new DataResponse(['error' => 'OAuth not configured'], 400);
+		}
+		$state = $this->stateStore->generate($this->userId);
+		$redirectUri = $this->urlGenerator->linkToRouteAbsolute('integration_suitecrm.config.oauthCallback');
+		$authorizeUrl = $suitecrmUrl . '/' . $authorizePath . '?' . http_build_query([
+			'response_type' => 'code',
+			'client_id' => $clientId,
+			'redirect_uri' => $redirectUri,
+			'state' => $state,
+		]);
+		return new DataResponse([
+			'authorize_url' => $authorizeUrl,
+			'state' => $state,
+		]);
+	}
+
+	/**
+	 * Redirect target for the OAuth 2.0 authorization-code flow. SuiteCRM
+	 * bounces the user back here after they approve the app on the SuiteCRM
+	 * consent screen.
+	 *
+	 * NoCSRFRequired: the browser arrives here from an external redirect, so
+	 * there's no requesttoken to send. The `state` param — verified against
+	 * the per-user store below — is the CSRF defence for this endpoint.
+	 *
+	 * @return RedirectResponse
+	 */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/oauth-callback')]
+	public function oauthCallback(string $code = '', string $state = ''): RedirectResponse {
+		if ($this->userId === null) {
+			return $this->redirectWithError('Not authenticated');
+		}
+		if ($code === '' || $state === '') {
+			return $this->redirectWithError('Missing code or state');
+		}
+		if (!$this->stateStore->verify($this->userId, $state)) {
+			// Always clear on failure so a leaked/guessed state can't be reused.
+			$this->stateStore->clear($this->userId);
+			return $this->redirectWithError('Invalid or expired OAuth state');
+		}
+		// One-shot: consume the state whether or not the token exchange succeeds.
+		$this->stateStore->clear($this->userId);
+
+		$suitecrmUrl = rtrim($this->appConfig->getValueString(Application::APP_ID, 'oauth_instance_url'), '/');
+		$clientId = $this->appConfig->getValueString(Application::APP_ID, 'client_id');
+		$clientSecret = $this->appConfig->getValueString(Application::APP_ID, 'client_secret');
+		$redirectUri = $this->urlGenerator->linkToRouteAbsolute('integration_suitecrm.config.oauthCallback');
+
+		$result = $this->suitecrmAPIService->requestOAuthAccessToken($suitecrmUrl, [
+			'grant_type' => 'authorization_code',
+			'client_id' => $clientId,
+			'client_secret' => $clientSecret,
+			'code' => $code,
+			'redirect_uri' => $redirectUri,
+		], 'POST');
+
+		if (!isset($result['access_token'], $result['refresh_token'])) {
+			return $this->redirectWithError((string) ($result['error'] ?? 'OAuth exchange failed'));
+		}
+		$this->tokens->setAccessToken($this->userId, $result['access_token']);
+		$this->tokens->setRefreshToken($this->userId, $result['refresh_token']);
+
+		// Look up the connected SuiteCRM user so PersonalSettings can render
+		// "Connected as X". The auth-code flow doesn't tell us who logged in
+		// so we ask the API — best-effort; the connection is valid regardless.
+		$login = 'connected';
+		$scrmUserId = '';
+		try {
+			$whoami = $this->suitecrmAPIService->request(
+				$suitecrmUrl, $result['access_token'], $this->userId, 'me'
+			);
+			if (isset($whoami['data']['attributes'])) {
+				$attrs = $whoami['data']['attributes'];
+				$login = $attrs['full_name'] ?? $attrs['user_name'] ?? 'connected';
+			}
+			if (isset($whoami['data']['id'])) {
+				$scrmUserId = (string) $whoami['data']['id'];
+			}
+		} catch (\Throwable $e) {
+			// Silent — a functioning token but a failed /me lookup shouldn't
+			// abort the connect. The user will just see "connected" as label.
+		}
+		$this->config->setUserValue($this->userId, Application::APP_ID, 'user_name', $login);
+		$this->config->setUserValue($this->userId, Application::APP_ID, 'user_id', $scrmUserId);
+
+		$successUrl = $this->urlGenerator->linkToRoute('settings.PersonalSettings.index', ['section' => 'connected-accounts'])
+			. '?suitecrmToken=success';
+		return new RedirectResponse($successUrl);
+	}
+
+	/**
+	 * Redirect back to Personal Settings with an error banner. Consolidates
+	 * the boilerplate for every early-exit path in {@see oauthCallback()}.
+	 */
+	private function redirectWithError(string $message): RedirectResponse {
+		$url = $this->urlGenerator->linkToRoute('settings.PersonalSettings.index', ['section' => 'connected-accounts'])
+			. '?' . http_build_query([
+				'suitecrmToken' => 'error',
+				'message' => $message,
+			]);
+		return new RedirectResponse($url);
 	}
 
 	/**
