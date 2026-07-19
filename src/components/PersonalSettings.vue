@@ -1,3 +1,6 @@
+<!--
+	@Code Changes by: Kim Haverblad, 2026
+-->
 <template>
 	<div id="suitecrm_prefs" class="section">
 		<h2>
@@ -10,56 +13,75 @@
 		</NcNoteCard>
 
 		<div v-else id="suitecrm-content">
-			<NcNoteCard v-if="!connected" type="info">
-				{{ t('integration_suitecrm', 'Your login and password are not stored. They are just used once to get an access token which will be used to interact with your account.') }}
-			</NcNoteCard>
-
 			<div class="fields">
 				<NcTextField
 					v-model="state.oauth_instance_url"
 					:label="t('integration_suitecrm', 'SuiteCRM instance address')"
 					:placeholder="t('integration_suitecrm', 'https://my.suitecrm.org')"
 					:disabled="true" />
-
-				<NcTextField
-					v-if="!connected"
-					v-model="login"
-					:label="t('integration_suitecrm', 'User name')"
-					:placeholder="t('integration_suitecrm', 'SuiteCRM login')"
-					@keyup.enter="onConnect" />
-
-				<NcPasswordField
-					v-if="!connected"
-					v-model="password"
-					:label="t('integration_suitecrm', 'Password')"
-					:placeholder="t('integration_suitecrm', 'SuiteCRM password')"
-					@keyup.enter="onConnect" />
 			</div>
 
-			<div class="actions">
-				<NcButton
-					v-if="!connected"
-					variant="primary"
-					:disabled="loading"
-					@click="onConnect">
-					<template #icon>
-						<LoginIcon :size="20" />
-					</template>
-					{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
-				</NcButton>
-
-				<template v-if="connected">
-					<span class="connected-label">
-						<CheckCircleIcon :size="20" class="connected-icon" />
-						{{ t('integration_suitecrm', 'Connected as {user}', { user: state.user_name }) }}
-					</span>
-					<NcButton variant="secondary" @click="onLogoutClick">
+			<template v-if="!connected">
+				<div class="actions">
+					<NcButton
+						variant="primary"
+						:disabled="authorizing"
+						@click="onOAuthConnect">
 						<template #icon>
-							<LogoutIcon :size="20" />
+							<LoginIcon :size="20" />
 						</template>
-						{{ t('integration_suitecrm', 'Disconnect from SuiteCRM') }}
+						{{ t('integration_suitecrm', 'Connect via SuiteCRM OAuth (recommended)') }}
 					</NcButton>
-				</template>
+				</div>
+				<p class="settings-hint">
+					{{ t('integration_suitecrm', 'You will be redirected to your SuiteCRM instance to sign in and approve access. This is the recommended, more secure connect path.') }}
+				</p>
+
+				<details class="advanced-fallback">
+					<summary>
+						{{ t('integration_suitecrm', 'Advanced: username + password fallback (SuiteCRM legacy grant)') }}
+					</summary>
+					<NcNoteCard type="info">
+						{{ t('integration_suitecrm', 'Only use this if your SuiteCRM instance cannot complete a browser redirect back to Nextcloud. Your login and password are not stored — they are only used once to obtain an access token.') }}
+					</NcNoteCard>
+					<div class="fields">
+						<NcTextField
+							v-model="login"
+							:label="t('integration_suitecrm', 'User name')"
+							:placeholder="t('integration_suitecrm', 'SuiteCRM login')"
+							@keyup.enter="onConnect" />
+
+						<NcPasswordField
+							v-model="password"
+							:label="t('integration_suitecrm', 'Password')"
+							:placeholder="t('integration_suitecrm', 'SuiteCRM password')"
+							@keyup.enter="onConnect" />
+					</div>
+					<div class="actions">
+						<NcButton
+							variant="secondary"
+							:disabled="loading"
+							@click="onConnect">
+							<template #icon>
+								<LoginIcon :size="20" />
+							</template>
+							{{ t('integration_suitecrm', 'Connect with username + password') }}
+						</NcButton>
+					</div>
+				</details>
+			</template>
+
+			<div v-if="connected" class="actions">
+				<span class="connected-label">
+					<CheckCircleIcon :size="20" class="connected-icon" />
+					{{ t('integration_suitecrm', 'Connected as {user}', { user: state.user_name }) }}
+				</span>
+				<NcButton variant="secondary" @click="onLogoutClick">
+					<template #icon>
+						<LogoutIcon :size="20" />
+					</template>
+					{{ t('integration_suitecrm', 'Disconnect from SuiteCRM') }}
+				</NcButton>
 			</div>
 
 			<div v-if="connected" class="toggles">
@@ -167,6 +189,7 @@ export default {
 			login: '',
 			password: '',
 			loading: false,
+			authorizing: false,
 			companion: null,
 		}
 	},
@@ -189,7 +212,8 @@ export default {
 		if (zmToken === 'success') {
 			showSuccess(t('integration_suitecrm', 'Successfully connected to SuiteCRM!'))
 		} else if (zmToken === 'error') {
-			showError(t('integration_suitecrm', 'OAuth access token could not be obtained:') + ' ' + urlParams.get('message'))
+			const message = urlParams.get('message') || t('integration_suitecrm', 'Unknown error')
+			showError(t('integration_suitecrm', 'OAuth access token could not be obtained:') + ' ' + message)
 		}
 		this.loadCompanion()
 	},
@@ -249,6 +273,31 @@ export default {
 				.then(() => {
 					this.loading = false
 				})
+		},
+
+		// Iteration 20 (Finding 33): primary connect path. Ask the server for a
+		// state-bound authorize URL, then hand the browser off to SuiteCRM. The
+		// callback controller finishes the flow and redirects the user back here.
+		async onOAuthConnect() {
+			this.authorizing = true
+			try {
+				const url = generateUrl('/apps/integration_suitecrm/oauth-authorize-url')
+				const response = await axios.get(url)
+				if (response.data && response.data.authorize_url) {
+					window.location = response.data.authorize_url
+					// leave `authorizing = true` — the whole page is about to unload.
+					return
+				}
+				showError(t('integration_suitecrm', 'OAuth is not configured on the server.'))
+			} catch (error) {
+				if (error.response?.data?.error) {
+					showError(t('integration_suitecrm', 'Failed to start OAuth flow') + ': ' + error.response.data.error)
+				} else {
+					showError(t('integration_suitecrm', 'Failed to start OAuth flow'))
+				}
+			} finally {
+				this.authorizing = false
+			}
 		},
 
 		onConnect() {
@@ -327,6 +376,32 @@ export default {
 		gap: 8px;
 		margin-block-start: 24px;
 		max-width: 500px;
+	}
+
+	.settings-hint {
+		color: var(--color-text-maxcontrast);
+		margin-block-start: 8px;
+		max-width: 500px;
+	}
+
+	.advanced-fallback {
+		margin-block-start: 24px;
+		max-width: 500px;
+
+		summary {
+			cursor: pointer;
+			color: var(--color-text-maxcontrast);
+			padding-block: 6px;
+			user-select: none;
+		}
+
+		summary:hover {
+			color: var(--color-main-text);
+		}
+
+		.fields {
+			margin-block-start: 8px;
+		}
 	}
 }
 
