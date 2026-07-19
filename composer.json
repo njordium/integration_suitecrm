@@ -18,7 +18,9 @@
 	},
 	"autoload-dev": {
 		"psr-4": {
-			"OCA\\SuiteCRM\\Tests\\": "tests/php/"
+			"OCA\\SuiteCRM\\Tests\\": "tests/php/",
+			"OCP\\": "vendor/nextcloud/ocp/OCP/",
+			"OC\\": "vendor/nextcloud/ocp/OC/"
 		}
 	},
 	"scripts": {
@@ -26,6 +28,9 @@
 		"stan": "phpstan analyse --configuration phpstan.neon"
 	},
 	"config": {
-		"sort-packages": true
+		"sort-packages": true,
+		"platform": {
+			"php": "8.2"
+		}
 	}
 }
