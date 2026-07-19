@@ -13,6 +13,9 @@
 
 namespace OCA\SuiteCRM\Controller;
 
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\IAppConfig;
 use OCP\IRequest;
@@ -43,22 +46,24 @@ class SuiteCRMAPIController extends Controller {
 
 	/**
 	 * get suitecrm instance URL
-	 * @NoAdminRequired
 	 *
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/url')]
 	public function getSuiteCRMUrl(): DataResponse {
 		return new DataResponse($this->suitecrmUrl);
 	}
 
 	/**
 	 * get suitecrm user avatar
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
 	 *
 	 * @param string $suiteUserId
 	 * @return DataDisplayResponse
 	 */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/avatar')]
 	public function getSuiteCRMAvatar(string $suiteUserId = ''): DataDisplayResponse {
 		$response = new DataDisplayResponse(
 			$this->suitecrmAPIService->getSuiteCRMAvatar(
@@ -71,12 +76,13 @@ class SuiteCRMAPIController extends Controller {
 
 	/**
 	 * get reminder list for future events
-	 * @NoAdminRequired
 	 *
 	 * @param int|null $eventSinceTimestamp
 	 * @param int|null $limit
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/reminders')]
 	public function getReminders(?int $eventSinceTimestamp = null, ?int $limit = null): DataResponse {
 		if ($this->accessToken === '') {
 			return new DataResponse('', 400);
@@ -94,11 +100,12 @@ class SuiteCRMAPIController extends Controller {
 
 	/**
 	 * Upcoming Meetings/Calls/Tasks for the calendar dashboard widget.
-	 * @NoAdminRequired
 	 *
 	 * @param int $horizonDays How far into the future to look.
 	 * @param int $limit Cap on total results.
 	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/upcoming')]
 	public function getUpcoming(int $horizonDays = 7, int $limit = 20): DataResponse {
 		if ($this->accessToken === '' || $this->userId === null) {
 			return new DataResponse('', 400);

@@ -18,6 +18,8 @@ use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
+use OCP\AppFramework\Http\Attribute\FrontpageRoute;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Controller;
 
@@ -53,11 +55,12 @@ class ConfigController extends Controller {
 
 	/**
 	 * set config values
-	 * @NoAdminRequired
 	 *
 	 * @param array $values
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'PUT', url: '/config')]
 	public function setConfig(array $values): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => 'No user session'], 401);
@@ -97,6 +100,7 @@ class ConfigController extends Controller {
 	 * @param array $values
 	 * @return DataResponse
 	 */
+	#[FrontpageRoute(verb: 'PUT', url: '/admin-config')]
 	public function setAdminConfig(array $values): DataResponse {
 		foreach ($values as $key => $value) {
 			$sensitive = $key === 'client_secret';
@@ -112,13 +116,13 @@ class ConfigController extends Controller {
 	}
 
 	/**
-	 * @NoAdminRequired
-	 *
 	 * @param string $login
 	 * @param string $password
 	 * @return DataResponse
 	 * @throws \OCP\PreConditionNotMetException
 	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/oauth-connect')]
 	public function oauthConnect(string $login = '', string $password = ''): DataResponse {
 		if ($this->userId === null) {
 			return new DataResponse(['error' => 'No user session'], 401);
@@ -171,10 +175,10 @@ class ConfigController extends Controller {
 	 * Nextcloud connection: their Nextcloud base URL, login, and a deep link
 	 * to the Security settings page for app-password generation.
 	 *
-	 * @NoAdminRequired
-	 *
 	 * @return DataResponse
 	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/calendar-companion')]
 	public function getCalendarCompanion(): DataResponse {
 		$user = $this->userSession->getUser();
 		$login = $user !== null ? $user->getUID() : ($this->userId ?? '');
