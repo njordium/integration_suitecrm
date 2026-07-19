@@ -85,7 +85,7 @@ class SuiteCRMSearchProvider implements IProvider {
 	 * @inheritDoc
 	 */
 	public function getOrder(string $route, array $routeParameters): int {
-		if (strpos($route, Application::APP_ID . '.') === 0) {
+		if (str_starts_with($route, Application::APP_ID . '.')) {
 			// Active app, prefer SuiteCRM results
 			return -1;
 		}
@@ -103,8 +103,7 @@ class SuiteCRMSearchProvider implements IProvider {
 
 		$limit = $query->getLimit();
 		$term = $query->getTerm();
-		$offset = $query->getCursor();
-		$offset = $offset ? intval($offset) : 0;
+		$offset = $query->getCursor() ?? 0;
 
 //		$theme = $this->config->getUserValue($user->getUID(), 'accessibility', 'theme', '');
 		$thumbnailUrl = $this->urlGenerator->imagePath(Application::APP_ID, 'app-color.svg');
