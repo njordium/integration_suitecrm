@@ -42,7 +42,7 @@ class SuiteCRMCalendarWidget implements IWidget {
 	}
 
 	public function getUrl(): ?string {
-		return $this->url->linkToRoute('settings.PersonalSettings.index', ['section' => 'connected-accounts']);
+		return $this->url->linkToRouteAbsolute('settings.PersonalSettings.index', ['section' => 'connected-accounts']);
 	}
 
 	public function load(): void {
