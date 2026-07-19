@@ -130,6 +130,9 @@ class ConfigController extends Controller {
 	 * @throws \OCP\PreConditionNotMetException
 	 */
 	public function oauthConnect(string $login = '', string $password = ''): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => 'No user session'], 401);
+		}
 		$suitecrmUrl = $this->config->getAppValue(Application::APP_ID, 'oauth_instance_url');
 		$clientID = $this->config->getAppValue(Application::APP_ID, 'client_id');
 		$clientSecret = $this->config->getAppValue(Application::APP_ID, 'client_secret');
