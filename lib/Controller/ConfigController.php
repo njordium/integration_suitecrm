@@ -28,8 +28,6 @@ use OCP\AppFramework\Controller;
 use OCA\SuiteCRM\Service\OAuthStateStore;
 use OCA\SuiteCRM\Service\SuiteCRMAPIService;
 use OCA\SuiteCRM\Service\TokenStorage;
-use GuzzleHttp\Exception\ClientException;
-use OCP\Http\Client\LocalServerException;
 use Psr\Log\LoggerInterface;
 use OCA\SuiteCRM\AppInfo\Application;
 
@@ -207,37 +205,56 @@ class ConfigController extends Controller {
                 $clientSecret = $this->appConfig->getValueString(Application::APP_ID, 'client_secret');
                 $redirectUri = $this->urlGenerator->linkToRouteAbsolute('integration_suitecrm.config.oauthCallback');
 
-                try {
-                        $result = $this->suitecrmAPIService->requestOAuthAccessToken($suitecrmUrl, [
+                $result = $this->suitecrmAPIService->requestOAuthAccessToken($suitecrmUrl, [
                         'grant_type' => 'authorization_code',
                         'client_id' => $clientId,
                         'client_secret' => $clientSecret,
                         'code' => $code,
                         'redirect_uri' => $redirectUri,
                 ], 'POST');
-                } catch (LocalServerException $e) {
-                        $this->logger->error('SuiteCRM OAuth blocked by local access rules', ['app' => Application::APP_ID, 'exception' => $e]);
-                        return $this->redirectWithError('Nextcloud refused to reach your SuiteCRM instance because its address is on a local network. An administrator can allow this with: occ config:system:set allow_local_remote_servers --value=true --type=boolean');
-                } catch (ClientException $e) {
-                        $response = $e->getResponse();
-                        $status = $response->getStatusCode();
-                        $body = (string) $response->getBody();
-                        $decoded = json_decode($body, true) ?: [];
-                        $errCode = (string) ($decoded['error'] ?? '');
-                        $errDesc = (string) ($decoded['error_description'] ?? '');
-                        $this->logger->error('SuiteCRM OAuth exchange rejected', ['app' => Application::APP_ID, 'status' => $status, 'error' => $errCode, 'error_description' => $errDesc]);
-                        if ($status === 401 && $errCode === 'invalid_client') {
+
+                // Iteration 37 (audit fix): the previous try/catch that lived
+                // here was dead code — requestOAuthAccessToken() catches every
+                // Throwable and returns ['error' => ...], so no exception ever
+                // crosses the method boundary. The three actionable catch
+                // branches (LocalServerException, 401/invalid_client, generic
+                // ClientException) never ran; the small ['error' => msg]
+                // fallback did, producing a raw guzzle message with no admin
+                // guidance. Iteration 37 enriches the service's error return
+                // shape with http_status / error_code / error_description /
+                // error_kind so this call site can produce the same
+                // admin-friendly messages from the returned array — this time
+                // reachable.
+                if (!isset($result['access_token'], $result['refresh_token'])) {
+                        $errorKind = (string) ($result['error_kind'] ?? '');
+                        $httpStatus = (int) ($result['http_status'] ?? 0);
+                        $errCode = (string) ($result['error_code'] ?? '');
+                        $errDesc = (string) ($result['error_description'] ?? '');
+
+                        $this->logger->error('SuiteCRM OAuth exchange failed', [
+                                'app' => Application::APP_ID,
+                                'error_kind' => $errorKind,
+                                'http_status' => $httpStatus,
+                                'error_code' => $errCode,
+                                'error_description' => $errDesc,
+                                'raw' => (string) ($result['error'] ?? ''),
+                        ]);
+
+                        if ($errorKind === 'local_server_blocked') {
+                                return $this->redirectWithError('Nextcloud refused to reach your SuiteCRM instance because its address is on a local network. An administrator can allow this with: occ config:system:set allow_local_remote_servers --value=true --type=boolean');
+                        }
+                        if ($httpStatus === 401 && $errCode === 'invalid_client') {
                                 return $this->redirectWithError('SuiteCRM rejected the client credentials. Two common causes: (1) the redirect URI in SuiteCRM does not match this Nextcloud URL byte-for-byte (check http vs https, port, and trailing slash); (2) the client was seeded via SQL with bcrypt but SuiteCRM 8.10.x expects SHA-256. Recreate the OAuth2 client via the SuiteCRM admin UI to avoid the algorithm mismatch.');
                         }
-                        return $this->redirectWithError('SuiteCRM OAuth exchange failed: ' . ($errDesc !== '' ? $errDesc : ($errCode !== '' ? $errCode : 'HTTP ' . $status)));
-                } catch (\Throwable $e) {
-                        $this->logger->error('SuiteCRM OAuth exchange failed', ['app' => Application::APP_ID, 'exception' => $e]);
-                        return $this->redirectWithError('Cannot reach SuiteCRM at the configured instance URL. Check the admin config and confirm the URL is spelled correctly and the host is
-reachable from this Nextcloud server.');
-                }
-
-                if (!isset($result['access_token'], $result['refresh_token'])) {
-                        return $this->redirectWithError((string) ($result['error'] ?? 'OAuth exchange failed'));
+                        if ($httpStatus > 0) {
+                                return $this->redirectWithError('SuiteCRM OAuth exchange failed: ' . ($errDesc !== '' ? $errDesc : ($errCode !== '' ? $errCode : 'HTTP ' . $httpStatus)));
+                        }
+                        // http_status === 0 means no HTTP response arrived
+                        // (DNS failure, TCP refused, TLS handshake, timeout).
+                        // Guide the admin to check the instance URL rather
+                        // than dumping the raw guzzle message which is often
+                        // opaque noise like "cURL error 6: Could not resolve".
+                        return $this->redirectWithError('Cannot reach SuiteCRM at the configured instance URL. Check the admin config and confirm the URL is spelled correctly and the host is reachable from this Nextcloud server.');
                 }
                 $this->tokens->setAccessToken($this->userId, $result['access_token']);
                 $this->tokens->setRefreshToken($this->userId, $result['refresh_token']);
