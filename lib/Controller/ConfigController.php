@@ -30,6 +30,7 @@ use OCA\SuiteCRM\Service\SuiteCRMAPIService;
 use OCA\SuiteCRM\Service\TokenStorage;
 use GuzzleHttp\Exception\ClientException;
 use OCP\Http\Client\LocalServerException;
+use Psr\Log\LoggerInterface;
 use OCA\SuiteCRM\AppInfo\Application;
 
 class ConfigController extends Controller {
@@ -55,6 +56,7 @@ class ConfigController extends Controller {
                                                                 private OAuthStateStore $stateStore,
                                                                 private IURLGenerator $urlGenerator,
                                                                 private IUserSession $userSession,
+                                                                private LoggerInterface $logger,
                                                                 private ?string $userId) {
                 parent::__construct($appName, $request);
         }
@@ -218,8 +220,8 @@ class ConfigController extends Controller {
                         return $this->redirectWithError('Nextcloud refused to reach your SuiteCRM instance because its address is on a local network. An administrator can allow this with: occ config:system:set allow_local_remote_servers --value=true --type=boolean');
                 } catch (ClientException $e) {
                         $response = $e->getResponse();
-                        $status = $response ? $response->getStatusCode() : 0;
-                        $body = $response ? (string) $response->getBody() : '';
+                        $status = $response->getStatusCode();
+                        $body = (string) $response->getBody();
                         $decoded = json_decode($body, true) ?: [];
                         $errCode = (string) ($decoded['error'] ?? '');
                         $errDesc = (string) ($decoded['error_description'] ?? '');
