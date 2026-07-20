@@ -205,7 +205,8 @@ class ConfigController extends Controller {
                 $clientSecret = $this->appConfig->getValueString(Application::APP_ID, 'client_secret');
                 $redirectUri = $this->urlGenerator->linkToRouteAbsolute('integration_suitecrm.config.oauthCallback');
 
-                $result = $this->suitecrmAPIService->requestOAuthAccessToken($suitecrmUrl, [
+                try {
+                        $result = $this->suitecrmAPIService->requestOAuthAccessToken($suitecrmUrl, [
                         'grant_type' => 'authorization_code',
                         'client_id' => $clientId,
                         'client_secret' => $clientSecret,
@@ -346,7 +347,7 @@ reachable from this Nextcloud server.');
                 $clientID = $this->appConfig->getValueString(Application::APP_ID, 'client_id');
                 $clientSecret = $this->appConfig->getValueString(Application::APP_ID, 'client_secret');
 
-                $result = $this->suitecrmAPIService->requestOAuthAccessToken($suitecrmUrl, [
+                        $result = $this->suitecrmAPIService->requestOAuthAccessToken($suitecrmUrl, [
                         'client_id' => $clientID,
                         'client_secret' => $clientSecret,
                         'username' => $login,
