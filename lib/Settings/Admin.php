@@ -34,6 +34,11 @@ class Admin implements ISettings {
 			'client_id' => $clientId,
 			'client_secret_set' => $clientSecret !== '',
 			'oauth_instance_url' => $oauthUrl,
+			// Iteration 21 (Finding 2): expose the authorize path to the admin
+			// UI so admins on a `/Api/authorize`-style install can change it
+			// without dropping to `occ config:app:set`. Default matches the
+			// fresh-8.x path used elsewhere in this app.
+			'oauth_authorize_path' => $this->appConfig->getValueString(Application::APP_ID, 'oauth_authorize_path', '/Api/authorize'),
 		]);
 		return new TemplateResponse(Application::APP_ID, 'adminSettings');
 	}
