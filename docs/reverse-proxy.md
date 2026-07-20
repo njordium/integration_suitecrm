@@ -1,8 +1,8 @@
 # Running the integration behind a reverse proxy
 
-Public-facing Nextcloud deployments almost always live behind nginx, Apache, HAProxy, Traefik, or a Cloudflare Tunnel. The OAuth flow this app implements only works if Nextcloud generates URLs that match what the browser is really hitting — one wrong header and SuiteCRM rejects the callback with `invalid_client`.
+Public-facing Nextcloud deployments almost always live behind nginx, Apache, or a Cloudflare Tunnel. The OAuth flow this app implements only works if Nextcloud generates URLs that match what the browser is really hitting — one wrong header and SuiteCRM rejects the callback with `invalid_client`.
 
-This document captures the tested config for the two most common setups.
+This document captures the tested config for those three setups. HAProxy and Traefik front-ends work fine in principle (the underlying constraint is the same overwrite trio below), but we don't ship tested samples for them yet — if you run one of those and want to contribute a working config, PRs welcome.
 
 ## The failure mode you're trying to avoid
 
@@ -26,12 +26,13 @@ $CONFIG = [
 
     // Tell NC what its public URL actually is
     'overwriteprotocol' => 'https',
-    'overwritehost'     => 'cloud.example.com',
+    'overwritehost' => 'cloud.example.com',
     'overwrite.cli.url' => 'https://cloud.example.com',
 
     // Only apply the overwrites when the request comes from the proxy —
     // this preserves direct-access URLs (e.g. from the container internal
-    // network for occ). Set to your proxy's source IP or CIDR.
+    // network for occ). Set to your proxy's source IP or CIDR as a PHP
+    // regex; the `^...$` and escaped dots below are literal.
     'overwritecondaddr' => '^10\.0\.0\.5$',
 
     // Trust the proxy's X-Forwarded-* headers
@@ -58,6 +59,22 @@ And then the SuiteCRM OAuth2 Client's Redirect URL must be exactly:
 https://cloud.example.com/apps/integration_suitecrm/oauth-callback
 ```
 
+### About `allow_local_remote_servers`
+
+A common assumption is that fronting SuiteCRM with a public reverse proxy makes `allow_local_remote_servers=true` unnecessary. That's not quite right. Nextcloud's SSRF guard checks the **resolved** IP address of the SuiteCRM URL you set in the app config, not the path the browser takes. If `crm.example.com` resolves to a private-range address (RFC-1918 / loopback), the outbound token exchange from the Nextcloud PHP process still gets blocked before it even reaches your reverse proxy.
+
+Two ways to keep the SSRF guard on:
+
+1. Configure the SuiteCRM app URL as the **public** hostname (`https://crm.example.com`) and make sure that hostname resolves to a **public** IP from the Nextcloud host — usually via public DNS pointing to the reverse proxy's public IP.
+2. If NC and the reverse proxy sit on the same private LAN and DNS still resolves the public name to a private IP (split-horizon DNS), you're back to needing `allow_local_remote_servers=true` even though the browser side is fully public.
+
+To check what NC actually sees, run this from inside the NC container/host:
+```bash
+sudo -u www-data php -r 'var_dump(gethostbyname("crm.example.com"));'
+```
+
+If that prints a private-range address you must either fix DNS or set the system value.
+
 ## nginx sample (Nextcloud only)
 
 ```nginx
@@ -78,16 +95,16 @@ server {
     listen [::]:443 ssl http2;
     server_name cloud.example.com;
 
-    ssl_certificate     /etc/letsencrypt/live/cloud.example.com/fullchain.pem;
+    ssl_certificate /etc/letsencrypt/live/cloud.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/cloud.example.com/privkey.pem;
 
     # HSTS — safe to enable AFTER you've confirmed HTTPS works end-to-end.
     # Once set, browsers refuse plain HTTP to this hostname; hard to undo.
     add_header Strict-Transport-Security "max-age=15768000; includeSubDomains" always;
 
-    add_header X-Content-Type-Options       "nosniff"        always;
-    add_header X-Frame-Options              "SAMEORIGIN"     always;
-    add_header Referrer-Policy              "no-referrer"    always;
+    add_header X-Content-Type-Options       "nosniff" always;
+    add_header X-Frame-Options              "SAMEORIGIN" always;
+    add_header Referrer-Policy              "no-referrer" always;
     add_header X-Robots-Tag                 "noindex, nofollow" always;
 
     # Nextcloud recommends 512M+ for large file uploads
@@ -118,10 +135,10 @@ server {
 
         try_files $fastcgi_script_name =404;
         include fastcgi_params;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        fastcgi_param PATH_INFO $path_info;
-        fastcgi_param HTTPS on;
-        fastcgi_param modHeadersAvailable true;
+        fastcgi_param SCRIPT_FILENAME       $document_root$fastcgi_script_name;
+        fastcgi_param PATH_INFO             $path_info;
+        fastcgi_param HTTPS                 on;
+        fastcgi_param modHeadersAvailable   true;
         fastcgi_param front_controller_active true;
 
         fastcgi_pass nextcloud_php_handler;
@@ -161,7 +178,7 @@ server {
     listen [::]:443 ssl http2;
     server_name crm.example.com;
 
-    ssl_certificate     /etc/letsencrypt/live/crm.example.com/fullchain.pem;
+    ssl_certificate /etc/letsencrypt/live/crm.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/crm.example.com/privkey.pem;
 
     add_header Strict-Transport-Security "max-age=15768000; includeSubDomains" always;
@@ -169,7 +186,7 @@ server {
     client_max_body_size 100M;
 
     location / {
-        proxy_pass         http://10.0.0.20:80;   # your SuiteCRM host+port
+        proxy_pass http://10.0.0.20:80; # your SuiteCRM host+port
         proxy_http_version 1.1;
 
         proxy_set_header Host              $host;
@@ -178,17 +195,17 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host  $host;
 
-        proxy_read_timeout  180;
-        proxy_send_timeout  180;
+        proxy_read_timeout 180;
+        proxy_send_timeout 180;
     }
 }
 ```
 
-Then in Nextcloud's admin config, set `oauth_instance_url = https://crm.example.com` (the public URL, not the private one), and Nextcloud won't need `allow_local_remote_servers` because the connection goes through the public reverse proxy.
+Then in Nextcloud's admin config, set `oauth_instance_url = https://crm.example.com` (the public URL, not the private one). Whether you need `allow_local_remote_servers=true` depends on whether `crm.example.com` resolves to a public or private IP from the NC host — see the "About allow_local_remote_servers" section above.
 
 ## Apache sample
 
-If you're already using Apache as your web server for Nextcloud:
+If you're already using Apache as your web server for Nextcloud, this configuration assumes PHP-FPM (recommended for NC 25+) rather than mod_php:
 
 ```apache
 # /etc/apache2/sites-available/nextcloud.conf
@@ -201,10 +218,10 @@ If you're already using Apache as your web server for Nextcloud:
     ServerName cloud.example.com
 
     SSLEngine on
-    SSLCertificateFile      /etc/letsencrypt/live/cloud.example.com/fullchain.pem
-    SSLCertificateKeyFile   /etc/letsencrypt/live/cloud.example.com/privkey.pem
+    SSLCertificateFile    /etc/letsencrypt/live/cloud.example.com/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/cloud.example.com/privkey.pem
 
-    # HSTS
+    # HSTS — safe to enable AFTER you've confirmed HTTPS works end-to-end.
     Header always set Strict-Transport-Security "max-age=15768000; includeSubDomains"
 
     DocumentRoot /var/www/nextcloud
@@ -219,12 +236,32 @@ If you're already using Apache as your web server for Nextcloud:
         </IfModule>
     </Directory>
 
-    # Preserve the client's scheme (for occ + PHP to see https)
-    RequestHeader set X-Forwarded-Proto "https"
+    # PHP-FPM handler — hands .php requests off to the PHP-FPM pool over its
+    # Unix socket. Without this block, Apache serves .php files as text
+    # (very sharp footgun). Path here matches Debian/Ubuntu default; adjust
+    # for your distribution's socket location (RHEL/Fedora usually
+    # /run/php-fpm/www.sock).
+    <FilesMatch \.php$>
+        SetHandler "proxy:unix:/run/php/php8.2-fpm.sock|fcgi://localhost"
+    </FilesMatch>
+
+    # Tell PHP the browser hit https, even though Apache→PHP-FPM is local.
+    # Combined with overwriteprotocol=https in config.php, NC's URL generator
+    # will emit https URLs for the OAuth redirect_uri.
+    <IfModule mod_setenvif.c>
+        SetEnvIf X-Forwarded-Proto "https" HTTPS=on
+    </IfModule>
 </VirtualHost>
 ```
 
-Enable modules Apache needs for this: `a2enmod ssl headers rewrite env dir mime`.
+Enable the modules Apache needs for this stack:
+```bash
+a2enmod ssl headers rewrite env dir mime proxy_fcgi setenvif
+a2enconf php8.2-fpm  # or the equivalent for your PHP version
+systemctl reload apache2
+```
+
+If you're running mod_php instead of PHP-FPM (older distros), replace the `<FilesMatch \.php$>` block with `SetHandler application/x-httpd-php` and skip `a2enmod proxy_fcgi`. mod_php is not recommended by upstream Nextcloud on 30+ because it forces `mpm_prefork` and hurts throughput.
 
 The overwrite config in `config.php` still applies — Apache alone doesn't tell PHP the correct scheme unless you set `overwriteprotocol=https`.
 
@@ -243,11 +280,13 @@ ingress:
   - service: http_status:404
 ```
 
+`noTLSVerify: false` is the safe default (do verify TLS on the backend). Only set to `true` if your backend uses a self-signed cert you can't replace — which is unusual because the tunnel-to-backend leg is typically plain HTTP inside the same host anyway.
+
 `config.php` needs:
 ```php
 'overwriteprotocol' => 'https',
-'overwritehost'     => 'cloud.example.com',
-'trusted_proxies'   => ['127.0.0.1'],
+'overwritehost' => 'cloud.example.com',
+'trusted_proxies' => ['127.0.0.1'],
 'overwritecondaddr' => '^127\.0\.0\.1$',
 ```
 
@@ -262,11 +301,11 @@ sudo -u www-data php occ config:system:get overwritehost       # cloud.example.c
 
 # 2. Confirm URL generation uses the public URL
 sudo -u www-data php -r '
-    require_once "/var/www/nextcloud/lib/base.php";
-    $url = \OC::$server->getURLGenerator()->linkToRouteAbsolute(
-        "integration_suitecrm.config.oauthCallback"
-    );
-    echo $url . "\n";
+require_once "/var/www/nextcloud/lib/base.php";
+$url = \OC::$server->getURLGenerator()->linkToRouteAbsolute(
+    "integration_suitecrm.config.oauthCallback"
+);
+echo $url . "\n";
 '
 # Expected output: https://cloud.example.com/apps/integration_suitecrm/oauth-callback
 
