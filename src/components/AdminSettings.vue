@@ -43,6 +43,18 @@
 				:label="t('integration_suitecrm', 'Application secret')"
 				:placeholder="secretPlaceholder"
 				@update:value="onInput" />
+
+			<!--
+				Iteration 21 (Finding 2): the OAuth authorize endpoint path is
+				now editable from the admin UI. Fresh SuiteCRM 8.4+ installs
+				don't need to touch this; installs upgraded from 7.x or fronted
+				by a rewriting proxy sometimes do.
+			-->
+			<NcTextField
+				v-model="state.oauth_authorize_path"
+				:label="t('integration_suitecrm', 'OAuth authorize endpoint path')"
+				:helper-text="t('integration_suitecrm', '(SuiteCRM 8.10.x default: /Api/authorize. Older installs may use /legacy/oauth2/authorize.)')"
+				@update:value="onInput" />
 		</div>
 	</div>
 </template>
@@ -111,6 +123,7 @@ export default {
 			const values = {
 				client_id: this.state.client_id,
 				oauth_instance_url: this.state.oauth_instance_url,
+				oauth_authorize_path: this.state.oauth_authorize_path,
 			}
 			// Only include client_secret when the admin actually typed a new
 			// value. Sending the empty string would clear the stored secret,
