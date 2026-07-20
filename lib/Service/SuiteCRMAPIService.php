@@ -143,6 +143,27 @@ class SuiteCRMAPIService {
 	 * - not already read
 	 * - reminder set after $since (if defined)
 	 *
+	 * Iteration 21 (Finding 6): the Reminders query now pushes
+	 * `filter[assigned_user_id][eq]=<scrmUserId>` to the server so we don't
+	 * pull every reminder in the tenant just to discard 99% of them. The
+	 * per-event assigned_user_id check below still runs — the two IDs can
+	 * diverge (e.g. a reminder created by an admin on behalf of another
+	 * user), so the server filter narrows the input set and the client-side
+	 * check remains authoritative for the "this reminder's event is mine"
+	 * decision.
+	 *
+	 * Iteration 21 (Finding 5): the sprayed
+	 * `implode('&filter[operator]=and&', ...)` produced a URL with an
+	 * `operator=and` between every pair of filters, which SuiteCRM parses
+	 * as one final operator anyway but which trips some WAFs. The operator
+	 * is now appended once, only when there is more than one filter.
+	 *
+	 * Iteration 21 (Finding 9): defensive parse of `date_willexecute` and
+	 * `timer_popup`. Some SuiteCRM installs return NULL for these fields
+	 * on orphaned reminders (a reminder whose event was deleted before the
+	 * reminder was cleaned up), which used to arithmetic to a large
+	 * negative timestamp and flood the tray with garbage rows from ~1970.
+	 *
 	 * @param string $url
 	 * @param string $accessToken
 	 * @param string $userId
@@ -159,6 +180,9 @@ class SuiteCRMAPIService {
 								?int $limit = null): array {
 		$scrmUserId = $this->config->getUserValue($userId, Application::APP_ID, 'user_id');
 		$filters = [];
+		if ($scrmUserId !== '') {
+			$filters[] = urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId);
+		}
 		if (!is_null($reminderSinceTs)) {
 			$filters[] = 'filter[date_willexecute][gt]=' . $reminderSinceTs;
 		}
@@ -173,16 +197,27 @@ class SuiteCRMAPIService {
 		if (!is_null($eventUntilTs)) {
 			$filters[] = 'filter[date_willexecute][lt]=' . $eventUntilTs;
 		}
+		$queryString = implode('&', $filters);
+		if (count($filters) > 1) {
+			$queryString .= '&filter[operator]=and';
+		}
 		$result = $this->request(
-			$url, $accessToken, $userId, 'module/Reminders?' . implode('&filter[operator]=and&', $filters)
+			$url, $accessToken, $userId, 'module/Reminders?' . $queryString
 		);
 		if (isset($result['error'])) {
 			return $result;
 		}
 		$finalResults = [];
 		foreach (($result['data'] ?? []) as $reminder) {
-			// apply time filter on real reminder date
-			$realReminderTs = (int) $reminder['attributes']['date_willexecute'] - (int) $reminder['attributes']['timer_popup'];
+			// Defensive: orphan reminders can have NULL date_willexecute /
+			// timer_popup on some installs — skip those rather than emit a
+			// bogus 1970 timestamp downstream.
+			$dateWillExecute = $reminder['attributes']['date_willexecute'] ?? null;
+			$timerPopup = $reminder['attributes']['timer_popup'] ?? null;
+			if (!is_numeric($dateWillExecute) || !is_numeric($timerPopup)) {
+				continue;
+			}
+			$realReminderTs = (int) $dateWillExecute - (int) $timerPopup;
 			if (!is_null($reminderSinceTs) && $realReminderTs <= $reminderSinceTs) {
 				continue;
 			}
@@ -316,10 +351,18 @@ class SuiteCRMAPIService {
 		['module' => 'Tasks', 'type' => 'task', 'fields' => 'name,date_due,priority,status,assigned_user_id', 'date_attr' => 'date_due'],
 	];
 
+	/**
+	 * Iteration 21 (Finding 4): Contacts and Leads used to filter by
+	 * `full_name`, which is a non-db computed field on both modules — the
+	 * filter silently matched nothing on every install, so cross-module
+	 * search returned no Contacts/Leads at all. Switched to `last_name`,
+	 * which is a real column and the standard SuiteCRM "search person by
+	 * name" surface.
+	 */
 	private const SEARCH_MODULES = [
-		['module' => 'Contacts', 'type' => 'contact', 'fields' => 'name,first_name,last_name,full_name', 'name_attr' => 'full_name'],
+		['module' => 'Contacts', 'type' => 'contact', 'fields' => 'name,first_name,last_name,full_name', 'name_attr' => 'last_name'],
 		['module' => 'Accounts', 'type' => 'account', 'fields' => 'name', 'name_attr' => 'name'],
-		['module' => 'Leads', 'type' => 'lead', 'fields' => 'name,full_name', 'name_attr' => 'full_name'],
+		['module' => 'Leads', 'type' => 'lead', 'fields' => 'name,full_name', 'name_attr' => 'last_name'],
 		['module' => 'Opportunities', 'type' => 'opportunity', 'fields' => 'name,amount,currency_symbol,currency_name', 'name_attr' => 'name'],
 		['module' => 'Cases', 'type' => 'case', 'fields' => 'name,case_number,status', 'name_attr' => 'name'],
 		['module' => 'Meetings', 'type' => 'meeting', 'fields' => 'name,date_start,status,location', 'name_attr' => 'name'],
@@ -384,43 +427,49 @@ class SuiteCRMAPIService {
 	/**
 	 * Cross-module free-text search.
 	 *
-	 * Iteration 18 (Finding 16): the filter is now pushed to SuiteCRM v8 REST
-	 * via `filter[<name_attr>][like]=%<query>%` instead of fetching every row
-	 * per module and grepping client-side with `preg_match`. The old approach
-	 * did not scale to real CRM sizes — a tenant with 100k Contacts would pull
-	 * 100k rows over the wire per keystroke.
+	 * Iteration 18 (Finding 16): the filter is pushed to SuiteCRM v8 REST
+	 * instead of fetching every row per module and grepping client-side with
+	 * `preg_match`. The old approach did not scale to real CRM sizes — a
+	 * tenant with 100k Contacts would pull 100k rows over the wire per
+	 * keystroke.
 	 *
-	 * Behaviour notes:
-	 * - `%` characters inside the user's query are escaped so a stray `%` cannot
-	 *   turn into an unintended LIKE wildcard (defence in depth against a
-	 *   LIKE-injection style probe).
-	 * - If a single module rejects the filter (e.g. `name_attr` is missing in a
-	 *   custom schema, or the field is not filterable), that module is skipped
-	 *   rather than aborting the whole search — one broken module used to kill
-	 *   results for every other module.
+	 * Iteration 21 (Finding 1): the operator is now `contains` rather than
+	 * `like`. `like` is not in the documented SuiteCRM 8 v8 operator set
+	 * and stock installs 400 on it — the previous implementation silently
+	 * swallowed those 400s in the "one module rejecting shouldn't kill the
+	 * whole search" fallback, so admins saw empty search results with no
+	 * signal in the log. `contains` is available in SuiteCRM 8.4+ and
+	 * behaves like the client-side substring match it replaced. Module
+	 * rejections now emit a `logger->warning` so a broken schema is
+	 * visible in the log instead of failing silently.
 	 *
 	 * @return array Combined result rows, each tagged with a `type` field.
 	 */
 	public function search(string $url, string $accessToken, string $userId, string $query, int $offset = 0, int $limit = 5): array {
 		$combinedResults = [];
-		// SuiteCRM v8 REST supports filter[<field>][like]=%<value>%. We wrap the
-		// query in wildcards so a substring match works the way the previous
-		// client-side preg_match did. Escape any literal `%` in the user input so
-		// it cannot act as a wildcard itself.
-		$likeValue = '%' . str_replace('%', '\%', $query) . '%';
+		// `contains` takes the raw substring — no wildcards to escape.
+		$searchValue = $query;
 
 		foreach (self::SEARCH_MODULES as $moduleDef) {
 			$filters = [
 				'fields[' . $moduleDef['module'] . ']=' . $moduleDef['fields'],
-				urlencode('filter[' . $moduleDef['name_attr'] . '][like]') . '=' . urlencode($likeValue),
+				urlencode('filter[' . $moduleDef['name_attr'] . '][contains]') . '=' . urlencode($searchValue),
 			];
 			$response = $this->request(
 				$url, $accessToken, $userId,
 				'module/' . $moduleDef['module'] . '?' . implode('&', $filters)
 			);
 			if (isset($response['error'])) {
-				// A single module rejecting the filter (e.g. name_attr missing in a
-				// custom schema) shouldn't kill the whole search — skip and continue.
+				// A single module rejecting the filter (missing name_attr in a
+				// custom schema, non-filterable field, etc) shouldn't kill the
+				// whole search — skip and continue, but log so admins can see
+				// which module is broken instead of just getting empty results.
+				$this->logger->warning('SuiteCRM search: module rejected filter', [
+					'app' => $this->appName,
+					'module' => $moduleDef['module'],
+					'name_attr' => $moduleDef['name_attr'],
+					'error' => $response['error'],
+				]);
 				continue;
 			}
 			foreach ($response['data'] ?? [] as $row) {
