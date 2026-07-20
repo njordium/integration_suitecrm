@@ -1,8 +1,12 @@
 # Iteration 27: automated release packaging.
+# Iteration 38: hardened — added lint/test gate, version sync check,
+# SHA-256 checksum, and corrected the install-path copy from `apps/`
+# (NC's bundled dir) to `custom_apps/` (where admin-installed
+# third-party apps live).
 #
 # On tag push (v*) or manual dispatch, build the Vue bundles and produce a
-# zip that's ready to drop into a Nextcloud `apps/` directory. Attaches the
-# zip to the GitHub release automatically.
+# zip that's ready to drop into a Nextcloud `custom_apps/` directory.
+# Attaches the zip + SHA-256 to the GitHub release automatically.
 #
 # Why this exists: the fork's `js/` bundles are .gitignore'd and only
 # produced by CI, so a plain `wget /archive/refs/heads/master.tar.gz`
@@ -20,7 +24,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g. v1.9.3). Only used for the artifact name.'
+        description: 'Version tag (e.g. v1.9.0). Must match appinfo/info.xml <version> on push events; skipped on dispatch dev-runs.'
         required: true
         default: 'v0.0.0-dev'
 
@@ -37,6 +41,7 @@ jobs:
       - name: Determine version
         id: version
         run: |
+          set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION="${{ inputs.version }}"
           else
@@ -44,6 +49,59 @@ jobs:
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Building version: ${VERSION}"
+
+      # -----------------------------------------------------------------
+      # Iter 38 gate 1: appinfo/info.xml version must match the pushed
+      # tag. Nextcloud reads its update-detection version from info.xml,
+      # not the git tag, so a tag/info.xml drift ships a zip that claims
+      # one version but installs as another and users get no update prompt.
+      # Skip the check on workflow_dispatch dev runs (they use a
+      # placeholder version like v0.0.0-dev).
+      # -----------------------------------------------------------------
+      - name: Verify appinfo/info.xml <version> matches tag
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.version.outputs.version }}"
+          TAG_BARE="${TAG#v}"
+          INFO_VERSION=$(grep -oE '<version>[^<]+</version>' appinfo/info.xml | head -1 | sed -E 's|</?version>||g')
+          echo "Tag version (leading 'v' stripped): $TAG_BARE"
+          echo "appinfo/info.xml <version>: $INFO_VERSION"
+          if [ "$TAG_BARE" != "$INFO_VERSION" ]; then
+            echo "::error::Tag v${TAG_BARE} does not match appinfo/info.xml <version>${INFO_VERSION}</version>."
+            echo "Fix: update <version> in appinfo/info.xml on the tagged commit, retag, and push the corrected tag."
+            exit 1
+          fi
+          echo "Version sync OK."
+
+      # -----------------------------------------------------------------
+      # Iter 38 gate 2: replay the Lint & Test suite as prerequisite
+      # steps. Iteration 27 originally published on any tag push without
+      # verifying that the tagged commit is green, which would ship a
+      # broken release if a maintainer tagged a red commit. We could use
+      # a workflow_run trigger dependent on Lint & Test, but that has
+      # awkward semantics for tag-driven runs (workflow_run always
+      # executes against the default branch of the workflow file). Doing
+      # it inline is verbose but bulletproof.
+      # -----------------------------------------------------------------
+      - name: Setup PHP (8.2 — floor per composer.json)
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install composer deps
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: PHP syntax check (lib + appinfo + tests)
+        run: find lib appinfo tests -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: PHPStan
+        run: vendor/bin/phpstan analyse --configuration phpstan.neon --no-progress
+
+      - name: PHPUnit
+        run: vendor/bin/phpunit --configuration phpunit.xml
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -54,17 +112,27 @@ jobs:
       - name: Install JS dependencies
         run: npm ci
 
+      - name: JS lint (eslint on src/)
+        run: npm run lint
+
+      - name: Style lint (stylelint on src + css)
+        run: npm run stylelint
+
       - name: Build production bundles
         run: npm run build
 
       - name: Confirm bundles were produced
         run: |
+          set -euo pipefail
           ls -la js/
           test -f js/integration_suitecrm-personalSettings.js
           test -f js/integration_suitecrm-adminSettings.js
           test -f js/integration_suitecrm-dashboard.js
 
-      - name: Package for Nextcloud app store
+      # -----------------------------------------------------------------
+      # Package + checksum.
+      # -----------------------------------------------------------------
+      - name: Package for Nextcloud
         id: package
         run: |
           set -euo pipefail
@@ -72,9 +140,9 @@ jobs:
           STAGING=/tmp/pkg
           mkdir -p "${STAGING}/integration_suitecrm"
 
-          # Copy everything into the staging dir, then remove things that
-          # shouldn't ship. Using find + rm rather than rsync excludes so
-          # the exclusion list stays obvious in the log output.
+          # rsync everything, then exclude the dev-only artefacts. Explicit
+          # exclude list rather than an include list so a new source file
+          # (e.g. a new lib/ subdir) is picked up automatically.
           rsync -a \
             --exclude='.git/' \
             --exclude='.github/' \
@@ -85,6 +153,7 @@ jobs:
             --exclude='node_modules/' \
             --exclude='src/' \
             --exclude='tests/' \
+            --exclude='vendor/' \
             --exclude='phpunit.xml' \
             --exclude='phpstan.neon' \
             --exclude='eslint.config.mjs' \
@@ -100,38 +169,57 @@ jobs:
             --exclude='docker/' \
             --exclude='.editorconfig' \
             --exclude='.prettierrc*' \
+            --exclude='.vscode/' \
+            --exclude='.idea/' \
             ./ "${STAGING}/integration_suitecrm/"
 
-          # Show what we're shipping
-          echo "--- Package contents ---"
+          echo "--- Package contents (first 60 files) ---"
           find "${STAGING}/integration_suitecrm" -type f | sort | head -60
           echo "--- Total size ---"
           du -sh "${STAGING}/integration_suitecrm"
 
-          # Build the zip
           ZIP="/tmp/integration_suitecrm-${VERSION}.zip"
           (cd "${STAGING}" && zip -r "${ZIP}" integration_suitecrm/)
           ls -la "${ZIP}"
+
+          # Iter 38: SHA-256 alongside the zip for supply-chain
+          # verification. `sha256sum -c file.sha256` on the target
+          # confirms the download was not tampered with in transit.
+          SHA256="${ZIP}.sha256"
+          (cd "$(dirname "${ZIP}")" && sha256sum "$(basename "${ZIP}")" > "${SHA256}")
+          echo "--- SHA-256 checksum ---"
+          cat "${SHA256}"
+
           echo "zip=${ZIP}" >> "$GITHUB_OUTPUT"
+          echo "sha256=${SHA256}" >> "$GITHUB_OUTPUT"
 
       - name: Create/update GitHub Release with asset
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.package.outputs.zip }}
+          files: |
+            ${{ steps.package.outputs.zip }}
+            ${{ steps.package.outputs.sha256 }}
           body: |
             Automated build for ${{ steps.version.outputs.version }}.
 
-            **Install:** download `integration_suitecrm-${{ steps.version.outputs.version }}.zip` below, extract into your Nextcloud `apps/` directory, then enable via **Apps → Integration → SuiteCRM integration**.
+            **Install:** download `integration_suitecrm-${{ steps.version.outputs.version }}.zip` below, extract into your Nextcloud `custom_apps/` directory (this is the third-party app directory — do **not** use the bundled `apps/` directory), then enable via **Apps → Integration → SuiteCRM integration**.
+
+            **Verify the download:**
+            ```
+            sha256sum -c integration_suitecrm-${{ steps.version.outputs.version }}.zip.sha256
+            ```
 
             This zip includes pre-built `js/` bundles — no `npm run build` needed on the target server.
 
-            See [README](https://github.com/njordium/integration_suitecrm/blob/master/README.md) for admin setup and troubleshooting.
+            See [README](https://github.com/njordium/integration_suitecrm/blob/master/README.md) for admin setup, deployment scenarios, and troubleshooting.
 
       - name: Upload artifact (workflow_dispatch)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: integration_suitecrm-${{ steps.version.outputs.version }}
-          path: ${{ steps.package.outputs.zip }}
+          path: |
+            ${{ steps.package.outputs.zip }}
+            ${{ steps.package.outputs.sha256 }}
           retention-days: 30
