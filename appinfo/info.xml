@@ -26,6 +26,9 @@
 	<background-jobs>
 		<job>OCA\SuiteCRM\BackgroundJob\CheckAlerts</job>
 	</background-jobs>
+	<commands>
+		<command>OCA\SuiteCRM\Command\TestConnection</command>
+	</commands>
 	<settings>
 		<admin>OCA\SuiteCRM\Settings\Admin</admin>
 		<admin-section>OCA\SuiteCRM\Settings\AdminSection</admin-section>
