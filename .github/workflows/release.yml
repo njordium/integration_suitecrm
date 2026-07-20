@@ -171,6 +171,13 @@ jobs:
             --exclude='.prettierrc*' \
             --exclude='.vscode/' \
             --exclude='.idea/' \
+            --exclude='.phpunit.cache/' \
+            --exclude='.phpunit.result.cache' \
+            --exclude='.php-cs-fixer.cache' \
+            --exclude='.phpcs-cache' \
+            --exclude='.tool-versions' \
+            --exclude='.node-version' \
+            --exclude='.php-version' \
             ./ "${STAGING}/integration_suitecrm/"
 
           echo "--- Package contents (first 60 files) ---"
