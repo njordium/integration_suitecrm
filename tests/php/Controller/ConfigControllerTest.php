@@ -16,6 +16,7 @@ use OCP\IURLGenerator;
 use OCP\IUserSession;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 /**
  * Iteration 17 — Finding 49
@@ -24,6 +25,16 @@ use PHPUnit\Framework\TestCase;
  * (Iteration 11) added a strict allowlist; without these tests a future
  * refactor could silently reintroduce arbitrary-preference writes from any
  * authenticated user.
+ *
+ * Iteration 34 — Test fixture update
+ *
+ * Iteration 33 added a LoggerInterface constructor dependency on
+ * ConfigController (positions the logger as constructor argument #10,
+ * one slot before the trailing ?string $userId). The setUp() and
+ * makeController() helpers below were previously wiring nine mocks and
+ * hitting a TypeError in CI because the userId string was landing on
+ * the LoggerInterface slot. The tenth mock plus the extra positional
+ * arg below restore the signature contract.
  *
  * @Code Changes by: Kim Haverblad, 2026
  */
@@ -37,6 +48,7 @@ class ConfigControllerTest extends TestCase {
 	private OAuthStateStore&MockObject $stateStore;
 	private IURLGenerator&MockObject $urlGenerator;
 	private IUserSession&MockObject $userSession;
+	private LoggerInterface&MockObject $logger;
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -48,6 +60,7 @@ class ConfigControllerTest extends TestCase {
 		$this->stateStore = $this->createMock(OAuthStateStore::class);
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
 		$this->userSession = $this->createMock(IUserSession::class);
+		$this->logger = $this->createMock(LoggerInterface::class);
 	}
 
 	private function makeController(?string $userId): ConfigController {
@@ -61,6 +74,7 @@ class ConfigControllerTest extends TestCase {
 			$this->stateStore,
 			$this->urlGenerator,
 			$this->userSession,
+			$this->logger,
 			$userId,
 		);
 	}
