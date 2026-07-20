@@ -44,6 +44,7 @@ class TestConnection extends Command {
 
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$anyFail = false;
+		$warnCount = 0;
 
 		$output->writeln('<info>SuiteCRM integration — connection diagnostic</info>');
 		$output->writeln('');
@@ -93,7 +94,10 @@ class TestConnection extends Command {
 		$isPrivate = $this->isPrivateAddress($host);
 
 		if ($isPrivate && !$allowLocal) {
-			$this->warn($output, sprintf(
+			// This isn't just advisory — the token exchange WILL fail with
+			// "Host violates local access rules" on the first user connect.
+			// Report as a hard fail so the exit code signals CI/monitoring.
+			$this->fail($output, sprintf(
 				'SSRF guard: host "%s" looks like an RFC-1918 / loopback address but allow_local_remote_servers is FALSE',
 				$host
 			), [
@@ -151,7 +155,13 @@ class TestConnection extends Command {
 		try {
 			$response = $client->get($authUrl, $baseOpts + ['allow_redirects' => false]);
 			$status = $response->getStatusCode();
-			if ($status === 302 || $status === 303 || $status === 200) {
+			// SuiteCRM 8.10.x issues HTTP 307 (Temporary Redirect) on /Api/authorize;
+			// older builds use 302; the SPA-mounted variant sometimes returns 200 with
+			// a login form. All three are valid signals that the authorize endpoint
+			// exists and would redirect a real user through the OAuth consent flow.
+			// Live-verified via `occ integration_suitecrm:test-connection` against
+			// SuiteCRM 8.10.1 — Iteration 31 caught the 307-case regression.
+			if (in_array($status, [200, 302, 303, 307, 308], true)) {
 				$this->pass($output, sprintf('Authorize endpoint (%s): HTTP %d (OK)', $authorizePath, $status));
 			} elseif ($status === 404) {
 				$this->fail($output, sprintf('Authorize endpoint (%s): HTTP 404', $authorizePath), [
@@ -163,9 +173,12 @@ class TestConnection extends Command {
 				$anyFail = true;
 			} else {
 				$this->warn($output, sprintf('Authorize endpoint (%s): unexpected HTTP %d', $authorizePath, $status));
+				$warnCount++;
 			}
 		} catch (Throwable $e) {
-			$this->warn($output, sprintf('Authorize endpoint (%s): %s', $authorizePath, $e->getMessage()));
+			// A network-level failure here means users won't get past "Connect"
+			// — hard fail, not advisory.
+			$this->fail($output, sprintf('Authorize endpoint (%s): %s', $authorizePath, $e->getMessage()));
 			$anyFail = true;
 		}
 
@@ -194,9 +207,11 @@ class TestConnection extends Command {
 				$anyFail = true;
 			} else {
 				$this->warn($output, sprintf('Token endpoint: unexpected HTTP %d', $status));
+				$warnCount++;
 			}
 		} catch (Throwable $e) {
-			$this->warn($output, sprintf('Token endpoint: %s', $e->getMessage()));
+			// Same reasoning as authorize: network failure here breaks connect.
+			$this->fail($output, sprintf('Token endpoint: %s', $e->getMessage()));
 			$anyFail = true;
 		}
 
@@ -207,6 +222,14 @@ class TestConnection extends Command {
 		if ($anyFail) {
 			$output->writeln('<comment>One or more checks failed. See suggestions above.</comment>');
 			return Command::FAILURE;
+		}
+		if ($warnCount > 0) {
+			$output->writeln(sprintf(
+				'<info>All required checks passed with %d advisory warning%s. Users should be able to complete the OAuth flow.</info>',
+				$warnCount,
+				$warnCount === 1 ? '' : 's',
+			));
+			return Command::SUCCESS;
 		}
 		$output->writeln('<info>All checks passed. Users should be able to complete the OAuth flow.</info>');
 		return Command::SUCCESS;
