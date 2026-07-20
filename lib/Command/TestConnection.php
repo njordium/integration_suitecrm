@@ -84,7 +84,30 @@ class TestConnection extends Command {
 			$this->pass($output, 'Admin config: client_secret is set (hidden)');
 		}
 
+		// Iteration 39 (iter-28 audit fix, part 1/2): normalize the authorize
+		// path the same way ConfigController::oauthAuthorizeUrl() does — strip
+		// any leading slash so the URL is reconstructed as
+		// rtrim($url, '/') . '/' . ltrim($path, '/'). Without this, an admin
+		// who sets `oauth_authorize_path=Api/authorize` (no leading slash) via
+		// `occ config:app:set` gets a false-negative here (test-connection
+		// constructs `http://foo.comApi/authorize` and 404s) while the actual
+		// OAuth flow works fine (the controller normalizes it). The audit
+		// caught this divergence between the command and the controller.
+		$normalizedAuthorizePath = ltrim($authorizePath, '/');
+		// Iteration 39 (iter-28 audit fix, part 2/2): derive the token path
+		// from the authorize path rather than hardcoding `/Api/access_token`.
+		// SuiteCRM 8.x installs upgraded from 7.x expose the OAuth endpoints
+		// at `/legacy/oauth2/authorize` + `/legacy/oauth2/access_token`; the
+		// old hardcoded check would 404 on those installs even when the
+		// endpoints are perfectly fine. If the authorize path doesn't end in
+		// `/authorize` we fall back to the fresh-8.x default rather than
+		// guess.
+		$tokenPath = preg_replace('|/authorize$|', '/access_token', $normalizedAuthorizePath);
+		if ($tokenPath === $normalizedAuthorizePath || $tokenPath === null) {
+			$tokenPath = 'Api/access_token';
+		}
 		$this->pass($output, sprintf('Admin config: oauth_authorize_path = %s', $authorizePath));
+		$this->pass($output, sprintf('Derived token endpoint path: /%s', $tokenPath));
 
 		// -----------------------------------------------------------------
 		// 2. Local-address whitelist (does the URL live on a private range?)
@@ -147,7 +170,7 @@ class TestConnection extends Command {
 		// 4. Authorize endpoint (should return 302 with Location containing
 		//    an OAuth authorize page, OR 200 with a login form).
 		// -----------------------------------------------------------------
-		$authUrl = rtrim($url, '/') . $authorizePath
+		$authUrl = rtrim($url, '/') . '/' . $normalizedAuthorizePath
 			. '?response_type=code&client_id=' . rawurlencode($clientId ?: 'test')
 			. '&redirect_uri=' . rawurlencode('https://example.invalid/callback')
 			. '&state=' . bin2hex(random_bytes(8));
@@ -188,7 +211,11 @@ class TestConnection extends Command {
 		//    and correctly parses OAuth2 errors; a 404 means the path is
 		//    wrong or SuiteCRM's Api isn't enabled at all.
 		// -----------------------------------------------------------------
-		$tokenUrl = rtrim($url, '/') . '/Api/access_token';
+		// Iteration 39: token URL derived from the authorize path (see the
+		// preg_replace above). Presented as /-prefixed in log lines to match
+		// the authorize path's display style.
+		$tokenUrl = rtrim($url, '/') . '/' . $tokenPath;
+		$tokenPathDisplay = '/' . $tokenPath;
 		try {
 			$response = $client->post($tokenUrl, $baseOpts + [
 				'form_params' => ['grant_type' => 'diagnostic_check_not_real'],
@@ -198,20 +225,21 @@ class TestConnection extends Command {
 			if ($status === 400 || $status === 401 || $status === 403) {
 				$decoded = json_decode($body, true);
 				$err = $decoded['error'] ?? '(no error field)';
-				$this->pass($output, sprintf('Token endpoint (/Api/access_token): HTTP %d with error="%s" (OK)', $status, $err));
+				$this->pass($output, sprintf('Token endpoint (%s): HTTP %d with error="%s" (OK)', $tokenPathDisplay, $status, $err));
 			} elseif ($status === 404) {
-				$this->fail($output, 'Token endpoint (/Api/access_token): HTTP 404', [
-					'SuiteCRM 8.x API is not exposed at /Api/. Are the OpenSSL keys generated?',
-					'Check: Api/V8/OAuth2/{private,public}.key must exist inside the SuiteCRM install',
+				$this->fail($output, sprintf('Token endpoint (%s): HTTP 404', $tokenPathDisplay), [
+					'SuiteCRM API is not exposed at this path. Are the OpenSSL keys generated?',
+					'For fresh 8.10.x installs: /Api/V8/OAuth2/{private,public}.key must exist inside the SuiteCRM install',
+					'If oauth_authorize_path is /legacy/oauth2/authorize, the token endpoint is /legacy/oauth2/access_token — check the legacy layout produced the same keypair',
 				]);
 				$anyFail = true;
 			} else {
-				$this->warn($output, sprintf('Token endpoint: unexpected HTTP %d', $status));
+				$this->warn($output, sprintf('Token endpoint (%s): unexpected HTTP %d', $tokenPathDisplay, $status));
 				$warnCount++;
 			}
 		} catch (Throwable $e) {
 			// Same reasoning as authorize: network failure here breaks connect.
-			$this->fail($output, sprintf('Token endpoint: %s', $e->getMessage()));
+			$this->fail($output, sprintf('Token endpoint (%s): %s', $tokenPathDisplay, $e->getMessage()));
 			$anyFail = true;
 		}
 
