@@ -1,122 +1,137 @@
+# Iteration 27: automated release packaging.
+#
+# On tag push (v*) or manual dispatch, build the Vue bundles and produce a
+# zip that's ready to drop into a Nextcloud `apps/` directory. Attaches the
+# zip to the GitHub release automatically.
+#
+# Why this exists: the fork's `js/` bundles are .gitignore'd and only
+# produced by CI, so a plain `wget /archive/refs/heads/master.tar.gz`
+# gives users a broken app. The release zip includes the built bundles
+# so `install` is a one-step extract + enable.
+#
+# @Code Changes by: Kim Haverblad, 2026
+
+name: Release
+
 on:
   push:
-    branches: [release]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. v1.9.3). Only used for the artifact name.'
+        required: true
+        default: 'v0.0.0-dev'
 
-name: Publish release
+permissions:
+  contents: write
 
 jobs:
-  build:
-    name: Build, upload and release in the appstore
-    environment: release
-    env:
-      APP_ID: integration_suitecrm
-    runs-on: ubuntu-latest
+  build-and-release:
+    runs-on: ubuntu-24.04
     steps:
-      - name: Use Node 14
-        uses: actions/setup-node@v2
-        with:
-          node-version: 14
+      - name: Checkout
+        uses: actions/checkout@v5
 
-      - name: Set up npm
-        run: npm i -g npm
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '7.4'
-          extensions: mbstring, intl, sqlite3
-          ini-values: post_max_size=256M, max_execution_time=180
-          coverage: xdebug
-          tools: php-cs-fixer, phpunit
-
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Get current tag
-        id: tag
+      - name: Determine version
+        id: version
         run: |
-          git fetch --tags --force
-          tag=$(git tag -l --points-at HEAD)
-          vtag=$(echo $tag | grep "^v[0-9]\+\.[0-9]\+\.[0-9]\+" || echo "")
-          echo "##[set-output name=currenttag;]$vtag"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Building version: ${VERSION}"
 
-      - name: Build project
-        if: ${{ startsWith( steps.tag.outputs.currenttag , 'v' ) }}
-        id: build_release
-        run: |
-          echo "##[set-output name=app_id;]$APP_ID"
-          echo "###### copy certificate"
-          mkdir -p ~/.nextcloud/certificates
-          echo "$APP_CRT" > ~/.nextcloud/certificates/${APP_ID}.crt
-          echo "$APP_KEY" > ~/.nextcloud/certificates/${APP_ID}.key
-          echo "###### install dependencies"
-          export DEBIAN_FRONTEND=noninteractive
-          sudo apt update -y
-          sudo apt install make openssl -y
-          echo "###### installing nextcloud"
-          mkdir ~/html
-          git clone https://github.com/nextcloud/server.git --recursive --depth 1 -b master ~/html/nextcloud
-          sed -i $'s|if (substr($fullPath, 0, strlen($root) + 1) === $root . \'/\')|if (is_string($root) and substr($fullPath, 0, strlen($root) + 1) === $root . \'/\')|g' ~/html/nextcloud/lib/autoloader.php
-          cp -r $GITHUB_WORKSPACE ~/html/nextcloud/apps/${APP_ID}
-          php ~/html/nextcloud/occ maintenance:install --database "sqlite" --admin-user "admin" --admin-pass "password"
-          php ~/html/nextcloud/occ app:enable ${APP_ID}
-          php ~/html/nextcloud/occ maintenance:mode --off
-          cd ~/html/nextcloud/apps/${APP_ID}
-          echo "###### npm install"
-          npm ci
-          echo "###### npm run build"
-          npm run build
-          echo "###### make appstore"
-          tag=${{ steps.tag.outputs.currenttag }}
-          version=${tag/v/}
-          webserveruser=runner occ_dir=~/html/nextcloud version=$version make appstore
-          echo "##[set-output name=version;]$version"
-        env:
-          APP_CRT: ${{ secrets.APP_CRT }}
-          APP_KEY: ${{ secrets.APP_KEY }}
-
-      - name: Create Release
-        if: ${{ startsWith( steps.tag.outputs.currenttag , 'v' ) }}
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
         with:
-          tag_name: ${{ steps.tag.outputs.currenttag }}
-          release_name: ${{ steps.tag.outputs.currenttag }}
-          draft: false
-          prerelease: false
+          node-version: '20'
+          cache: 'npm'
 
-      - name: Upload Release Asset
-        if: ${{ startsWith( steps.tag.outputs.currenttag , 'v' ) }}
-        id: upload-release-asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Build production bundles
+        run: npm run build
+
+      - name: Confirm bundles were produced
+        run: |
+          ls -la js/
+          test -f js/integration_suitecrm-personalSettings.js
+          test -f js/integration_suitecrm-adminSettings.js
+          test -f js/integration_suitecrm-dashboard.js
+
+      - name: Package for Nextcloud app store
+        id: package
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          STAGING=/tmp/pkg
+          mkdir -p "${STAGING}/integration_suitecrm"
+
+          # Copy everything into the staging dir, then remove things that
+          # shouldn't ship. Using find + rm rather than rsync excludes so
+          # the exclusion list stays obvious in the log output.
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.gitignore' \
+            --exclude='.gitattributes' \
+            --exclude='.l10nignore' \
+            --exclude='.tx/' \
+            --exclude='node_modules/' \
+            --exclude='src/' \
+            --exclude='tests/' \
+            --exclude='phpunit.xml' \
+            --exclude='phpstan.neon' \
+            --exclude='eslint.config.mjs' \
+            --exclude='stylelint.config.js' \
+            --exclude='webpack.js' \
+            --exclude='package.json' \
+            --exclude='package-lock.json' \
+            --exclude='composer.json' \
+            --exclude='composer.lock' \
+            --exclude='codeception.yml' \
+            --exclude='Makefile' \
+            --exclude='makefile' \
+            --exclude='docker/' \
+            --exclude='.editorconfig' \
+            --exclude='.prettierrc*' \
+            ./ "${STAGING}/integration_suitecrm/"
+
+          # Show what we're shipping
+          echo "--- Package contents ---"
+          find "${STAGING}/integration_suitecrm" -type f | sort | head -60
+          echo "--- Total size ---"
+          du -sh "${STAGING}/integration_suitecrm"
+
+          # Build the zip
+          ZIP="/tmp/integration_suitecrm-${VERSION}.zip"
+          (cd "${STAGING}" && zip -r "${ZIP}" integration_suitecrm/)
+          ls -la "${ZIP}"
+          echo "zip=${ZIP}" >> "$GITHUB_OUTPUT"
+
+      - name: Create/update GitHub Release with asset
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: /tmp/build/${{ steps.build_release.outputs.app_id }}-${{ steps.build_release.outputs.version }}.tar.gz
-          asset_name: ${{ steps.build_release.outputs.app_id }}-${{ steps.build_release.outputs.version }}.tar.gz
-          asset_content_type: application/gzip
+          files: ${{ steps.package.outputs.zip }}
+          body: |
+            Automated build for ${{ steps.version.outputs.version }}.
 
-      - name: Publish to appstore
-        if: ${{ startsWith( steps.tag.outputs.currenttag , 'v' ) && !endsWith( steps.tag.outputs.currenttag , 'nightly' ) }}
-        id: publish
-        run: |
-          SIGNATURE=$(cat /tmp/build/sign.txt | tr -d '\n')
-          VERSION=${{ steps.build_release.outputs.version }}
-          DOWNLOAD_URL=https://github.com/${{ github.repository }}/releases/download/v${VERSION}/${APP_ID}-${VERSION}.tar.gz
-          curl -X POST -H "Authorization: Token $APPSTORE_TOKEN" https://apps.nextcloud.com/api/v1/apps/releases -H "Content-Type: application/json" -d '{"download":"'${DOWNLOAD_URL}'", "signature": "'${SIGNATURE}'"}'
-        env:
-          APPSTORE_TOKEN: ${{ secrets.APPSTORE_TOKEN }}
+            **Install:** download `integration_suitecrm-${{ steps.version.outputs.version }}.zip` below, extract into your Nextcloud `apps/` directory, then enable via **Apps → Integration → SuiteCRM integration**.
 
-      - name: Publish nightly release to appstore
-        if: ${{ startsWith( steps.tag.outputs.currenttag , 'v' ) && endsWith( steps.tag.outputs.currenttag , 'nightly' ) }}
-        id: nightly
-        run: |
-          SIGNATURE=$(cat /tmp/build/sign.txt | tr -d '\n')
-          VERSION=${{ steps.build_release.outputs.version }}
-          DOWNLOAD_URL=https://github.com/${{ github.repository }}/releases/download/v${VERSION}/${APP_ID}-${VERSION}.tar.gz
-          curl -X POST -H "Authorization: Token $APPSTORE_TOKEN" https://apps.nextcloud.com/api/v1/apps/releases -H "Content-Type: application/json" -d '{"download":"'${DOWNLOAD_URL}'", "signature": "'${SIGNATURE}'", "nightly": true}'
-        env:
-          APPSTORE_TOKEN: ${{ secrets.APPSTORE_TOKEN }}
+            This zip includes pre-built `js/` bundles — no `npm run build` needed on the target server.
+
+            See [README](https://github.com/njordium/integration_suitecrm/blob/master/README.md) for admin setup and troubleshooting.
+
+      - name: Upload artifact (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration_suitecrm-${{ steps.version.outputs.version }}
+          path: ${{ steps.package.outputs.zip }}
+          retention-days: 30
