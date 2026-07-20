@@ -53,7 +53,7 @@
 			<NcTextField
 				v-model="state.oauth_authorize_path"
 				:label="t('integration_suitecrm', 'OAuth authorize endpoint path')"
-				:helper-text="t('integration_suitecrm', '(SuiteCRM 8.10.x default: /Api/authorize. Older installs may use /legacy/oauth2/authorize.)')"
+				:helperText="t('integration_suitecrm', '(SuiteCRM 8.10.x default: /Api/authorize. Older installs may use /legacy/oauth2/authorize.)')"
 				@update:value="onInput" />
 		</div>
 	</div>
