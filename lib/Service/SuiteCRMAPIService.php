@@ -28,6 +28,7 @@ use OCP\Http\Client\IClientService;
 use OCP\Notification\IManager as INotificationManager;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\ServerException;
+use OCP\Http\Client\LocalServerException;
 
 use OCA\SuiteCRM\AppInfo\Application;
 
@@ -660,6 +661,30 @@ class SuiteCRMAPIService {
 	}
 
 	/**
+	 * OAuth token endpoint call. Returns the decoded JSON on success. On
+	 * failure the returned array carries an enriched error envelope that
+	 * ConfigController::oauthCallback() inspects to produce actionable admin
+	 * messages:
+	 *
+	 *   [
+	 *     'error'             => string   // guzzle / message text (fallback)
+	 *     'error_kind'        => string   // 'local_server_blocked' | 'oauth_error' |
+	 *                                     //   'transport' | 'bad_method' | 'bad_json'
+	 *     'http_status'       => int      // response status code, 0 if no HTTP reply
+	 *     'error_code'        => string   // OAuth error field from response body
+	 *     'error_description' => string   // OAuth error_description from response
+	 *     'body'              => string   // raw response body (only when present)
+	 *   ]
+	 *
+	 * Iteration 37 (audit fix): this method used to return `['error' => msg]`
+	 * only, losing every dimension of failure (blocked by SSRF guard vs
+	 * 401/invalid_client vs cURL 6 name-resolution). ConfigController's
+	 * try/catch around the call could never fire because this outer
+	 * `catch (\Throwable)` swallowed everything first — so all
+	 * admin-friendly diagnostic messages that ConfigController set up in
+	 * Iteration 26 were unreachable. Preserving the raw dimensions here
+	 * unblocks that.
+	 *
 	 * @param string $url
 	 * @param array $params
 	 * @param string $method
@@ -671,8 +696,16 @@ class SuiteCRMAPIService {
 			$options = [
 				'headers' => [
 					'User-Agent' => 'Nextcloud SuiteCRM integration',
-				]
+				],
 			];
+			// Deliberately no `nextcloud => allow_local_address => true` here.
+			// If the admin turns off allow_local_remote_servers system-wide,
+			// Nextcloud's SSRF guard is expected to raise
+			// LocalServerException for a private/loopback SuiteCRM URL —
+			// which the catch below converts into the actionable
+			// error_kind='local_server_blocked' envelope so
+			// ConfigController::oauthCallback() can show the admin the
+			// exact `occ config:system:set` command to run.
 
 			if (count($params) > 0) {
 				if ($method === 'GET') {
@@ -691,30 +724,114 @@ class SuiteCRMAPIService {
 				default => null,
 			};
 			if ($response === null) {
-				return ['error' => $this->l10n->t('Bad HTTP method')];
+				return [
+					'error' => $this->l10n->t('Bad HTTP method'),
+					'error_kind' => 'bad_method',
+					'http_status' => 0,
+					'error_code' => '',
+					'error_description' => '',
+				];
 			}
-			$body = $response->getBody();
+			$body = (string) $response->getBody();
 			$respCode = $response->getStatusCode();
 
 			if ($respCode >= 400) {
-				return ['error' => $this->l10n->t('OAuth access token refused')];
-			} else {
-				return json_decode($body, true);
+				// Nextcloud's IClient wraps guzzle with `http_errors => true`
+				// by default, so 4xx normally throws a ClientException before
+				// we get here. This branch is defensive for the case where a
+				// future refactor sets `http_errors => false` or a subclass
+				// returns a 4xx synchronously — we still preserve the
+				// diagnostic dimensions instead of collapsing to a
+				// single-string error.
+				$decoded = json_decode($body, true);
+				$decoded = is_array($decoded) ? $decoded : [];
+				return [
+					'error' => $this->l10n->t('OAuth access token refused'),
+					'error_kind' => 'oauth_error',
+					'http_status' => $respCode,
+					'error_code' => (string) ($decoded['error'] ?? ''),
+					'error_description' => (string) ($decoded['error_description'] ?? ''),
+					'body' => $body,
+				];
 			}
+			$decoded = json_decode($body, true);
+			if (!is_array($decoded)) {
+				return [
+					'error' => $this->l10n->t('Invalid JSON response from SuiteCRM'),
+					'error_kind' => 'bad_json',
+					'http_status' => $respCode,
+					'error_code' => '',
+					'error_description' => '',
+					'body' => $body,
+				];
+			}
+			return $decoded;
+		} catch (LocalServerException $e) {
+			// Nextcloud's SSRF guard refused the outbound request to
+			// SuiteCRM. Signal this specifically so the call site can suggest
+			// `occ config:system:set allow_local_remote_servers`.
+			$this->logger->warning('SuiteCRM OAuth blocked by SSRF guard', [
+				'app' => $this->appName,
+				'exception' => $e,
+			]);
+			return [
+				'error' => $e->getMessage(),
+				'error_kind' => 'local_server_blocked',
+				'http_status' => 0,
+				'error_code' => '',
+				'error_description' => '',
+			];
+		} catch (ClientException $e) {
+			$response = $e->getResponse();
+			$status = $response->getStatusCode();
+			$body = (string) $response->getBody();
+			$decoded = json_decode($body, true);
+			$decoded = is_array($decoded) ? $decoded : [];
+			$redactedParams = $this->redactOAuthParams($params);
+			$this->logger->warning('SuiteCRM OAuth rejected by upstream', [
+				'app' => $this->appName,
+				'status' => $status,
+				'oauth_error' => $decoded['error'] ?? null,
+				'oauth_error_description' => $decoded['error_description'] ?? null,
+				'params' => $redactedParams,
+			]);
+			return [
+				'error' => $e->getMessage(),
+				'error_kind' => 'oauth_error',
+				'http_status' => $status,
+				'error_code' => (string) ($decoded['error'] ?? ''),
+				'error_description' => (string) ($decoded['error_description'] ?? ''),
+				'body' => $body,
+			];
 		} catch (\Throwable $e) {
-			$redactedParams = $params;
-			if (isset($redactedParams['password'])) {
-				$redactedParams['password'] = '********';
-			}
-			if (isset($redactedParams['client_secret'])) {
-				$redactedParams['client_secret'] = '********';
-			}
-			$this->logger->warning('SuiteCRM OAuth error', [
+			$redactedParams = $this->redactOAuthParams($params);
+			$this->logger->warning('SuiteCRM OAuth transport error', [
 				'app' => $this->appName,
 				'exception' => $e,
 				'params' => $redactedParams,
 			]);
-			return ['error' => $e->getMessage()];
+			return [
+				'error' => $e->getMessage(),
+				'error_kind' => 'transport',
+				'http_status' => 0,
+				'error_code' => '',
+				'error_description' => '',
+			];
 		}
+	}
+
+	/**
+	 * Shared param redactor for OAuth log entries. Extracted from
+	 * requestOAuthAccessToken() so each catch branch can log the same
+	 * safe-to-record view of the credentials-bearing payload.
+	 */
+	private function redactOAuthParams(array $params): array {
+		if (isset($params['password'])) {
+			$params['password'] = '********';
+		}
+		if (isset($params['client_secret'])) {
+			$params['client_secret'] = '********';
+		}
+		return $params;
 	}
 }
