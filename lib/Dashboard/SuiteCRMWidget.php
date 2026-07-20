@@ -12,9 +12,11 @@ namespace OCA\SuiteCRM\Dashboard;
 
 use DateTime;
 use OCP\Dashboard\IAPIWidget;
+use OCP\Dashboard\IAPIWidgetV2;
 use OCP\Dashboard\IIconWidget;
 use OCP\Dashboard\IWidget;
 use OCP\Dashboard\Model\WidgetItem;
+use OCP\Dashboard\Model\WidgetItems;
 use OCP\IAppConfig;
 use OCP\IL10N;
 use OCP\IURLGenerator;
@@ -34,8 +36,15 @@ use OCA\SuiteCRM\Service\TokenStorage;
  * the Vue widget just to discover it's empty. The legacy IWidget path
  * (load() + registered Vue callback) is preserved so the classic dashboard
  * keeps working — this is an additive, dual-mode migration.
+ *
+ * Iteration 43 (compat forward-look): added IAPIWidgetV2 on top. The NC 27+
+ * dashboard app prefers V2 because it returns a {@see WidgetItems} envelope
+ * carrying an `emptyContentMessage` string — otherwise the widget shell
+ * shows a generic "No entries" placeholder that never mentions SuiteCRM
+ * or hints at how to connect. V1's getItems() is kept unchanged so any
+ * older NC that only knows about V1 still gets the item list.
  */
-class SuiteCRMWidget implements IWidget, IAPIWidget, IIconWidget {
+class SuiteCRMWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWidget {
 
 	public function __construct(
 		private IL10N $l10n,
@@ -137,6 +146,25 @@ class SuiteCRMWidget implements IWidget, IAPIWidget, IIconWidget {
 		}
 
 		return $items;
+	}
+
+	/**
+	 * IAPIWidgetV2: wraps getItems() output in a {@see WidgetItems} envelope
+	 * so the dashboard app can render a SuiteCRM-specific empty state
+	 * ("No SuiteCRM notifications!" rather than the generic "No entries").
+	 *
+	 * The dashboard app tries IAPIWidgetV2 first and falls back to
+	 * IAPIWidget if the widget doesn't implement it — we implement both
+	 * to stay safe across the NC 30-34 range.
+	 *
+	 * Iteration 43.
+	 */
+	public function getItemsV2(string $userId, ?string $since = null, int $limit = 7): WidgetItems {
+		$items = $this->getItems($userId, $since, $limit);
+		return new WidgetItems(
+			$items,
+			$this->l10n->t('No SuiteCRM notifications!'),
+		);
 	}
 
 	private function buildEventLink(string $suitecrmUrl, string $module, string $elemId): string {

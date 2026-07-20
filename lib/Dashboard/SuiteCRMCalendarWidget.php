@@ -11,9 +11,11 @@ declare(strict_types=1);
 namespace OCA\SuiteCRM\Dashboard;
 
 use OCP\Dashboard\IAPIWidget;
+use OCP\Dashboard\IAPIWidgetV2;
 use OCP\Dashboard\IIconWidget;
 use OCP\Dashboard\IWidget;
 use OCP\Dashboard\Model\WidgetItem;
+use OCP\Dashboard\Model\WidgetItems;
 use OCP\IAppConfig;
 use OCP\IL10N;
 use OCP\IURLGenerator;
@@ -34,8 +36,14 @@ use OCA\SuiteCRM\Service\TokenStorage;
  * NC 30+ dashboard app can render items server-side as JSON. The legacy Vue
  * mount path (via {@see load()} and `OCA.Dashboard.register`) is preserved
  * so the classic dashboard continues to work — dual-mode migration.
+ *
+ * Iteration 43 (compat forward-look): added IAPIWidgetV2 so the NC 27+
+ * dashboard app can render a SuiteCRM-specific empty-state message
+ * ("No upcoming SuiteCRM events") when the token or the schedule is
+ * empty, instead of the generic "No entries" placeholder. See the
+ * companion note on {@see SuiteCRMWidget} for the fallback reasoning.
  */
-class SuiteCRMCalendarWidget implements IWidget, IAPIWidget, IIconWidget {
+class SuiteCRMCalendarWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWidget {
 
 	/**
 	 * Default horizon (in days) for upcoming events. Matches the historical
@@ -136,6 +144,22 @@ class SuiteCRMCalendarWidget implements IWidget, IAPIWidget, IIconWidget {
 		}
 
 		return $items;
+	}
+
+	/**
+	 * IAPIWidgetV2: wraps getItems() output in a {@see WidgetItems} envelope
+	 * so the dashboard app renders "No upcoming SuiteCRM events" instead of
+	 * the generic "No entries" placeholder. See the companion note on
+	 * {@see SuiteCRMWidget::getItemsV2()} for the fallback reasoning.
+	 *
+	 * Iteration 43.
+	 */
+	public function getItemsV2(string $userId, ?string $since = null, int $limit = 7): WidgetItems {
+		$items = $this->getItems($userId, $since, $limit);
+		return new WidgetItems(
+			$items,
+			$this->l10n->t('No upcoming SuiteCRM events'),
+		);
 	}
 
 	private function buildEventLink(string $suitecrmUrl, string $type, string $eventId): string {
