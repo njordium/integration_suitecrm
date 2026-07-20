@@ -17,15 +17,15 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Iteration 17 — Finding 49
+ * Iteration 17 — Finding 49 (regression coverage for Notifier::prepare()).
+ * Iteration 21b — align with fix #8 in Iteration 21: a reminder whose type
+ * is neither 'Calls' nor 'Meetings' produces no renderable content, so the
+ * notifier now throws InvalidArgumentException (the NC contract for
+ * "suppress this row entirely") instead of silently emitting a blank
+ * notification. testGracefulOnMissingParams was written before that change
+ * and has been reworked here to pin the new contract.
  *
- * Regression coverage for {@see Notifier::prepare()}. The Iteration 13 fix
- * against setLink() with an empty/missing link is exercised by
- * {@see self::testMissingLinkSkipsSetLink()} and
- * {@see self::testEmptyLinkSkipsSetLink()}; unknown-subject and unknown-app
- * branches are pinned to the currently thrown InvalidArgumentException
- * (Nextcloud's newer AlreadyProcessed/UnknownNotification exceptions are not
- * yet adopted upstream in this file — the goal here is coverage, not a rename).
+ * @Code Changes by: Kim Haverblad, 2026
  */
 class NotifierTest extends TestCase {
 
@@ -68,9 +68,7 @@ class NotifierTest extends TestCase {
 
 	/**
 	 * A notification whose subject is not 'reminder' falls into the default
-	 * arm of the switch and throws. Renamed from the requested
-	 * testUnknownSubjectThrowsAlreadyProcessedException — the file still
-	 * throws InvalidArgumentException upstream.
+	 * arm of the switch and throws.
 	 */
 	public function testUnknownSubjectThrows(): void {
 		$notification = $this->createMock(INotification::class);
@@ -83,9 +81,7 @@ class NotifierTest extends TestCase {
 
 	/**
 	 * A notification with a foreign app id is rejected before the switch is
-	 * ever entered. Renamed from testUnknownAppReturnsSameNotification —
-	 * the current implementation throws rather than returning the
-	 * notification untouched.
+	 * ever entered.
 	 */
 	public function testUnknownAppThrows(): void {
 		$notification = $this->createMock(INotification::class);
@@ -134,17 +130,38 @@ class NotifierTest extends TestCase {
 	}
 
 	/**
-	 * Empty subject params must not raise — every field uses ?? '' or
-	 * ?? null and the formatter is only invoked when the timestamp is
-	 * non-null.
+	 * Iteration 21 (fix #8): a reminder with no type — or with any type we
+	 * don't know how to render — produces no content string, and rather
+	 * than emitting a blank row in the notification tray the notifier now
+	 * throws to tell NC's notification manager to suppress the row.
+	 * Empty-params is the canonical instance of "unknown type" (type
+	 * defaults to '').
 	 */
-	public function testGracefulOnMissingParams(): void {
+	public function testEmptyParamsUnknownTypeThrows(): void {
 		$notification = $this->createReminderNotification([]);
 		$notification->expects($this->never())->method('setLink');
+		$notification->expects($this->never())->method('setParsedSubject');
 		$this->dateFormatter->expects($this->never())->method('formatDateTime');
 
-		$result = $this->notifier->prepare($notification, 'en');
-		$this->assertSame($notification, $result);
+		$this->expectException(InvalidArgumentException::class);
+		$this->notifier->prepare($notification, 'en');
+	}
+
+	/**
+	 * Explicit unknown type — same suppression contract as
+	 * {@see self::testEmptyParamsUnknownTypeThrows()} but with the type
+	 * field set to a value that just isn't in the render matrix.
+	 */
+	public function testForeignReminderTypeThrows(): void {
+		$notification = $this->createReminderNotification([
+			'type' => 'Cases',
+			'title' => 'Ticket 42',
+			'event_timestamp' => 1_700_000_000,
+		]);
+		$notification->expects($this->never())->method('setParsedSubject');
+
+		$this->expectException(InvalidArgumentException::class);
+		$this->notifier->prepare($notification, 'en');
 	}
 
 	/**
