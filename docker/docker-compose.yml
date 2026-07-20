@@ -1,0 +1,130 @@
+# SuiteCRM integration for Nextcloud — local dev stack.
+#
+# Brings up a self-contained Nextcloud + SuiteCRM environment on your laptop
+# so you can install the app, connect it, and exercise the full OAuth flow
+# without pointing at a shared instance.
+#
+# Usage (from repository root):
+#     make up             # or: docker compose -f docker/docker-compose.yml up -d
+#     make logs
+#     make occ CMD="app:list"
+#     make down
+#
+# The app source is bind-mounted into Nextcloud so edits to lib/ and src/
+# reflect on the next request (PHP) or after `npm run build` (Vue).
+#
+# @Code Changes by: Kim Haverblad, 2026
+
+name: integration-suitecrm-dev
+
+networks:
+  app-net:
+    driver: bridge
+
+volumes:
+  nc-db-data:
+  nc-data:
+  crm-db-data:
+  crm-data:
+
+services:
+
+  # ------------------------------------------------------------------
+  # Nextcloud + its database
+  # ------------------------------------------------------------------
+
+  nc-db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    command: --transaction-isolation=READ-COMMITTED --log-bin=binlog --binlog-format=ROW
+    environment:
+      MARIADB_ROOT_PASSWORD: rootpw
+      MARIADB_DATABASE: nextcloud
+      MARIADB_USER: nextcloud
+      MARIADB_PASSWORD: nextcloud
+    volumes:
+      - nc-db-data:/var/lib/mysql
+    networks:
+      - app-net
+
+  nextcloud:
+    image: nextcloud:${NC_VERSION:-30}-apache
+    restart: unless-stopped
+    depends_on:
+      - nc-db
+      - suitecrm
+    ports:
+      # Host 8080 → NC 80. Override with NC_PORT in .env if 8080 is taken.
+      - "${NC_PORT:-8080}:80"
+    environment:
+      MYSQL_HOST: nc-db
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: nextcloud
+      MYSQL_PASSWORD: nextcloud
+      NEXTCLOUD_ADMIN_USER: ${NC_ADMIN_USER:-admin}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NC_ADMIN_PASSWORD:-admin}
+      NEXTCLOUD_TRUSTED_DOMAINS: localhost 127.0.0.1
+      OVERWRITEPROTOCOL: http
+      # Passed to the post-install hook so it can seed the app config
+      # against the same values the SuiteCRM seed uses.
+      SUITECRM_URL_INTERNAL: http://suitecrm
+      SUITECRM_CLIENT_ID: ${OAUTH_CLIENT_ID:-nc-dev-client}
+      SUITECRM_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET:-nc-dev-secret}
+    volumes:
+      - nc-data:/var/www/html
+      # Bind-mount the repository as a custom app. Edits to lib/*.php are
+      # picked up immediately; changes under src/ still need `npm run build`.
+      - ../:/var/www/html/custom_apps/integration_suitecrm:ro
+      # Post-install hooks — enable the app, pre-fill oauth config.
+      - ./nextcloud/hooks/post-installation:/docker-entrypoint-hooks.d/post-installation:ro
+    networks:
+      - app-net
+
+  # ------------------------------------------------------------------
+  # SuiteCRM + its database
+  # ------------------------------------------------------------------
+
+  crm-db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    command: --transaction-isolation=READ-COMMITTED --log-bin=binlog --binlog-format=ROW
+    environment:
+      MARIADB_ROOT_PASSWORD: rootpw
+      MARIADB_DATABASE: suitecrm
+      MARIADB_USER: suitecrm
+      MARIADB_PASSWORD: suitecrm
+    volumes:
+      - crm-db-data:/var/lib/mysql
+    networks:
+      - app-net
+
+  suitecrm:
+    build:
+      context: ./suitecrm
+      dockerfile: Dockerfile
+      args:
+        SUITECRM_VERSION: ${SUITECRM_VERSION:-8.10.1}
+    restart: unless-stopped
+    depends_on:
+      - crm-db
+    ports:
+      # Host 8081 → SuiteCRM 80. NC still talks to it over the internal
+      # docker network as http://suitecrm — the host port is only for
+      # opening the SuiteCRM UI in your own browser.
+      - "${CRM_PORT:-8081}:80"
+    environment:
+      DB_HOST: crm-db
+      DB_NAME: suitecrm
+      DB_USER: suitecrm
+      DB_PASSWORD: suitecrm
+      SUITECRM_ADMIN_USER: ${CRM_ADMIN_USER:-admin}
+      SUITECRM_ADMIN_PASSWORD: ${CRM_ADMIN_PASSWORD:-admin}
+      SUITECRM_SITE_URL: http://suitecrm
+      # Same known-constant values NC uses — order-independent seeding.
+      OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID:-nc-dev-client}
+      OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET:-nc-dev-secret}
+      OAUTH_REDIRECT_URI: ${OAUTH_REDIRECT_URI:-http://localhost:8080/apps/integration_suitecrm/oauth-callback}
+    volumes:
+      - crm-data:/var/www/html
+    networks:
+      - app-net
