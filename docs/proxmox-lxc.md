@@ -1,72 +1,80 @@
-# Production reference: Proxmox LXC (Debian)
+# Production reference: Proxmox LXC (Ubuntu 24.04)
 
-Working reference for running Nextcloud + SuiteCRM 8.x on a single Proxmox host using two Debian 12 LXCs and nginx on the PVE host as the public entry point. This is the deployment pattern the fork is being maintained against in production.
+Working reference for running Nextcloud + SuiteCRM 8.x on a single Proxmox host using two Ubuntu 24.04 LXCs and nginx on the PVE host as the public entry point. This is the deployment pattern the fork is being maintained against in production.
 
-Nothing here is Nextcloud-specific — an identical layout on bare metal Debian or in a VM (single host or split) works the same, minus the `pct` commands.
+Verified against a live Ubuntu 24.04 LTS LXC running Nextcloud 33.0.6 as of the iteration-41 audit. Nothing here is Nextcloud-specific — an identical layout on bare metal Ubuntu or in a VM (single host or split) works the same, minus the `pct` commands. Debian 12 and Ubuntu 22.04 hosts work with small package-name adjustments called out inline.
 
 ## Layout
 
 ```
-                     ┌────────────────────────┐
-   Internet ─443─▶   │  nginx (PVE host)      │
-                     │  · TLS termination      │
-                     │  · HSTS                 │
-                     │  · X-Forwarded-*        │
-                     └─┬────────────────────┬──┘
-                       │                    │
-              cloud.example.com    crm.example.com
-                       │                    │
-              ┌────────▼────────┐  ┌────────▼────────┐
-              │  LXC 101         │  │  LXC 102         │
-              │  Nextcloud       │  │  SuiteCRM 8      │
-              │  · Apache        │  │  · Apache        │
-              │  · PHP 8.2-fpm   │  │  · PHP 8.2-fpm   │
-              │  · MariaDB       │  │  · MariaDB       │
-              │  10.10.10.101    │  │  10.10.10.102    │
-              └─────────┬────────┘  └────────┬─────────┘
-                        │                     │
-                        └────── vmbr0 ────────┘
-                              (PVE bridge)
+┌────────────────────────┐
+Internet ─443─▶ │ nginx (PVE host)       │
+                │  · TLS termination     │
+                │  · HSTS                │
+                │  · X-Forwarded-*       │
+                └─┬────────────────────┬─┘
+                  │                    │
+       cloud.example.com     crm.example.com
+                  │                    │
+         ┌────────▼────────┐  ┌────────▼────────┐
+         │ LXC 101         │  │ LXC 102         │
+         │ Nextcloud 33+   │  │ SuiteCRM 8      │
+         │ · Apache        │  │ · Apache        │
+         │ · mod_php 8.3   │  │ · mod_php 8.3   │
+         │ · MariaDB       │  │ · MariaDB       │
+         │ 10.10.10.101    │  │ 10.10.10.102    │
+         └─────────┬────────┘  └────────┬─────────┘
+                   │                    │
+                   └────── vmbr0 ───────┘
+                          (PVE bridge)
 ```
 
 Two LXCs share the PVE bridge so they can talk to each other on RFC-1918 addresses. The Nextcloud LXC needs `allow_local_remote_servers=true` to reach SuiteCRM's internal IP for the OAuth flow. The public reverse proxy is on the PVE host itself, terminating TLS and forwarding to whichever LXC based on Host header.
 
+The install below uses **Apache + mod_php** — the simplest working stack and what the popular Proxmox helper-script installers produce. Upstream Nextcloud recommends PHP-FPM for NC 25+ because mod_php forces `mpm_prefork` and hurts throughput. If you want the PHP-FPM version of the Apache vhost, see the [Apache section of docs/reverse-proxy.md](reverse-proxy.md#apache-sample) for a drop-in `<FilesMatch \.php$>` block plus the extra `a2enmod proxy_fcgi setenvif` calls. Everything else in this document stays identical.
+
+## PHP version by distro
+
+- **Ubuntu 24.04 (Noble):** ships PHP 8.3 in `main`. The commands below install `libapache2-mod-php` (the meta-package), which pulls `libapache2-mod-php8.3` and matching `php-*` extension packages. Verified live.
+- **Ubuntu 22.04 (Jammy):** ships PHP 8.1, which Nextcloud 30+ does not accept. Add Ondřej Surý's PPA (`add-apt-repository ppa:ondrej/php`) before the `apt install` block and pin to `libapache2-mod-php8.3` explicitly.
+- **Debian 12 (Bookworm):** ships PHP 8.2 in main, which NC 30-34 accepts. Same install lines work; the actual mod_php package pulled is `libapache2-mod-php8.2`.
+- **Debian 13 (Trixie):** ships PHP 8.3+ in main, same behaviour as Ubuntu 24.04.
+
 ## PVE host: create the LXCs
 
 ```bash
-# On the Proxmox host, download the Debian 12 template if you don't already have it
+# On the Proxmox host, download the Ubuntu 24.04 template if you don't
+# already have it (filename may end in a different point-release suffix).
 pveam update
-pveam download local debian-12-standard_12.7-1_amd64.tar.zst
+pveam download local ubuntu-24.04-standard_24.04-2_amd64.tar.zst
 
 # Create the Nextcloud LXC
-pct create 101 local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst \
-    --hostname nextcloud \
-    --cores 4 --memory 4096 --swap 2048 \
-    --rootfs local-lvm:32 \
-    --net0 name=eth0,bridge=vmbr0,ip=10.10.10.101/24,gw=10.10.10.1 \
-    --nameserver 1.1.1.1 \
-    --unprivileged 1 \
-    --features nesting=1 \
-    --onboot 1 \
-    --ostype debian
+pct create 101 local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst \
+  --hostname nextcloud \
+  --cores 4 --memory 4096 --swap 2048 \
+  --rootfs local-lvm:32 \
+  --net0 name=eth0,bridge=vmbr0,ip=10.10.10.101/24,gw=10.10.10.1 \
+  --nameserver 1.1.1.1 \
+  --unprivileged 1 \
+  --features nesting=1 \
+  --onboot 1 \
+  --ostype ubuntu
 
 # Create the SuiteCRM LXC (bigger RAM, bigger disk)
-pct create 102 local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst \
-    --hostname suitecrm \
-    --cores 4 --memory 6144 --swap 2048 \
-    --rootfs local-lvm:64 \
-    --net0 name=eth0,bridge=vmbr0,ip=10.10.10.102/24,gw=10.10.10.1 \
-    --nameserver 1.1.1.1 \
-    --unprivileged 1 \
-    --features nesting=1 \
-    --onboot 1 \
-    --ostype debian
+pct create 102 local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst \
+  --hostname suitecrm \
+  --cores 4 --memory 6144 --swap 2048 \
+  --rootfs local-lvm:64 \
+  --net0 name=eth0,bridge=vmbr0,ip=10.10.10.102/24,gw=10.10.10.1 \
+  --nameserver 1.1.1.1 \
+  --unprivileged 1 \
+  --features nesting=1 \
+  --onboot 1 \
+  --ostype ubuntu
 
 pct start 101
 pct start 102
 ```
-
-The PHP 8.2 ondrej repository doesn't ship in Debian 12's default sources, so we install PHP 8.2 explicitly on both LXCs (Debian 12 defaults to PHP 8.2 as of `bookworm-backports`; adjust if you're on a different Debian release).
 
 ## Nextcloud LXC (101)
 
@@ -75,13 +83,13 @@ pct enter 101
 
 apt update && apt upgrade -y
 apt install -y \
-    apache2 \
-    mariadb-server \
-    php php-fpm php-mysql php-gd php-curl php-xml php-mbstring \
-    php-intl php-zip php-bz2 php-imagick php-bcmath php-gmp \
-    libapache2-mod-php \
-    redis php-redis \
-    unzip wget cron
+  apache2 \
+  mariadb-server \
+  php php-mysql php-gd php-curl php-xml php-mbstring \
+  php-intl php-zip php-bz2 php-imagick php-bcmath php-gmp \
+  libapache2-mod-php \
+  redis php-redis \
+  unzip wget cron
 
 # --- MariaDB ---
 mysql -e "CREATE DATABASE nextcloud CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
@@ -90,9 +98,13 @@ mysql -e "GRANT ALL ON nextcloud.* TO 'nextcloud'@'localhost';"
 mysql -e "FLUSH PRIVILEGES;"
 
 # --- Nextcloud download ---
+# `latest` gives you the current major (as of this iteration: 33.x).
+# Pin to a specific major with e.g. `latest-33.tar.bz2` if you want
+# reproducibility across host rebuilds. The fork's info.xml declares
+# nextcloud min-version="30" max-version="34" so any of those work.
 cd /tmp
-wget https://download.nextcloud.com/server/releases/latest-30.tar.bz2
-tar -xjf latest-30.tar.bz2 -C /var/www/
+wget https://download.nextcloud.com/server/releases/latest.tar.bz2
+tar -xjf latest.tar.bz2 -C /var/www/
 chown -R www-data:www-data /var/www/nextcloud
 
 # --- Apache vhost ---
@@ -121,10 +133,12 @@ a2ensite nextcloud.conf
 systemctl restart apache2
 
 # --- Run the NC installer ---
+# Consider replacing --admin-pass with --admin-pass-file /root/.nc-admin-pass
+# on production hosts so the password doesn't land in shell history / ps output.
 sudo -u www-data php /var/www/nextcloud/occ maintenance:install \
-    --database "mysql" --database-name "nextcloud" \
-    --database-user "nextcloud" --database-pass "CHANGEME_LONG_RANDOM_PW" \
-    --admin-user "admin" --admin-pass "CHANGEME_ADMIN_PW"
+  --database "mysql" --database-name "nextcloud" \
+  --database-user "nextcloud" --database-pass "CHANGEME_LONG_RANDOM_PW" \
+  --admin-user "admin" --admin-pass "CHANGEME_ADMIN_PW"
 
 # --- Post-install config for reverse-proxy awareness ---
 sudo -u www-data php /var/www/nextcloud/occ config:system:set overwriteprotocol --value=https
@@ -136,35 +150,30 @@ sudo -u www-data php /var/www/nextcloud/occ config:system:set overwrite.cli.url 
 
 # --- Allow reaching the SuiteCRM LXC on 10.10.10.102 ---
 sudo -u www-data php /var/www/nextcloud/occ config:system:set allow_local_remote_servers --value=true --type=boolean
-
-# --- Systemd timer for NC cron (replaces webcron / crontab) ---
-cat > /etc/systemd/system/nextcloud-cron.service <<'SVC'
-[Unit]
-Description=Nextcloud cron.php job
-
-[Service]
-User=www-data
-ExecCondition=php -f /var/www/nextcloud/occ status -e
-ExecStart=/usr/bin/php -f /var/www/nextcloud/cron.php
-KillMode=process
-SVC
-
-cat > /etc/systemd/system/nextcloud-cron.timer <<'TMR'
-[Unit]
-Description=Run Nextcloud cron.php every 5 minutes
-
-[Timer]
-OnBootSec=5min
-OnUnitActiveSec=5min
-Unit=nextcloud-cron.service
-
-[Install]
-WantedBy=timers.target
-TMR
-
-systemctl daemon-reload
-systemctl enable --now nextcloud-cron.timer
 ```
+
+### Cron
+
+The popular Proxmox helper-script installers (and this reference)
+drive Nextcloud's cron from the www-data user's classic crontab. Two
+entries: the mandatory `cron.php` every 5 minutes, and an optional
+nightly `preview:generate-all` that keeps thumbnails warm. Verified
+live on a running LXC.
+
+```bash
+sudo -u www-data crontab -e
+# Add these lines:
+# */5 * * * * php -f /var/www/nextcloud/cron.php
+# 0   3 * * * php /var/www/nextcloud/occ preview:generate-all >> /var/log/nextcloud-preview.log 2>&1
+```
+
+Then flip NC's own cron mechanism to "cron" so it stops complaining in the admin overview:
+
+```bash
+sudo -u www-data php /var/www/nextcloud/occ background:cron
+```
+
+If you'd rather run cron via a systemd timer (cleaner logging via journalctl, easier to disable in a bind-mount recovery), see the [systemd timer alternative](#appendix-systemd-timer-for-nc-cron) at the bottom of this document. Either approach works — pick one, not both.
 
 ## SuiteCRM LXC (102)
 
@@ -173,12 +182,12 @@ pct enter 102
 
 apt update && apt upgrade -y
 apt install -y \
-    apache2 \
-    mariadb-server \
-    php php-fpm php-mysql php-gd php-curl php-xml php-mbstring \
-    php-intl php-zip php-imap php-soap php-ldap php-bcmath \
-    libapache2-mod-php \
-    unzip wget curl openssl cron
+  apache2 \
+  mariadb-server \
+  php php-mysql php-gd php-curl php-xml php-mbstring \
+  php-intl php-zip php-imap php-soap php-ldap php-bcmath \
+  libapache2-mod-php \
+  unzip wget curl openssl cron
 
 # --- MariaDB ---
 mysql -e "CREATE DATABASE suitecrm CHARACTER SET utf8mb4;"
@@ -186,12 +195,22 @@ mysql -e "CREATE USER 'suitecrm'@'localhost' IDENTIFIED BY 'CHANGEME_LONG_RANDOM
 mysql -e "GRANT ALL ON suitecrm.* TO 'suitecrm'@'localhost';"
 mysql -e "FLUSH PRIVILEGES;"
 
-# --- SuiteCRM 8 download (get the URL from the current GitHub release) ---
+# --- SuiteCRM 8 download ---
+#
+# The SuiteCRM 8.x release ZIP ships with a top-level `SuiteCRM-<version>/`
+# directory. If you unzip directly into /var/www/suitecrm you end up with
+# /var/www/suitecrm/SuiteCRM-8.10.1/... and the DocumentRoot below
+# (/var/www/suitecrm/public) won't exist. Unpack to a scratch dir first,
+# then flatten.
 cd /tmp
 curl -fL -o suitecrm.zip \
-    https://github.com/salesagility/SuiteCRM-Core/releases/download/v8.10.1/SuiteCRM-8.10.1.zip
+  https://github.com/salesagility/SuiteCRM-Core/releases/download/v8.10.1/SuiteCRM-8.10.1.zip
 mkdir -p /var/www/suitecrm
-unzip -q suitecrm.zip -d /var/www/suitecrm
+rm -rf /tmp/suitecrm-unpack
+unzip -q suitecrm.zip -d /tmp/suitecrm-unpack
+# Copy contents (including dotfiles like .env) up one level, preserving perms.
+cp -a /tmp/suitecrm-unpack/SuiteCRM-*/. /var/www/suitecrm/
+rm -rf /tmp/suitecrm-unpack /tmp/suitecrm.zip
 chown -R www-data:www-data /var/www/suitecrm
 
 # --- Symfony .env ---
@@ -229,8 +248,8 @@ a2ensite suitecrm.conf
 systemctl restart apache2
 
 # --- Complete SuiteCRM install via the web UI at http://10.10.10.102/install.php
-#     (or, if you can reach it via nginx, https://crm.example.com/install.php).
-#     Use the DB creds above. Set the site URL to https://crm.example.com. ---
+# (or, if you can reach it via nginx, https://crm.example.com/install.php).
+# Use the DB creds above. Set the site URL to https://crm.example.com. ---
 
 # --- After install: generate OAuth2 keys ---
 sudo -u www-data mkdir -p /var/www/suitecrm/public/legacy/Api/V8/OAuth2
@@ -240,9 +259,12 @@ sudo -u www-data openssl rsa -in private.key -pubout -out public.key
 chmod 600 private.key && chmod 644 public.key
 
 # --- SuiteCRM scheduler (its own cron equivalent) ---
+# The append pattern below duplicates on re-run. If you're re-running,
+# `crontab -u www-data -l | grep suitecrm/public/legacy` first and skip
+# the append if the entry is already present.
 crontab -u www-data -l 2>/dev/null | \
-    { cat; echo '*    *    *    *    * cd /var/www/suitecrm/public/legacy; php -f cron.php > /dev/null 2>&1'; } | \
-    crontab -u www-data -
+  { cat; echo '* * * * * cd /var/www/suitecrm/public/legacy; php -f cron.php > /dev/null 2>&1'; } | \
+  crontab -u www-data -
 ```
 
 Then in SuiteCRM's admin UI, create the OAuth2 Client (Admin → OAuth2 Clients and Tokens → New), set redirect URL to `https://cloud.example.com/apps/integration_suitecrm/oauth-callback`, note the client ID + secret, and configure them in Nextcloud's admin panel with instance URL `https://crm.example.com`.
@@ -269,13 +291,16 @@ SuiteCRM integration — connection diagnostic
   ✓ Admin config: client_id = <your-id>
   ✓ Admin config: client_secret is set (hidden)
   ✓ Admin config: oauth_authorize_path = /Api/authorize
+  ✓ Derived token endpoint path: /Api/access_token
   ✓ SSRF guard: host "crm.example.com" is public — no whitelist needed
   ✓ HTTP reachability: https://crm.example.com → HTTP 200
-  ✓ Authorize endpoint (/Api/authorize): HTTP 302 (OK)
+  ✓ Authorize endpoint (/Api/authorize): HTTP 307 (OK)
   ✓ Token endpoint (/Api/access_token): HTTP 400 with error="unsupported_grant_type" (OK)
 
 All checks passed. Users should be able to complete the OAuth flow.
 ```
+
+The authorize endpoint returns HTTP 307 on SuiteCRM 8.10.x; older 8.x builds return 302 and the SPA-mounted variant sometimes returns 200 — all three are treated as OK. See [Iteration 31 in git history](https://github.com/njordium/integration_suitecrm/commits/master?q=Iteration+31) for the case that caught the 307 regression.
 
 ## Backup
 
@@ -286,7 +311,7 @@ Two things matter for restore-in-place to work:
 ```bash
 # Include in your backup
 /var/www/nextcloud/config/config.php
-/var/www/nextcloud/data/         # user files + NC data
+/var/www/nextcloud/data/               # user files + NC data
 ```
 
 **2. SuiteCRM's OAuth2 OpenSSL keys.** Restoring SuiteCRM to a host with different `Api/V8/OAuth2/{private,public}.key` files invalidates every issued JWT immediately (they were signed with the old private key).
@@ -312,19 +337,19 @@ mkdir -p "$BACKUP_DIR"
 
 # Nextcloud DB
 pct exec 101 -- bash -c 'mysqldump --single-transaction nextcloud | gzip' \
-    > "$BACKUP_DIR/nextcloud.sql.gz"
+  > "$BACKUP_DIR/nextcloud.sql.gz"
 
 # SuiteCRM DB
 pct exec 102 -- bash -c 'mysqldump --single-transaction suitecrm | gzip' \
-    > "$BACKUP_DIR/suitecrm.sql.gz"
+  > "$BACKUP_DIR/suitecrm.sql.gz"
 
 # Nextcloud config + data
 pct exec 101 -- tar -czf - /var/www/nextcloud/config /var/www/nextcloud/data \
-    > "$BACKUP_DIR/nextcloud-files.tar.gz"
+  > "$BACKUP_DIR/nextcloud-files.tar.gz"
 
 # SuiteCRM install (includes keys, .env.local, uploaded files)
 pct exec 102 -- tar -czf - /var/www/suitecrm \
-    > "$BACKUP_DIR/suitecrm-files.tar.gz"
+  > "$BACKUP_DIR/suitecrm-files.tar.gz"
 
 # Keep 30 days
 find /opt/backup -maxdepth 1 -type d -name '20*' -mtime +30 -exec rm -rf {} +
@@ -360,12 +385,12 @@ systemctl enable --now integration-backup.timer
 
 ## Upgrade path
 
-**Nextcloud minor version (30.x.y → 30.x.z):** built-in updater is safe. Run from the LXC:
+**Nextcloud minor version (33.x.y → 33.x.z):** built-in updater is safe. Run from the LXC:
 ```bash
 sudo -u www-data php /var/www/nextcloud/occ upgrade
 ```
 
-**Nextcloud major version (30 → 31):** check the integration_suitecrm `info.xml` `<nextcloud max-version="X">` first. The fork is currently pinned to `max-version="34"`. If NC ships version > 34, wait for a fork release that bumps this.
+**Nextcloud major version (33 → 34):** check the integration_suitecrm `info.xml` `<nextcloud max-version="X">` first. The fork is currently pinned to `max-version="34"`. If NC ships version > 34, wait for a fork release that bumps this.
 
 **SuiteCRM minor version:** SuiteCRM 8's [update process](https://docs.suitecrm.com/admin/administration-panel/upgrade-wizard/) via the Admin → Upgrade Wizard. Don't touch the `Api/V8/OAuth2/*.key` files during upgrade — they must survive.
 
@@ -384,7 +409,7 @@ If you're using Proxmox's built-in firewall or ufw on the PVE host:
 # On PVE host — allow only HTTPS from internet, SSH from admin IPs
 ufw default deny incoming
 ufw allow from <your-admin-cidr> to any port 22 proto tcp
-ufw allow 80/tcp   # http → https redirect only
+ufw allow 80/tcp                        # http → https redirect only
 ufw allow 443/tcp
 ufw enable
 ```
@@ -393,16 +418,13 @@ The LXCs themselves don't need incoming rules from the internet — they only ta
 
 ## Monitoring
 
-Two systemd units to watch:
-
 ```bash
-# On the NC LXC
-systemctl status nextcloud-cron.timer         # ensures cron runs
-journalctl -u nextcloud-cron.service --since '1 day ago'
-
 # On both LXCs
 systemctl status apache2
 journalctl -u apache2 --since '1 hour ago' | grep -i error
+
+# Cron activity (both NC + SuiteCRM run as www-data)
+grep 'CRON' /var/log/syslog | grep www-data | tail -20
 ```
 
 And Nextcloud's own log:
@@ -418,3 +440,38 @@ Filter by app for anything the integration logs:
 ```bash
 tail -f /var/www/nextcloud/data/nextcloud.log | grep integration_suitecrm
 ```
+
+## Appendix: systemd timer for NC cron
+
+Alternative to the www-data crontab described above. Pick one, not both.
+
+```bash
+cat > /etc/systemd/system/nextcloud-cron.service <<'SVC'
+[Unit]
+Description=Nextcloud cron.php job
+
+[Service]
+User=www-data
+ExecCondition=php -f /var/www/nextcloud/occ status -e
+ExecStart=/usr/bin/php -f /var/www/nextcloud/cron.php
+KillMode=process
+SVC
+
+cat > /etc/systemd/system/nextcloud-cron.timer <<'TMR'
+[Unit]
+Description=Run Nextcloud cron.php every 5 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Unit=nextcloud-cron.service
+
+[Install]
+WantedBy=timers.target
+TMR
+
+systemctl daemon-reload
+systemctl enable --now nextcloud-cron.timer
+```
+
+Advantages over crontab: log via `journalctl -u nextcloud-cron.service`, the `ExecCondition` skips runs during `occ maintenance:mode`, easy to disable without editing a user's crontab. If you use this, remove the `*/5 * * * * php -f /var/www/nextcloud/cron.php` line from the www-data crontab so cron.php doesn't run twice.
