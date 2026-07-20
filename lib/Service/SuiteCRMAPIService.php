@@ -378,7 +378,15 @@ class SuiteCRMAPIService {
 		['module' => 'Cases',         'type' => 'case',        'fields' => 'name,case_number,status',                       'name_attrs' => ['name']],
 		['module' => 'Meetings',      'type' => 'meeting',     'fields' => 'name,date_start,status,location',               'name_attrs' => ['name']],
 		['module' => 'Tasks',         'type' => 'task',        'fields' => 'name,date_due,priority,status',                 'name_attrs' => ['name']],
-		['module' => 'Emails',        'type' => 'email',       'fields' => 'name,from_addr_name,date_sent,status',          'name_attrs' => ['name']],
+		// Iteration 36 (Finding 25 tail): `date_sent` is not a real column on
+		// SuiteCRM 8.10.x's Email bean — the API responded 400
+		// "The following field in Email module is not found: date_sent" on every
+		// search since Iteration 24. Iteration 35's per-attribute error handling
+		// stopped it crashing the endpoint, but Emails still contributed zero
+		// hits. `SuiteCRMSearchProvider::getSubline()` only reads `name` and
+		// `from_addr_name` for the email type, so the offending field is dropped
+		// rather than substituted — one fewer over-the-wire attribute per search.
+		['module' => 'Emails',        'type' => 'email',       'fields' => 'name,from_addr_name,status',                    'name_attrs' => ['name']],
 	];
 
 	/**
