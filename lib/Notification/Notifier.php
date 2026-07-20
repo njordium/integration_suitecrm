@@ -88,6 +88,16 @@ class Notifier implements INotifier {
 				$content = $l->t('SuiteCRM meeting: %s, %s', [$title, $formattedDate]);
 			}
 
+			// Iteration 21 (Finding 8): if the reminder is for a module we
+			// don't render (anything other than Calls or Meetings), $content
+			// stays empty and we used to setParsedSubject('') — which produced
+			// a blank row in the notification tray. Throwing here tells NC's
+			// notification manager to suppress the row entirely, matching the
+			// contract for "unknown subject" below.
+			if ($content === '') {
+				throw new InvalidArgumentException();
+			}
+
 			$notification->setParsedSubject($content)
 				->setIcon($this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app-dark.svg')));
 				//->setIcon($this->url->getAbsoluteURL($iconUrl));
