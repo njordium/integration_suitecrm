@@ -5,15 +5,9 @@ parameters:
   excludePaths:
     # nextcloud/ocp's abstract App class does not fully resolve under phpstan; scanning Application.php produces spurious errors on parent::__construct.
     - lib/AppInfo/Application.php
-    # Iteration 30b: TestConnection extends Symfony\Component\Console\Command\Command
-    # which lives in Nextcloud's vendor at runtime but isn't in the fork's dev-composer
-    # path. Exclude until we either add symfony/console to composer.json require-dev or
-    # pull in ocp bootstrap that surfaces it. The command class is exercised via `occ`
-    # integration_suitecrm:test-connection so it still gets a live smoke test on every
-    # deploy — just not static analysis.
-    - lib/Command/TestConnection.php
   reportUnmatchedIgnoredErrors: false
   ignoreErrors:
     # Legacy properties from the julien-nc port that are set in the constructor
     # but only consumed elsewhere; not worth touching in a CI-focused pass.
     - '#Property .* is never read, only written\.#'
+  
