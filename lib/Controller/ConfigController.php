@@ -140,11 +140,11 @@ class ConfigController extends Controller {
 		$suitecrmUrl = rtrim($this->appConfig->getValueString(Application::APP_ID, 'oauth_instance_url'), '/');
 		$clientId = $this->appConfig->getValueString(Application::APP_ID, 'client_id');
 		// Path is configurable because SuiteCRM 8.x installs disagree on where
-		// the OAuth authorize endpoint sits: fresh 8.x installs use
-		// `/legacy/oauth2/authorize`, but installs upgraded from 7.x with the
-		// V8 API bolted on top expose `/Api/authorize` instead.
+		// the OAuth authorize endpoint sits. Verified live against 8.10.1:
+		// `/Api/authorize` is the endpoint on stock 8.10.x installs; older
+		// or upgraded-from-7.x installs may expose `/legacy/oauth2/authorize`.
 		$authorizePath = ltrim(
-			$this->appConfig->getValueString(Application::APP_ID, 'oauth_authorize_path', '/legacy/oauth2/authorize'),
+			$this->appConfig->getValueString(Application::APP_ID, 'oauth_authorize_path', '/Api/authorize'),
 			'/',
 		);
 		if ($suitecrmUrl === '' || $clientId === '') {
@@ -183,6 +183,11 @@ class ConfigController extends Controller {
 			return $this->redirectWithError('Not authenticated');
 		}
 		if ($code === '' || $state === '') {
+			// Iteration 21 (Finding 7): user aborted the SuiteCRM consent
+			// screen (Cancel button, tab close, network drop). The pending
+			// state row would otherwise sit valid in the store for ~10min
+			// until TTL expiry — clear it now so it can't be reused.
+			$this->stateStore->clear($this->userId);
 			return $this->redirectWithError('Missing code or state');
 		}
 		if (!$this->stateStore->verify($this->userId, $state)) {
@@ -212,32 +217,82 @@ class ConfigController extends Controller {
 		$this->tokens->setAccessToken($this->userId, $result['access_token']);
 		$this->tokens->setRefreshToken($this->userId, $result['refresh_token']);
 
-		// Look up the connected SuiteCRM user so PersonalSettings can render
-		// "Connected as X". The auth-code flow doesn't tell us who logged in
-		// so we ask the API — best-effort; the connection is valid regardless.
-		$login = 'connected';
+		// Iteration 21 (Finding 3): the previous implementation called
+		// `V8/me`, which is not part of SuiteCRM 8's documented API surface
+		// and 404s on stock installs. That meant the auth-code path stored
+		// user_name='connected' and — worse — never populated `user_id`, so
+		// dashboards that filter Meetings/Calls/Tasks by `assigned_user_id`
+		// silently returned empty for every OAuth-connected user.
+		//
+		// Fix: pull the SuiteCRM user id from the JWT `sub` claim and fetch
+		// `module/Users/{sub}` directly. Both `user_name` and `user_id` are
+		// now populated on connect.
+		$sub = $this->decodeJwtSub($result['access_token']);
+		$userName = 'connected';
 		$scrmUserId = '';
-		try {
-			$whoami = $this->suitecrmAPIService->request(
-				$suitecrmUrl, $result['access_token'], $this->userId, 'me'
-			);
-			if (isset($whoami['data']['attributes'])) {
-				$attrs = $whoami['data']['attributes'];
-				$login = $attrs['full_name'] ?? $attrs['user_name'] ?? 'connected';
+		if ($sub !== null) {
+			try {
+				$userResponse = $this->suitecrmAPIService->request(
+					$suitecrmUrl, $result['access_token'], $this->userId,
+					'module/Users/' . $sub . '?fields[Users]=user_name,full_name'
+				);
+				if (isset($userResponse['data'])) {
+					$attrs = $userResponse['data']['attributes'] ?? [];
+					$userName = $attrs['user_name'] ?? $attrs['full_name'] ?? 'connected';
+					$scrmUserId = $userResponse['data']['id'] ?? '';
+				}
+			} catch (\Throwable $e) {
+				// Keep the fallback values — tokens are stored, user_name
+				// defaults to 'connected'. The user can still connect; the
+				// dashboards will be empty until the next login refreshes
+				// the whoami lookup.
 			}
-			if (isset($whoami['data']['id'])) {
-				$scrmUserId = (string) $whoami['data']['id'];
-			}
-		} catch (\Throwable $e) {
-			// Silent — a functioning token but a failed /me lookup shouldn't
-			// abort the connect. The user will just see "connected" as label.
 		}
-		$this->config->setUserValue($this->userId, Application::APP_ID, 'user_name', $login);
-		$this->config->setUserValue($this->userId, Application::APP_ID, 'user_id', $scrmUserId);
+		$this->config->setUserValue($this->userId, Application::APP_ID, 'user_name', (string) $userName);
+		$this->config->setUserValue($this->userId, Application::APP_ID, 'user_id', (string) $scrmUserId);
 
 		$successUrl = $this->urlGenerator->linkToRoute('settings.PersonalSettings.index', ['section' => 'connected-accounts'])
 			. '?suitecrmToken=success';
 		return new RedirectResponse($successUrl);
+	}
+
+	/**
+	 * Decode the JWT payload of a SuiteCRM access token and return its `sub`
+	 * claim (the SuiteCRM user GUID) if present.
+	 *
+	 * Deliberately does NOT verify the JWT signature: we just received this
+	 * token in the token-exchange response from SuiteCRM itself over TLS,
+	 * so the source is already authenticated at the transport layer. We
+	 * only need to read the `sub` claim; if it's wrong the follow-up
+	 * `module/Users/{sub}` fetch will 404 and we fall through to the
+	 * default label.
+	 *
+	 * @param string $token
+	 * @return string|null the `sub` claim, or null if the token isn't a JWT
+	 *                     or the sub is missing / malformed
+	 */
+	private function decodeJwtSub(string $token): ?string {
+		$parts = explode('.', $token);
+		if (count($parts) !== 3) {
+			return null;
+		}
+		$payload = strtr($parts[1], '-_', '+/');
+		$payload .= str_repeat('=', (4 - strlen($payload) % 4) % 4);
+		$decoded = base64_decode($payload, true);
+		if ($decoded === false) {
+			return null;
+		}
+		$json = json_decode($decoded, true);
+		if (!is_array($json) || !isset($json['sub']) || !is_string($json['sub'])) {
+			return null;
+		}
+		// Guard: reject anything that doesn't look like a UUID-ish sub so
+		// we can't be talked into requesting an arbitrary path via the API
+		// service. SuiteCRM's user ids are UUID-shaped.
+		if (!preg_match('/^[a-zA-Z0-9\-_]+$/', $json['sub'])) {
+			return null;
+		}
+		return $json['sub'];
 	}
 
 	/**
