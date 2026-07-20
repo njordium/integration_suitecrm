@@ -71,7 +71,10 @@ Then enable it in **Apps → Integration → SuiteCRM integration**.
 3. In Nextcloud, open **Settings → Administration → Connected accounts → SuiteCRM integration** and enter the SuiteCRM instance URL, client ID, and client secret.
 4. **Redirect URI (for OAuth authorization-code flow):**
    add `<your-nextcloud-url>/apps/integration_suitecrm/oauth-callback` as an allowed redirect URI on the OAuth2 Client you created in step 2.
-5. **Authorize endpoint path** (optional): SuiteCRM 8.x installs disagree on where the OAuth authorize endpoint sits. The default `/legacy/oauth2/authorize` works for fresh 8.x installs; installs upgraded from 7.x with the V8 API bolted on may need `/Api/authorize`. Override via the `oauth_authorize_path` admin setting if needed.
+5. **Authorize endpoint path** (optional): the default `/Api/authorize` is what SuiteCRM 8.10.x exposes (verified live against a stock install). Older 8.x builds and upgraded-from-7.x installs may need `/legacy/oauth2/authorize` instead. As of **v1.9.1** the same field is editable in the admin OAuth settings UI (see step 3) — no CLI required. To set it via the command line instead:
+   ```bash
+   sudo -u www-data php occ config:app:set integration_suitecrm oauth_authorize_path --value="/Api/authorize"
+   ```
 
 ### Per user
 Open **Settings → Personal → Connected accounts → SuiteCRM integration** and click **"Connect via SuiteCRM OAuth (recommended)"**. You will be redirected to your SuiteCRM instance to sign in and approve access; on approval you land back in Personal Settings connected.
