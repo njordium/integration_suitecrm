@@ -5,6 +5,8 @@
 
 Interact with your SuiteCRM instance from inside Nextcloud — search records, see upcoming events on your dashboard, get notified about meeting reminders, and paste CRM links into Talk/Notes for rich preview cards.
 
+**New here?** Skip straight to [`docs/getting-started.md`](docs/getting-started.md) for the zero-to-connected walkthrough (about 15 minutes end-to-end).
+
 ---
 
 ## Features
@@ -13,10 +15,14 @@ Interact with your SuiteCRM instance from inside Nextcloud — search records, s
 Search across your SuiteCRM data from Nextcloud's global search bar. Supports:
 **Contacts · Accounts · Leads · Opportunities · Cases · Meetings · Tasks · Emails**
 
+Contacts and Leads are filtered on both `last_name` and `first_name` — searching for a first name like "Serena" returns the matching Contact even when their full name is stored differently.
+
 ### Dashboard widgets
 Two home-dashboard widgets:
 - **SuiteCRM events** — reminders for upcoming Calls/Meetings that need your attention
 - **SuiteCRM calendar** — chronological list of assigned Meetings, Calls, and Tasks in the next 7 days
+
+Both widgets implement `IAPIWidgetV2` so the Nextcloud dashboard renders a SuiteCRM-specific empty-state message ("No SuiteCRM notifications!" / "No upcoming SuiteCRM events") when your inbox is empty, instead of the generic "No entries" fallback.
 
 ### Reference cards & smart picker
 Paste any SuiteCRM record URL (e.g. `.../index.php?module=Contacts&record=abc-123`) into Talk messages, Notes, Deck cards, or Files comments and it renders inline as a rich preview card.
@@ -30,6 +36,15 @@ Meeting and Call reminders from SuiteCRM show up in Nextcloud's notification tra
 Pair with the [njordium/suitecrm_nextcloud_calendar](https://github.com/njordium/suitecrm_nextcloud_calendar) SuiteCRM module for two-way calendar sync via CalDAV — SuiteCRM Meetings/Calls appear in Nextcloud Calendar and vice-versa, with double-booking detection and Nextcloud Appointments booking → SuiteCRM Meeting conversion.
 
 The Personal Settings panel includes a Calendar Companion section that streamlines the setup: shows your Nextcloud URL and username with one-click copy, plus a link to generate an app password.
+
+### Built-in diagnostics
+Ships with an `occ` command that walks every layer of the connection stack — admin config, SSRF guard, HTTP reachability, authorize endpoint, token endpoint — and reports exactly which layer is broken with the fix command:
+
+```bash
+sudo -u www-data php /var/www/nextcloud/occ integration_suitecrm:test-connection
+```
+
+Safe to run at any time; does not touch stored user tokens.
 
 ### Security
 - OAuth2 access + refresh tokens are encrypted at rest using Nextcloud's `ICrypto` service
@@ -51,9 +66,12 @@ The Personal Settings panel includes a Calendar Companion section that streamlin
 ### From the Nextcloud App Store
 Search for "SuiteCRM integration" in Apps → Integration.
 
-### Manual install
+### From a release zip (recommended for production)
+Download `integration_suitecrm-<version>.zip` from the [Releases page](https://github.com/njordium/integration_suitecrm/releases). Extract it into your Nextcloud `custom_apps/` directory (**not** the bundled `apps/` directory), then enable the app via **Apps → Integration → SuiteCRM integration**. Each release also carries a SHA-256 file; verify integrity with `sha256sum -c integration_suitecrm-<version>.zip.sha256`.
+
+### Manual install (source)
 ```bash
-cd /var/www/nextcloud/apps
+cd /var/www/nextcloud/custom_apps
 git clone https://github.com/njordium/integration_suitecrm.git
 cd integration_suitecrm
 npm ci
@@ -68,16 +86,25 @@ Then enable it in **Apps → Integration → SuiteCRM integration**.
 
 ## Configuration
 
+**First-time setup?** [`docs/getting-started.md`](docs/getting-started.md) is a step-by-step walkthrough from an unconnected SuiteCRM install to a working end-to-end integration with smoke tests. Recommended for anyone doing this for the first time.
+
+Reference version:
+
 ### Admin
 1. In SuiteCRM, generate OpenSSL private + public keys ([docs](https://docs.suitecrm.com/developer/api/developer-setup-guide/json-api/#_generate_private_and_public_key_for_oauth2)).
 2. Create an **OAuth2 Client** in SuiteCRM's "OAuth2 Clients and Tokens" admin section. A single client can be configured to accept both the authorization-code grant (recommended) and the password grant (fallback).
 3. In Nextcloud, open **Settings → Administration → Connected accounts → SuiteCRM integration** and enter the SuiteCRM instance URL, client ID, and client secret.
 4. **Redirect URI (for OAuth authorization-code flow):**
-   add `<your-nextcloud-url>/apps/integration_suitecrm/oauth-callback` as an allowed redirect URI on the OAuth2 Client you created in step 2.
-5. **Authorize endpoint path** (optional): the default `/Api/authorize` is what SuiteCRM 8.10.x exposes (verified live against a stock install). Older 8.x builds and upgraded-from-7.x installs may need `/legacy/oauth2/authorize` instead. As of **v1.9.1** the same field is editable in the admin OAuth settings UI (see step 3) — no CLI required. To set it via the command line instead:
-   ```bash
-   sudo -u www-data php occ config:app:set integration_suitecrm oauth_authorize_path --value="/Api/authorize"
-   ```
+add `<your-nextcloud-url>/apps/integration_suitecrm/oauth-callback` as an allowed redirect URI on the OAuth2 Client you created in step 2.
+5. **Authorize endpoint path** (optional): the default `/Api/authorize` is what SuiteCRM 8.10.x exposes (verified live against a stock install). Older 8.x builds and upgraded-from-7.x installs may need `/legacy/oauth2/authorize` instead. Editable in the admin OAuth settings UI. To set it via the command line instead:
+```bash
+sudo -u www-data php occ config:app:set integration_suitecrm oauth_authorize_path --value="/Api/authorize"
+```
+6. **Verify the wiring:**
+```bash
+sudo -u www-data php occ integration_suitecrm:test-connection
+```
+Walks every layer of the connection stack and reports exactly which layer is broken. Should print `All checks passed` before any user tries to connect.
 
 ### If SuiteCRM is hosted on your LAN or same host as Nextcloud
 
@@ -116,34 +143,22 @@ For the calendar-sync companion module, use the "Calendar sync (SuiteCRM module)
 ### Local Docker (dev / test)
 Both Nextcloud and SuiteCRM in containers on the same Docker host, talking via the docker bridge. Works out of the box **once you set `allow_local_remote_servers=true`** (the bridge addresses are RFC-1918). The redirect URI in the SuiteCRM OAuth client must match the URL your browser uses to reach Nextcloud (typically `http://<host-ip>:<port>`).
 
-### Behind a reverse proxy (Traefik, nginx, Apache, Cloudflare Tunnel)
-Nextcloud must know its public URL for OAuth callback generation. Set these in `config.php`:
+### Behind a reverse proxy (nginx, Apache, Cloudflare Tunnel)
+Full working configuration examples are in [`docs/reverse-proxy.md`](docs/reverse-proxy.md) — nginx and Apache vhosts (Apache uses PHP-FPM, watch the `<FilesMatch>` handler block or your `.php` files serve as text), Cloudflare Tunnel config, and the `overwriteprotocol`/`overwritehost`/`trusted_proxies` combination the OAuth callback URL generator needs. HAProxy and Traefik work fine in principle (same overwrite trio), we just don't ship tested samples.
 
-```php
-'overwriteprotocol' => 'https',
-'overwritehost' => 'cloud.example.com',
-'overwritecondaddr' => '^10\.0\.0\.5$',  // your reverse proxy's IP
-'trusted_proxies' => ['10.0.0.5'],
-```
-
-The redirect URI you register in SuiteCRM must be the **public** URL byte-for-byte:
-`https://cloud.example.com/apps/integration_suitecrm/oauth-callback`
-
-One wrong scheme (`http` vs `https`) or missing port and SuiteCRM rejects with `invalid_client`. If both NC and SuiteCRM are on the private side of the same reverse proxy, `allow_local_remote_servers=true` still applies.
+### Proxmox LXC (production reference)
+Full end-to-end reference in [`docs/proxmox-lxc.md`](docs/proxmox-lxc.md) — verified against a live Ubuntu 24.04 LXC running Nextcloud 33. Two-LXC layout (Nextcloud + SuiteCRM), `pct create` templates, install commands using `libapache2-mod-php`, `www-data` crontab for NC cron, PVE-host nginx reverse proxy, backup script that preserves the NC `secret` and SuiteCRM OAuth2 keypair.
 
 ### Cloud (AWS VPC, Azure VNet, GCP VPC)
 If Nextcloud and SuiteCRM are both cloud-internal (VPC-private IPs), enable `allow_local_remote_servers`. If SuiteCRM is public-facing (has a real DNS name reachable from the internet), no local-access change needed. For managed database backends (RDS, Cloud SQL, Azure Database), Nextcloud's connection is unchanged; only the SuiteCRM URL matters for this integration.
 
 Preserve the `secret` value in Nextcloud's `config.php` across restores — stored OAuth tokens are encrypted with it, and a mismatch will invalidate every user's connection.
 
-### Proxmox LXC (production reference)
-Two LXCs on the same PVE host: one for Nextcloud (Apache + PHP-FPM + MariaDB), one for SuiteCRM 8 (Apache + PHP + MariaDB). They see each other on the PVE bridge subnet (`10.10.10.x` typically) → set `allow_local_remote_servers=true` on the Nextcloud side. Run nginx as a reverse proxy on the PVE host itself for external HTTPS termination; the `overwriteprotocol`/`overwritehost`/`trusted_proxies` config above applies. Systemd handles NC's cron via `nextcloud-cron.timer`; the SuiteCRM LXC uses its own crontab for the SuiteCRM scheduler. Regular backups should include NC's `config.php` (for the `secret`), the NC data directory, and both database dumps.
-
 ---
 
 ## Troubleshooting
 
-Keyed by symptom.
+Keyed by symptom. When in doubt, run `occ integration_suitecrm:test-connection` first — it reports which layer of the stack is broken with the exact fix command.
 
 ### `OAuth access token could not be obtained: Host "<addr>" violates local access rules`
 Nextcloud's SSRF guard is blocking outbound HTTP to your SuiteCRM's LAN IP. Fix:
@@ -155,10 +170,10 @@ sudo -u www-data php occ config:system:set allow_local_remote_servers --value=tr
 SuiteCRM rejected the client credentials. Two common causes:
 1. **Redirect URI mismatch (byte-for-byte).** Compare the URL the browser sent (visible in the address bar during the redirect back) against what's stored in SuiteCRM's OAuth2 Client → `redirect_url` column. Scheme (`http` vs `https`), port, trailing slash — any difference triggers this.
 2. **Seeded via SQL with the wrong hash algorithm.** SuiteCRM 8.10.x stores the OAuth2 client secret as raw `hash('sha256', $secret)`, **not** bcrypt (`password_hash`). If you seeded via SQL with `password_hash()` or a bcrypt-style hash, verify:
-   ```sql
-   SELECT id, secret FROM oauth2clients WHERE id = 'your-client-id';
-   ```
-   A 64-hex-char value is SHA-256; anything starting with `$2y$` is bcrypt and won't match. The safest fix is to delete the row and recreate the client via SuiteCRM's admin UI (`http://<suitecrm>/#/oauth2-clients/index`), which uses the correct algorithm transparently.
+```sql
+SELECT id, secret FROM oauth2clients WHERE id = 'your-client-id';
+```
+A 64-hex-char value is SHA-256; anything starting with `$2y$` is bcrypt and won't match. The safest fix is to delete the row and recreate the client via SuiteCRM's admin UI (`http://<suitecrm>/#/oauth2-clients/index`), which uses the correct algorithm transparently.
 
 ### Personal-settings SuiteCRM section renders empty (no errors in console)
 The `js/` bundles are missing. Happens when installing from the source tarball (`/archive/refs/heads/master.tar.gz`) instead of from a proper release or app-store install. On the host:
@@ -174,7 +189,7 @@ SuiteCRM 8's Symfony bootstrap requires the `.env` file (not just process env va
 ```bash
 # SuiteCRM ships a `.env` template — restore it if you accidentally overwrote:
 cd /path/to/SuiteCRM
-git checkout .env    # or restore from the release zip
+git checkout .env # or restore from the release zip
 # Put your DB URL + APP_SECRET in .env.local (not .env)
 ```
 
@@ -185,9 +200,9 @@ chown -R www-data:www-data /path/to/SuiteCRM/cache
 ```
 
 ### Unified search returns 0 hits despite matching data
-Two possibilities:
-1. **Running v1.9.0 or earlier?** Iteration 21 shipped a search regression (`contains` operator not supported by SuiteCRM 8.10.x). Upgrade to **v1.9.2+** which uses `like` with `%wildcards%`. Live-verified against SuiteCRM 8.10.1.
-2. **Searching by first name?** By design the app filters on `last_name` (Contacts/Leads) and `name` (other modules) because SuiteCRM 8's JSON:API rejects filters on computed fields like `full_name`. First-name-only search doesn't match. Follow-up work planned.
+1. **Try searching by last name.** Contacts/Leads filter on `last_name` and `first_name` (v1.9.1+); Accounts on `name`. Middle names or aliases won't match.
+2. **The user must have `search_enabled` turned on** in Personal Settings.
+3. **Assigned-user scope:** dashboard results are scoped to items assigned to the connected user's SuiteCRM ID. If you connected as an admin user in SuiteCRM but the records are assigned to somebody else, expect empty results — this is a security feature, not a bug.
 
 ### Browser sends HTTPS to my HTTP-only NC port (400 with `\x16\x03\x01` in access log)
 Stale HSTS cache from a previous HTTPS-serving app on the same host:port (e.g. NC AIO on 8443). Clear HSTS for that hostname in your browser (`chrome://net-internals/#hsts` → "Delete domain security policies") or use a different hostname via `/etc/hosts`.
@@ -200,7 +215,7 @@ sudo -u www-data php occ config:system:get overwritehost
 sudo -u www-data php occ config:system:get overwritecondaddr
 sudo -u www-data php occ config:system:get trusted_proxies
 ```
-All four typically need to be set together for proxy-aware URL generation.
+All four typically need to be set together for proxy-aware URL generation. Full working nginx/Apache/Cloudflare configurations in [`docs/reverse-proxy.md`](docs/reverse-proxy.md).
 
 ---
 
@@ -209,24 +224,24 @@ All four typically need to be set together for proxy-aware URL generation.
 ```bash
 # JS/Vue
 npm ci
-npm run watch       # dev build with file watching
-npm run lint        # ESLint 9 flat config
+npm run watch # dev build with file watching
+npm run lint # ESLint 9 flat config
 npm run stylelint
-npm run build       # production build
+npm run build # production build
 
 # PHP
 composer install
-vendor/bin/phpunit  # unit tests
+vendor/bin/phpunit # unit tests
 vendor/bin/phpstan analyse -c phpstan.neon
 ```
 
-CI (`.github/workflows/lint.yml`) runs all of the above on every push and PR across PHP 8.2 / 8.3 / 8.4 and Node 20.
+CI (`.github/workflows/lint.yml`) runs all of the above on every push and PR across PHP 8.2 / 8.3 / 8.4 and Node 20. The release workflow (`.github/workflows/release.yml`) fires on `v*` tag push, re-runs the full lint+test suite as a release gate, and publishes the built zip + SHA-256 checksum to the GitHub Release automatically.
 
 ---
 
 ## Contributing
 
-Issues and pull requests welcome at [njordium/integration_suitecrm](https://github.com/njordium/integration_suitecrm/issues).
+Issues and pull requests welcome at [njordium/integration_suitecrm](https://github.com/njordium/integration_suitecrm/issues). When reporting a connection issue, please include the output of `occ integration_suitecrm:test-connection`.
 
 ---
 

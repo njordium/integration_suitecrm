@@ -22,7 +22,7 @@
 	"keywords": [
 		"suitecrm"
 	],
-	"author": "Julien Veyssier",
+	"author": "Kim Haverblad (fork maintainer); Julien Veyssier <eneiluj@posteo.net> (original author)",
 	"license": "AGPL-3.0",
 	"bugs": {
 		"url": "https://github.com/njordium/integration_suitecrm/issues"

@@ -6,6 +6,47 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 1.9.0 – 2026-07-21
+
+Backfills the full body of work landed between the 1.8.0 tag and the 1.9.0 release cut on commit `c2d5f55`. The theme was audit-and-fix — every prior iteration got a substantive review, most of them uncovered latent bugs that were shipped-but-never-run, and each fix carries a live-verification note against the docker container or the user's production Ubuntu 24.04 LXC.
+
+### Added
+
+- **Enriched OAuth error envelope** (`SuiteCRMAPIService::requestOAuthAccessToken()`): the token-exchange call now returns `error_kind`, `http_status`, `error_code`, `error_description`, and the raw body on failure paths. `ConfigController::oauthCallback()` uses these to produce admin-friendly guidance for `local_server_blocked` (SSRF guard), `401 / invalid_client` (SHA-256 vs bcrypt trap + redirect_uri mismatch), and transport-level failures. Previously the actionable-error branches were unreachable dead code because the service's outer `catch(\Throwable)` swallowed every exception into `['error' => msg]`.
+- **Hardened release workflow** (`.github/workflows/release.yml`): inline lint/test gate (PHP syntax across 8.2/8.3/8.4, PHPStan, PHPUnit, JS lint, stylelint, webpack build, bundle presence check) runs before packaging; a version-sync step fails the release if the pushed tag does not match `<version>` in `appinfo/info.xml`; SHA-256 checksum is emitted alongside the zip; release body corrects `apps/` → `custom_apps/`. Dry-run twice via `workflow_dispatch` to prove the whole build path actually runs.
+- **`occ integration_suitecrm:test-connection` diagnostic**: five-check `occ` command covering admin-config completeness, SSRF-guard interaction with the target host, HTTP reachability, authorize endpoint (accepts 200/302/303/307/308 so all SuiteCRM 8.x variants pass), and the token endpoint (POST with a bogus grant, expects 400 with `unsupported_grant_type`). Live-run against SuiteCRM 8.10.1 — 8/8 green with the correct admin config.
+- **Reverse-proxy deployment reference** (`docs/reverse-proxy.md`): nginx (NC-only + NC+SuiteCRM), Apache with a working PHP-FPM handler block (do not copy-paste without it — mod_php-less Apache would serve `.php` files as text), Cloudflare Tunnel, and a dedicated "About allow_local_remote_servers" section that clarifies the SSRF guard resolves the target IP rather than caring about the request path.
+- **Proxmox LXC production reference** (`docs/proxmox-lxc.md`): grounded in a live Ubuntu 24.04 LTS + PHP 8.3 + NC 33 LXC. Two-LXC layout (Nextcloud + SuiteCRM), `pct create` commands, install scripts using `libapache2-mod-php` (matching what the popular Proxmox helper-script installers actually produce), `www-data` classic crontab for NC cron with an optional systemd-timer alternative, PVE-host nginx pointer, backup script preserving the NC config.php `secret` and the SuiteCRM OAuth2 keypair, upgrade path.
+- **Cross-module search widened to first_name for person modules**: Contacts and Leads now filter on both `last_name` and `first_name` via per-attribute requests + result dedup by `module|id`. First-name-only queries (typing `Serena` and expecting `Serena Arent`) now return hits; before iter 35 they returned zero. Documented the deliberate rejection of `filter[operator]=or` (SuiteCRM 8.4/8.5 DBAL applies OR at the top of the WHERE clause and returns every non-deleted row).
+- **PHPUnit regression suite for `SuiteCRMAPIService::search()`** (`tests/php/Service/SuiteCRMAPIServiceTest.php`): 11 tests covering every historical search bug — the `contains` operator regression, the `full_name` computed-field trap, the missing `first_name` in `name_attrs`, the invalid `date_sent` on Emails, and the error-handling semantics (partial-attribute failure suppresses warnings, total failure logs). Behavioural tests use a partial mock of the service; structural tests use reflection on the private `SEARCH_MODULES` const.
+- **`IAPIWidgetV2` support** on both dashboard widgets: alongside the existing `IWidget + IAPIWidget + IIconWidget` interfaces, both widgets now implement `IAPIWidgetV2` and return a `WidgetItems` envelope with a SuiteCRM-specific `emptyContentMessage` ("No SuiteCRM notifications!" / "No upcoming SuiteCRM events") instead of the dashboard's generic "No entries" placeholder. Falls back cleanly to V1 on any NC that doesn't probe V2.
+
+### Changed
+
+- **`search()` operator reverted to `like` with wildcards**: SuiteCRM 8.10.1 responds `400 Filter operator contains is invalid`, so the `%wildcards%` pattern is back and the operator is `like`. Live-verified against the container.
+- **Emails module `fields` list**: dropped `date_sent`; that column does not exist on SuiteCRM 8's Email bean and requesting it responded `400 The following field in Email module is not found: date_sent`.
+- **`TestConnection` authorize-path normalisation**: matches `ConfigController::oauthAuthorizeUrl()`'s pattern (`rtrim($url, '/') . '/' . ltrim($path, '/')`) so an admin who sets `oauth_authorize_path=Api/authorize` (no leading slash) does not get a false-negative from the diagnostic while the real OAuth flow works fine. Token endpoint path is now derived from the authorize path (`preg_replace /authorize$/ → /access_token`) so SuiteCRM installs upgraded from 7.x with the `/legacy/oauth2/*` layout also get a valid token check.
+- **`softprops/action-gh-release` bumped v2 → v3** and **`actions/upload-artifact` bumped v4 → v7** to eliminate GitHub's Node 20 deprecation warnings.
+- **`README.md`** rewritten with deployment-scenario matrix (Docker, reverse proxy, cloud VPC, Proxmox LXC), install caveats (js/ bundle build required for tarball installs), the `allow_local_remote_servers` gotcha, and a troubleshooting section keyed by symptom.
+
+### Fixed
+
+- **ConfigController constructor signature drift**: `Iteration 33` added `LoggerInterface` at position #10, but `ConfigControllerTest` still constructed the SUT with ten positional arguments. `Iteration 34` updated the test to inject the logger mock and pass it at the right position. CI PHPUnit went from red → green.
+- **`.phpunit.cache` leak into the release zip**: iter 38's PHPUnit gate wrote `.phpunit.cache/test-results` into the workdir before the packaging step ran. Iter 38b added it and half a dozen other transient caches (`.php-cs-fixer.cache`, `.phpcs-cache`, `.tool-versions`, `.node-version`, `.php-version`) to the rsync exclude list.
+- **SuiteCRM unzip in `docs/proxmox-lxc.md`** would silently break `DocumentRoot`: the SuiteCRM 8.x GitHub-release ZIP ships with a top-level `SuiteCRM-<version>/` directory. Fix: unpack to a scratch dir, then `cp -a /tmp/scrm-unpack/SuiteCRM-*/. /var/www/suitecrm/`.
+- **Test-connection expected output** in the Proxmox doc updated for iter 31's HTTP 307 case and iter 39's "Derived token endpoint path" line.
+- Notification triage: 13 stale CI-failure notifications from iters 33 and earlier bulk-closed after later commits landed green.
+
+### Verified live
+
+- OAuth authcode flow end-to-end against SuiteCRM 8.10.1: authorize → consent → callback → token exchange → tokens stored, `user_name` + `user_id` populated on connect.
+- Unified search from Nextcloud 30 against SuiteCRM 8.10.1: `Serena` returns the "Serena Arent" Contact, `Arent` also returns the Contact, `AtoZ` returns the Account + Opportunity, all 10 diverse queries return HTTP 200.
+- Both dashboard widgets render with icons on the Nextcloud dashboard.
+- `occ integration_suitecrm:test-connection` runs green with the stock config and (as of iter 39) also green with a no-leading-slash `oauth_authorize_path` value.
+- Release workflow dry-run via `workflow_dispatch` produces a valid 7.03 MB zip with the correct layout (`lib/` + `js/` + `appinfo/` + `docs/` + `README` + `COPYING`, no `tests/` or `composer.json` or `.phpunit.cache/`).
+- `nextcloud.log` clean of `integration_suitecrm` warnings after 20 minutes of diverse activity.
+- Ubuntu 24.04 + PHP 8.3 + NC 33 target OS/version validated read-only against the user's production LXC — every command in `docs/proxmox-lxc.md` grounded in what the popular installer scripts actually produce.
+
 ## 1.8.0 – 2026-07-01
 ### Changed
 - Modernised PHP 7.4-style classes to PHP 8 constructor property promotion: `SuiteCRMWidget`, `Settings\Personal`, `Settings\Admin` (property docblocks removed, all readonly-style dependencies now declared in the constructor signature)
@@ -91,6 +132,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Replaced `::v-deep` with `:deep()` (Vue 3)
 - Moved notifier registration from Application constructor to `register()` (NC25+ best practice)
 - Bumped Node engine requirement to >=20
+
 ## 1.0.2 – 2021-09-06
 ### Changed
 - bump js libs

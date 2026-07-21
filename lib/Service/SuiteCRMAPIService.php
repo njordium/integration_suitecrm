@@ -336,10 +336,24 @@ class SuiteCRMAPIService {
 	 * `fields`    = attribute list for the JSON:API fields[] filter
 	 * `date_attr` = attribute used as the primary sort/date key ("when it happens")
 	 */
+	/**
+	 * Iteration 50 (upstream issue #8 follow-through): `overdue_statuses` lists
+	 * the SuiteCRM status values that mean "the user hasn't yet dispositioned
+	 * this record". A past-due Meeting or Call with status = 'Planned' still
+	 * needs the rep's attention — same for a Task whose date_due is in the past
+	 * but that hasn't been marked Completed. Before iter 50 the widget's
+	 * `date_start > now()` filter silently dropped every such row and the rep
+	 * only found out about missed activity from SuiteCRM itself, defeating the
+	 * point of a dashboard reminder.
+	 *
+	 * `Held`, `Not Held`, `Completed`, `Deferred` are the disposition-terminal
+	 * statuses and are NOT in this list — a Held meeting is done, and the
+	 * calendar widget stops nagging about it.
+	 */
 	private const UPCOMING_MODULES = [
-		['module' => 'Meetings', 'type' => 'meeting', 'fields' => 'name,date_start,date_end,location,status,assigned_user_id', 'date_attr' => 'date_start'],
-		['module' => 'Calls',    'type' => 'call',    'fields' => 'name,date_start,duration_hours,duration_minutes,status,assigned_user_id', 'date_attr' => 'date_start'],
-		['module' => 'Tasks',    'type' => 'task',    'fields' => 'name,date_due,priority,status,assigned_user_id', 'date_attr' => 'date_due'],
+		['module' => 'Meetings', 'type' => 'meeting', 'fields' => 'name,date_start,date_end,location,status,assigned_user_id', 'date_attr' => 'date_start', 'overdue_statuses' => ['Planned']],
+		['module' => 'Calls',    'type' => 'call',    'fields' => 'name,date_start,duration_hours,duration_minutes,status,assigned_user_id', 'date_attr' => 'date_start', 'overdue_statuses' => ['Planned']],
+		['module' => 'Tasks',    'type' => 'task',    'fields' => 'name,date_due,priority,status,assigned_user_id', 'date_attr' => 'date_due', 'overdue_statuses' => ['Not Started', 'In Progress', 'Pending Input']],
 	];
 
 	/**
@@ -391,25 +405,44 @@ class SuiteCRMAPIService {
 	];
 
 	/**
-	 * Returns SuiteCRM Meetings/Calls/Tasks assigned to the user, upcoming within
-	 * the next `$horizonDays` days, sorted chronologically. Used by the calendar
-	 * dashboard widget.
+	 * Returns SuiteCRM Meetings/Calls/Tasks assigned to the user for the
+	 * calendar widget. Includes both:
 	 *
-	 * @return array Sorted result rows, each tagged with `type` and a normalised
-	 *               `event_ts` int timestamp for client-side sorting/formatting.
+	 *   - Upcoming items (now .. now + $horizonDays)
+	 *   - Past-due-but-not-dispositioned items (now - $overdueLookbackDays .. now)
+	 *     — Meetings/Calls whose status is still `Planned`, Tasks whose status
+	 *     is not one of `Held / Not Held / Completed / Deferred`.
+	 *
+	 * Sorted chronologically (oldest first) so overdue rows surface at the top
+	 * of the widget. Each row is tagged with a boolean `is_overdue` for the
+	 * frontend to badge/highlight.
+	 *
+	 * Iteration 50 (upstream issue #8): before this iteration the filter was
+	 * `date > now AND date < horizon`, which silently dropped past-due
+	 * Meetings/Calls the rep hadn't dispositioned. Widget users had to open
+	 * SuiteCRM directly to notice missed activity, defeating the purpose of a
+	 * dashboard reminder. The single API call is now widened to cover the past
+	 * lookback window as well; the not-actionable rows are filtered client-side
+	 * so we don't have to lean on SuiteCRM 8.x's `filter[operator]=or` (which
+	 * we know from iter 35 misbehaves on 8.4/8.5 DBAL).
+	 *
+	 * @return array Sorted result rows, each tagged with `type`, `event_ts`
+	 *               (int Unix timestamp), and `is_overdue` (bool).
 	 *               On upstream API failure, returns the SuiteCRM error payload.
 	 */
-	public function getUpcoming(string $url, string $accessToken, string $userId, int $horizonDays = 7, int $limit = 20): array {
+	public function getUpcoming(string $url, string $accessToken, string $userId, int $horizonDays = 7, int $limit = 20, int $overdueLookbackDays = 30): array {
 		$scrmUserId = $this->config->getUserValue($userId, Application::APP_ID, 'user_id');
 		$now = new DateTime();
+		$nowTs = $now->getTimestamp();
 		$horizon = (clone $now)->add(new DateInterval('P' . $horizonDays . 'D'));
+		$lookback = (clone $now)->sub(new DateInterval('P' . $overdueLookbackDays . 'D'));
 
 		$combined = [];
 		foreach (self::UPCOMING_MODULES as $moduleDef) {
 			$filters = [
 				'fields[' . $moduleDef['module'] . ']=' . $moduleDef['fields'],
 				urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId),
-				urlencode('filter[' . $moduleDef['date_attr'] . '][gt]') . '=' . urlencode($now->format('Y-m-d\TH:i:s')),
+				urlencode('filter[' . $moduleDef['date_attr'] . '][gt]') . '=' . urlencode($lookback->format('Y-m-d\TH:i:s')),
 				urlencode('filter[' . $moduleDef['date_attr'] . '][lt]') . '=' . urlencode($horizon->format('Y-m-d\TH:i:s')),
 				'filter[operator]=and',
 			];
@@ -420,17 +453,27 @@ class SuiteCRMAPIService {
 			if (isset($response['error'])) {
 				return $response;
 			}
+			$overdueActionable = $moduleDef['overdue_statuses'] ?? [];
 			foreach ($response['data'] ?? [] as $row) {
 				$dateStr = $row['attributes'][$moduleDef['date_attr']] ?? null;
 				if ($dateStr === null || $dateStr === '') {
 					continue;
 				}
 				try {
-					$row['event_ts'] = (new DateTime($dateStr))->getTimestamp();
+					$eventTs = (new DateTime($dateStr))->getTimestamp();
 				} catch (Exception) {
 					continue;
 				}
+				$isUpcoming = $eventTs >= $nowTs;
+				$status = (string) ($row['attributes']['status'] ?? '');
+				$isActionableOverdue = !$isUpcoming && in_array($status, $overdueActionable, true);
+				if (!$isUpcoming && !$isActionableOverdue) {
+					// Past-due but already dispositioned (Held, Completed, etc) — skip.
+					continue;
+				}
+				$row['event_ts'] = $eventTs;
 				$row['type'] = $moduleDef['type'];
+				$row['is_overdue'] = !$isUpcoming;
 				$combined[] = $row;
 			}
 		}
