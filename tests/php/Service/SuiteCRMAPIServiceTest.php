@@ -406,6 +406,174 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	// ---------------------------------------------------------------------
+	// Iter 52 — regression coverage for iter 50's getUpcoming() past-due
+	// handling (upstream issue #8). Every test uses the partial-mock
+	// pattern established for search() above so we can synthesise SuiteCRM
+	// responses without hitting the wire.
+	// ---------------------------------------------------------------------
+
+	/**
+	 * Iter 50: a past-due Meeting whose `status` is still `Planned` (the
+	 * rep hasn't marked it Held) must appear in the widget's output with
+	 * `is_overdue=true`. Before iter 50 the `date_start > now` filter
+	 * silently dropped every such row.
+	 */
+	public function testGetUpcomingIncludesPastDueNotDispositionedMeeting(): void {
+		$requestStub = function ($url, $token, $userId, $endpoint) {
+			if (str_contains($endpoint, 'module/Meetings')) {
+				return [
+					'data' => [
+						[
+							'id' => 'meeting-past-uuid',
+							'attributes' => [
+								'name' => 'Discovery call with client',
+								'date_start' => (new \DateTime('-2 days'))->format('Y-m-d\TH:i:s'),
+								'status' => 'Planned',
+							],
+						],
+					],
+				];
+			}
+			return ['data' => []];
+		};
+
+		$service = $this->makeService($requestStub);
+		$results = $service->getUpcoming('http://scrm.example', 'tok', 'alice', 7, 20, 30);
+
+		$meetings = array_values(array_filter($results, fn ($r) => $r['type'] === 'meeting'));
+		$this->assertCount(1, $meetings, 'past-due Planned meeting must be retained');
+		$this->assertSame('meeting-past-uuid', $meetings[0]['id']);
+		$this->assertTrue($meetings[0]['is_overdue']);
+	}
+
+	/**
+	 * Iter 50: a past-due Meeting whose status is `Held` has been
+	 * dispositioned; the widget must skip it (no nagging about resolved
+	 * items).
+	 */
+	public function testGetUpcomingExcludesPastDueDispositionedMeeting(): void {
+		$requestStub = function ($url, $token, $userId, $endpoint) {
+			if (str_contains($endpoint, 'module/Meetings')) {
+				return [
+					'data' => [
+						[
+							'id' => 'meeting-held-uuid',
+							'attributes' => [
+								'name' => 'Old meeting the rep logged',
+								'date_start' => (new \DateTime('-2 days'))->format('Y-m-d\TH:i:s'),
+								'status' => 'Held',
+							],
+						],
+					],
+				];
+			}
+			return ['data' => []];
+		};
+
+		$service = $this->makeService($requestStub);
+		$results = $service->getUpcoming('http://scrm.example', 'tok', 'alice', 7, 20, 30);
+
+		$this->assertEmpty($results, 'Held meeting should be filtered out client-side');
+	}
+
+	/**
+	 * Iter 50: a future-dated Meeting is always included regardless of
+	 * status — the widget's job is to surface the schedule.
+	 */
+	public function testGetUpcomingIncludesFutureMeetingRegardlessOfStatus(): void {
+		$requestStub = function ($url, $token, $userId, $endpoint) {
+			if (str_contains($endpoint, 'module/Meetings')) {
+				return [
+					'data' => [
+						[
+							'id' => 'meeting-future-uuid',
+							'attributes' => [
+								'name' => 'Tomorrow standup',
+								'date_start' => (new \DateTime('+1 day'))->format('Y-m-d\TH:i:s'),
+								// Even 'Held' shouldn't dodge a future item, though
+								// that combination is unusual.
+								'status' => 'Held',
+							],
+						],
+					],
+				];
+			}
+			return ['data' => []];
+		};
+
+		$service = $this->makeService($requestStub);
+		$results = $service->getUpcoming('http://scrm.example', 'tok', 'alice', 7, 20, 30);
+
+		$meetings = array_values(array_filter($results, fn ($r) => $r['type'] === 'meeting'));
+		$this->assertCount(1, $meetings);
+		$this->assertFalse($meetings[0]['is_overdue']);
+	}
+
+	/**
+	 * Iter 50: Task status vocabulary differs from Meetings/Calls. The
+	 * SEARCH_MODULES entry lists `Not Started`, `In Progress`,
+	 * `Pending Input` as still-actionable. `Completed` and `Deferred`
+	 * disposition the row.
+	 */
+	public function testGetUpcomingHandlesTaskStatusVocabulary(): void {
+		$requestStub = function ($url, $token, $userId, $endpoint) {
+			if (str_contains($endpoint, 'module/Tasks')) {
+				return [
+					'data' => [
+						[
+							'id' => 'task-in-progress-uuid',
+							'attributes' => [
+								'name' => 'Draft the proposal',
+								'date_due' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+								'status' => 'In Progress',
+							],
+						],
+						[
+							'id' => 'task-completed-uuid',
+							'attributes' => [
+								'name' => 'Already-done task',
+								'date_due' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+								'status' => 'Completed',
+							],
+						],
+					],
+				];
+			}
+			return ['data' => []];
+		};
+
+		$service = $this->makeService($requestStub);
+		$results = $service->getUpcoming('http://scrm.example', 'tok', 'alice', 7, 20, 30);
+
+		$tasks = array_values(array_filter($results, fn ($r) => $r['type'] === 'task'));
+		$this->assertCount(1, $tasks, 'Only the In Progress task should be retained');
+		$this->assertSame('task-in-progress-uuid', $tasks[0]['id']);
+		$this->assertTrue($tasks[0]['is_overdue']);
+	}
+
+	/**
+	 * Iter 50 structural guard: every UPCOMING_MODULES row must declare
+	 * `overdue_statuses` — the past-due filter path dereferences it
+	 * unconditionally after iter 50b dropped the `?? []` fallback.
+	 */
+	public function testEveryUpcomingModuleRowDeclaresOverdueStatuses(): void {
+		$upcomingModules = self::readUpcomingModules();
+
+		foreach ($upcomingModules as $entry) {
+			$this->assertArrayHasKey(
+				'overdue_statuses',
+				$entry,
+				"Module {$entry['module']} missing overdue_statuses (iter 50)",
+			);
+			$this->assertIsArray($entry['overdue_statuses'], "Module {$entry['module']} overdue_statuses must be array");
+			$this->assertNotEmpty(
+				$entry['overdue_statuses'],
+				"Module {$entry['module']} overdue_statuses must be non-empty — an empty list would mean 'never actionable'"
+			);
+		}
+	}
+
+	// ---------------------------------------------------------------------
 	// Reflection helpers for the private const.
 	// ---------------------------------------------------------------------
 
@@ -414,6 +582,15 @@ class SuiteCRMAPIServiceTest extends TestCase {
 		$constant = $refl->getReflectionConstant('SEARCH_MODULES');
 		if ($constant === false) {
 			throw new \RuntimeException('SUT no longer declares SEARCH_MODULES — search invariants broken');
+		}
+		return $constant->getValue();
+	}
+
+	private static function readUpcomingModules(): array {
+		$refl = new \ReflectionClass(SuiteCRMAPIService::class);
+		$constant = $refl->getReflectionConstant('UPCOMING_MODULES');
+		if ($constant === false) {
+			throw new \RuntimeException('SUT no longer declares UPCOMING_MODULES — calendar widget invariants broken');
 		}
 		return $constant->getValue();
 	}

@@ -146,6 +146,43 @@ class ConfigControllerTest extends TestCase {
 	}
 
 	/**
+	 * Iteration 52 (guards iter 51): the admin "Reset connection" button
+	 * fires DELETE /admin-config, which must call
+	 * IAppConfig::deleteKey() for each of the four admin-scoped keys
+	 * (oauth_instance_url, client_id, client_secret,
+	 * oauth_authorize_path) — and no others. Also verifies the
+	 * controller writes an info-level log line so a session grep can
+	 * distinguish "admin used the reset button" from an occ-driven
+	 * config wipe.
+	 */
+	public function testResetAdminConfigDeletesAllExpectedKeys(): void {
+		$deleted = [];
+		$this->appConfig->expects($this->exactly(4))
+			->method('deleteKey')
+			->willReturnCallback(function ($app, $key) use (&$deleted) {
+				$this->assertSame(Application::APP_ID, $app);
+				$deleted[] = $key;
+				return true;
+			});
+
+		$this->logger->expects($this->once())
+			->method('info')
+			->with(
+				$this->stringContains('admin config reset'),
+				$this->callback(function ($ctx) {
+					return isset($ctx['app']) && $ctx['app'] === Application::APP_ID;
+				})
+			);
+
+		$controller = $this->makeController('admin');
+		$response = $controller->resetAdminConfig();
+
+		$this->assertInstanceOf(DataResponse::class, $response);
+		$this->assertSame(200, $response->getStatus());
+		$this->assertSame(['oauth_instance_url', 'client_id', 'client_secret', 'oauth_authorize_path'], $deleted);
+	}
+
+	/**
 	 * Empty user_name is the "log out" signal from the personal settings UI.
 	 * Verify the disconnect chain: HTTP logout request, token clear, and a
 	 * response body advertising the cleared state.

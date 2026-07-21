@@ -6,6 +6,34 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 1.9.1 – 2026-07-22
+
+Follow-up release covering the audit-driven cleanup and enhancement work that closed several upstream `julien-nc/integration_suitecrm` issues after the 1.9.0 tag.
+
+### Added
+
+- **`docs/getting-started.md`**: end-to-end admin walkthrough from an unconnected SuiteCRM install to a working integration with smoke tests. Explicit LDAP note calls out that AD-backed users must use the authcode flow, not the Advanced password fallback (closes upstream issues [#2](https://github.com/julien-nc/integration_suitecrm/issues/2), [#9](https://github.com/julien-nc/integration_suitecrm/issues/9), [#11](https://github.com/julien-nc/integration_suitecrm/issues/11)).
+- **Calendar widget: past-due-not-dispositioned items**: `SuiteCRMAPIService::getUpcoming()` now widens its date filter to include the last 30 days (configurable) and returns past-due Meetings/Calls whose status is still `Planned` and Tasks whose status is not `Completed`/`Deferred`. Each row carries an `is_overdue` flag for frontend badging. Before iter 50 the filter was `date > now` and past-due rows silently vanished. Closes upstream [#8](https://github.com/julien-nc/integration_suitecrm/issues/8).
+- **Admin UI "Reset connection" button**: `AdminSettings.vue` gets a warning-styled button that opens a confirmation dialog and DELETEs `/apps/integration_suitecrm/admin-config`, clearing `oauth_instance_url`, `client_id`, `client_secret`, and `oauth_authorize_path`. Individual user tokens are intentionally left in place — they'll fail their next SuiteCRM request and the per-user OAuth flow restarts automatically. Closes upstream [#14](https://github.com/julien-nc/integration_suitecrm/issues/14).
+- **PHPUnit regression coverage** for the new work: `testResetAdminConfigDeletesAllExpectedKeys` on `ConfigControllerTest`, and four new methods on `SuiteCRMAPIServiceTest` covering `getUpcoming`'s past-due / dispositioned / future-with-Held-status / Task-vocabulary paths plus a structural guard that every `UPCOMING_MODULES` row declares `overdue_statuses`.
+
+### Changed
+
+- `README.md`: pointer to `docs/getting-started.md` at the top; mention of the `occ integration_suitecrm:test-connection` diagnostic in the Features and Configuration sections; Deployment scenarios now points at `docs/reverse-proxy.md` and `docs/proxmox-lxc.md` rather than duplicating them inline.
+- `AUTHORS.md`: add Kim Haverblad as fork maintainer.
+- `CHANGELOG.md`: 1.9.0 backfill covering iters 33-46 (this file).
+
+### Removed
+
+- `.tx/config` and the surrounding `.tx/` directory — the Transifex configuration pointed at a `translationfiles/` tree that hasn't existed in the fork since l10n was deferred in 1.8.0.
+- `.l10nignore` — only meaningful for apps in Nextcloud's l10n pipeline; the fork isn't.
+- Root `makefile` — its `appstore` target references `translationfiles/`, `l10n.pl`, `crowdin.yml`, and various other files that don't exist in the fork. Superseded by `.github/workflows/release.yml`.
+
+### Fixed
+
+- **Iter 50b (PHPStan hotfix)**: dropped an `?? []` fallback that PHPStan level 5 rejected as dead code — `UPCOMING_MODULES` provably declares `overdue_statuses` on every row.
+- **Iter 51b (Vue hotfix)**: `NcButton` and the `NcDialog` button descriptors now use the current Nextcloud/vue v9 `variant` prop rather than the deprecated `type`.
+
 ## 1.9.0 – 2026-07-21
 
 Backfills the full body of work landed between the 1.8.0 tag and the 1.9.0 release cut on commit `c2d5f55`. The theme was audit-and-fix — every prior iteration got a substantive review, most of them uncovered latent bugs that were shipped-but-never-run, and each fix carries a live-verification note against the docker container or the user's production Ubuntu 24.04 LXC.

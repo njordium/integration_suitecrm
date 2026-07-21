@@ -6,7 +6,7 @@
 	<description><![CDATA[SuiteCRM 8.x integration provides a dashboard widget displaying your important notifications,
 	a search provider for content and notifications for activity in SuiteCRM 8.x.
 	SuiteCRM 7.x is no longer supported.]]></description>
-	<version>1.9.0</version>
+	<version>1.9.1</version>
 	<licence>agpl</licence>
 	<author>Julien Veyssier</author>
 	<author homepage="https://njordium.com">Kim Haverblad</author>
