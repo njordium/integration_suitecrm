@@ -2,7 +2,7 @@
 	<NcDialog
 		v-if="open"
 		:name="dialogTitle"
-		:can-close="!submitting"
+		:no-close="submitting"
 		size="normal"
 		@closing="$emit('close')">
 		<div class="task-followup-modal">
@@ -12,9 +12,9 @@
 
 			<NcTextField
 				ref="nameField"
-				:value.sync="name"
+				v-model="name"
 				:label="t('njordium_suitecrm', 'Task name')"
-				:placeholder="t('njordium_suitecrm', 'Follow up ...')"
+				:placeholder="t('njordium_suitecrm', 'Follow up …')"
 				:disabled="submitting"
 				required />
 
@@ -44,7 +44,7 @@
 					:disabled="submitting"
 					rows="3"
 					class="task-followup-modal__textarea"
-					:placeholder="t('njordium_suitecrm', 'Details, agenda items, action items ...')" />
+					:placeholder="t('njordium_suitecrm', 'Details, agenda items, action items …')" />
 			</label>
 		</div>
 
@@ -62,7 +62,7 @@
 				<template v-if="submitting" #icon>
 					<NcLoadingIcon :size="20" />
 				</template>
-				{{ submitting ? t('njordium_suitecrm', 'Creating ...') : t('njordium_suitecrm', 'Create Task') }}
+				{{ submitting ? t('njordium_suitecrm', 'Creating …') : t('njordium_suitecrm', 'Create Task') }}
 			</NcButton>
 		</template>
 	</NcDialog>
@@ -198,11 +198,10 @@ export default {
 				this.$emit('close')
 			} catch (err) {
 				const backendError = err?.response?.data?.error
-				showError(
-					backendError
-						? t('njordium_suitecrm', 'Could not create Task: {msg}', { msg: backendError })
-						: t('njordium_suitecrm', 'Could not create Task in SuiteCRM'),
-				)
+				const message = backendError
+					? t('njordium_suitecrm', 'Could not create Task: {msg}', { msg: backendError })
+					: t('njordium_suitecrm', 'Could not create Task in SuiteCRM')
+				showError(message)
 			} finally {
 				this.submitting = false
 			}
