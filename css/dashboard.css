@@ -1,7 +1,20 @@
+/*
+ * Icon class used by both dashboard widgets (SuiteCRMWidget +
+ * SuiteCRMCalendarWidget) via `getIconClass(): return 'icon-suitecrm';`.
+ * `Util::addStyle(APP_ID, 'dashboard')` in each widget's load() hook pulls
+ * this file into the widget-shell page. Two rules — `app-dark.svg` on light
+ * theme (dark ink on light background) and the inverse on dark theme.
+ *
+ * The Vue settings components inline the same rules against
+ * `body.theme--dark` scoped to their own components.
+ *
+ * Kim Haverblad, 2026 — added this documentation header.
+ */
+
 .icon-suitecrm {
-    background-image: url(./../img/app-dark.svg);
+	background-image: url(./../img/app-dark.svg);
 }
 
 body.theme--dark .icon-suitecrm {
-    background-image: url(./../img/app.svg);
+	background-image: url(./../img/app.svg);
 }
