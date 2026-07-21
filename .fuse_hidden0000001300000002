@@ -1,5 +1,5 @@
 {
-	"name": "njordium_suitecrm",
+	"name": "integration_suitecrm",
 	"version": "1.2.0",
 	"description": "SuiteCRM integration",
 	"main": "index.js",

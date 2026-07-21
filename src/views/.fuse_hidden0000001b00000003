@@ -11,7 +11,7 @@
 				<template #action>
 					<div v-if="state === 'no-token' || state === 'error'" class="connect-button">
 						<a class="button" :href="settingsUrl">
-							{{ t('njordium_suitecrm', 'Connect to SuiteCRM') }}
+							{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
 						</a>
 					</div>
 				</template>
@@ -82,11 +82,11 @@ export default {
 
 		emptyContentMessage() {
 			if (this.state === 'no-token') {
-				return t('njordium_suitecrm', 'No SuiteCRM account connected')
+				return t('integration_suitecrm', 'No SuiteCRM account connected')
 			} else if (this.state === 'error') {
-				return t('njordium_suitecrm', 'Error connecting to SuiteCRM')
+				return t('integration_suitecrm', 'Error connecting to SuiteCRM')
 			} else if (this.state === 'ok') {
-				return t('njordium_suitecrm', 'No SuiteCRM notifications!')
+				return t('integration_suitecrm', 'No SuiteCRM notifications!')
 			}
 			return ''
 		},
@@ -122,7 +122,7 @@ export default {
 
 		async launchLoop() {
 			try {
-				const response = await axios.get(generateUrl('/apps/njordium_suitecrm/url'))
+				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
 				this.suitecrmUrl = response.data.replace(/\/+$/, '')
 			} catch {
 				// URL probe is best-effort: dashboard still works without it,
@@ -138,7 +138,7 @@ export default {
 					eventSinceTimestamp: moment().unix(),
 				},
 			}
-			axios.get(generateUrl('/apps/njordium_suitecrm/reminders'), req).then((response) => {
+			axios.get(generateUrl('/apps/integration_suitecrm/reminders'), req).then((response) => {
 				this.processNotifications(response.data)
 				this.state = 'ok'
 			}).catch((error) => {
@@ -146,7 +146,7 @@ export default {
 				if (error.response && error.response.status === 400) {
 					this.state = 'no-token'
 				} else if (error.response && error.response.status === 401) {
-					showError(t('njordium_suitecrm', 'Failed to get SuiteCRM reminders'))
+					showError(t('integration_suitecrm', 'Failed to get SuiteCRM reminders'))
 					this.state = 'error'
 				}
 			})
@@ -175,9 +175,9 @@ export default {
 
 		getAvatarUrl(n) {
 			if (n.attributes.related_event_module === 'Calls') {
-				return imagePath('njordium_suitecrm', 'call.png')
+				return imagePath('integration_suitecrm', 'call.png')
 			} else if (n.attributes.related_event_module === 'Meetings') {
-				return imagePath('njordium_suitecrm', 'meeting.png')
+				return imagePath('integration_suitecrm', 'meeting.png')
 			}
 			return ''
 		},
@@ -186,9 +186,9 @@ export default {
 			const mom = moment.unix(n.attributes.date_willexecute)
 			const date = mom.format('L') + ' ' + mom.format('HH:mm')
 			if (n.attributes.related_event_module === 'Calls') {
-				return t('njordium_suitecrm', 'Call at {date}', { date })
+				return t('integration_suitecrm', 'Call at {date}', { date })
 			} else if (n.attributes.related_event_module === 'Meetings') {
-				return t('njordium_suitecrm', 'Meeting at {date}', { date })
+				return t('integration_suitecrm', 'Meeting at {date}', { date })
 			}
 			return ''
 		},

@@ -123,7 +123,7 @@ Optionally toggle **Enable search integration** (adds SuiteCRM as a source in Ne
 
 If your SuiteCRM install truly cannot complete a browser redirect back — some air-gapped or redirect-blocking-proxy setups — expand **"Advanced: username + password fallback"** and enter your SuiteCRM login + password. Nextcloud uses them once to obtain an OAuth token and does not store them.
 
-> **LDAP / Active Directory users must use the authcode flow.** The Advanced password fallback issues a `grant_type=password` request against SuiteCRM's OAuth2 layer, and SuiteCRM's password grant does not consult the LDAP module — you'll get "The password is invalid" no matter what credentials you paste in. Use the primary "Connect via SuiteCRM OAuth" button and let SuiteCRM's own login screen route the credentials through LDAP as normal. (This is what upstream [issue #9](https://github.com/julien-nc/integration_suitecrm/issues/9) surfaced; iter 37's move to authcode-first is the fix.)
+> **LDAP / Active Directory users must use the authcode flow.** The Advanced password fallback issues a `grant_type=password` request against SuiteCRM's OAuth2 layer, and SuiteCRM's password grant does not consult the LDAP module — you'll get "The password is invalid" no matter what credentials you paste in. Use the primary "Connect via SuiteCRM OAuth" button and let SuiteCRM's own login screen route the credentials through LDAP as normal. (This is what upstream [issue #9](https://github.com/julien-nc/njordium_suitecrm/issues/9) surfaced; iter 37's move to authcode-first is the fix.)
 
 ## 7. Smoke tests
 

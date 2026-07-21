@@ -87,7 +87,7 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	private function makeService(callable $requestStub): SuiteCRMAPIService&MockObject {
 		$service = $this->getMockBuilder(SuiteCRMAPIService::class)
 			->setConstructorArgs([
-				'njordium_suitecrm',
+				'integration_suitecrm',
 				$this->userManager,
 				$this->logger,
 				$this->l10n,

@@ -89,7 +89,7 @@ class SuiteCRMReferenceProvider extends ADiscoverableReferenceProvider implement
 		$reference->setDescription($this->descriptionFor($module, $attrs));
 		$reference->setImageUrl($this->getIconUrl());
 		$reference->setUrl($referenceText);
-		$reference->setRichObject('njordium_suitecrm', [
+		$reference->setRichObject('integration_suitecrm', [
 			'id' => $recordId,
 			'module' => $module,
 			'title' => $this->titleFor($module, $attrs),

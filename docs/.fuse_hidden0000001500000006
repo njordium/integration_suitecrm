@@ -8,9 +8,9 @@ This document captures the tested config for those three setups. HAProxy and Tra
 
 The OAuth authorization-code flow encodes a `redirect_uri` when it sends the user to SuiteCRM's consent screen. Nextcloud generates that URI from its own base URL. If the base URL is wrong — say Nextcloud thinks it's `http://internal-vm:8080` but the browser is on `https://cloud.example.com` — then:
 
-1. The `redirect_uri` sent to SuiteCRM says `http://internal-vm:8080/apps/njordium_suitecrm/oauth-callback`
+1. The `redirect_uri` sent to SuiteCRM says `http://internal-vm:8080/apps/integration_suitecrm/oauth-callback`
 2. SuiteCRM tries to match it against the whitelisted redirect URI on the OAuth2 client
-3. The whitelisted one is `https://cloud.example.com/apps/njordium_suitecrm/oauth-callback` (as it must be for the browser to reach it)
+3. The whitelisted one is `https://cloud.example.com/apps/integration_suitecrm/oauth-callback` (as it must be for the browser to reach it)
 4. Byte-for-byte mismatch → SuiteCRM returns 401 `invalid_client`
 
 The fix is to tell Nextcloud its public URL via the "overwrite" config trio.
@@ -56,7 +56,7 @@ sudo -u www-data php occ config:system:get trusted_proxies
 
 And then the SuiteCRM OAuth2 Client's Redirect URL must be exactly:
 ```
-https://cloud.example.com/apps/njordium_suitecrm/oauth-callback
+https://cloud.example.com/apps/integration_suitecrm/oauth-callback
 ```
 
 ### About `allow_local_remote_servers`
@@ -165,7 +165,7 @@ server {
 Reload with `nginx -t && systemctl reload nginx`. Confirm from the browser first that `https://cloud.example.com` shows the NC login. Then run the diagnostic:
 
 ```bash
-sudo -u www-data php occ njordium_suitecrm:test-connection
+sudo -u www-data php occ integration_suitecrm:test-connection
 ```
 
 ## nginx sample (Nextcloud + SuiteCRM behind the same proxy)
@@ -303,14 +303,14 @@ sudo -u www-data php occ config:system:get overwritehost       # cloud.example.c
 sudo -u www-data php -r '
 require_once "/var/www/nextcloud/lib/base.php";
 $url = \OC::$server->getURLGenerator()->linkToRouteAbsolute(
-    "njordium_suitecrm.config.oauthCallback"
+    "integration_suitecrm.config.oauthCallback"
 );
 echo $url . "\n";
 '
-# Expected output: https://cloud.example.com/apps/njordium_suitecrm/oauth-callback
+# Expected output: https://cloud.example.com/apps/integration_suitecrm/oauth-callback
 
 # 3. Run the app's built-in diagnostic
-sudo -u www-data php occ njordium_suitecrm:test-connection
+sudo -u www-data php occ integration_suitecrm:test-connection
 ```
 
 If step 2 prints anything other than `https://cloud.example.com/...`, the overwrite trio isn't taking effect. Common causes:

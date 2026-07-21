@@ -267,7 +267,7 @@ crontab -u www-data -l 2>/dev/null | \
   crontab -u www-data -
 ```
 
-Then in SuiteCRM's admin UI, create the OAuth2 Client (Admin → OAuth2 Clients and Tokens → New), set redirect URL to `https://cloud.example.com/apps/njordium_suitecrm/oauth-callback`, note the client ID + secret, and configure them in Nextcloud's admin panel with instance URL `https://crm.example.com`.
+Then in SuiteCRM's admin UI, create the OAuth2 Client (Admin → OAuth2 Clients and Tokens → New), set redirect URL to `https://cloud.example.com/apps/integration_suitecrm/oauth-callback`, note the client ID + secret, and configure them in Nextcloud's admin panel with instance URL `https://crm.example.com`.
 
 ## PVE host: reverse proxy
 
@@ -279,7 +279,7 @@ From the NC LXC:
 
 ```bash
 # The app's built-in diagnostic — hits every layer that has failed for anyone
-sudo -u www-data php /var/www/nextcloud/occ njordium_suitecrm:test-connection
+sudo -u www-data php /var/www/nextcloud/occ integration_suitecrm:test-connection
 ```
 
 Expected output (with all checks passing):
@@ -390,11 +390,11 @@ systemctl enable --now integration-backup.timer
 sudo -u www-data php /var/www/nextcloud/occ upgrade
 ```
 
-**Nextcloud major version (33 → 34):** check the njordium_suitecrm `info.xml` `<nextcloud max-version="X">` first. The fork is currently pinned to `max-version="34"`. If NC ships version > 34, wait for a fork release that bumps this.
+**Nextcloud major version (33 → 34):** check the integration_suitecrm `info.xml` `<nextcloud max-version="X">` first. The fork is currently pinned to `max-version="34"`. If NC ships version > 34, wait for a fork release that bumps this.
 
 **SuiteCRM minor version:** SuiteCRM 8's [update process](https://docs.suitecrm.com/admin/administration-panel/upgrade-wizard/) via the Admin → Upgrade Wizard. Don't touch the `Api/V8/OAuth2/*.key` files during upgrade — they must survive.
 
-**njordium_suitecrm fork:** replace the `/var/www/nextcloud/apps/njordium_suitecrm` directory with a fresh extract of the latest release zip from GitHub, then:
+**integration_suitecrm fork:** replace the `/var/www/nextcloud/apps/integration_suitecrm` directory with a fresh extract of the latest release zip from GitHub, then:
 ```bash
 sudo -u www-data php /var/www/nextcloud/occ upgrade
 sudo -u www-data php /var/www/nextcloud/occ maintenance:repair --include-expensive
@@ -438,7 +438,7 @@ tail -f /var/www/nextcloud/data/nextcloud.log
 Filter by app for anything the integration logs:
 
 ```bash
-tail -f /var/www/nextcloud/data/nextcloud.log | grep njordium_suitecrm
+tail -f /var/www/nextcloud/data/nextcloud.log | grep integration_suitecrm
 ```
 
 ## Appendix: systemd timer for NC cron

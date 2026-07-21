@@ -1,0 +1,38 @@
+{
+        "name": "njordium/integration_suitecrm",
+        "description": "SuiteCRM integration for Nextcloud",
+        "type": "project",
+        "license": "AGPL-3.0-or-later",
+        "require": {
+                "php": "^8.2"
+        },
+        "require-dev": {
+                "guzzlehttp/guzzle": "^7",
+                "nextcloud/ocp": "dev-stable34",
+                "phpstan/phpstan": "^1.11",
+                "phpunit/phpunit": "^10.5",
+                "symfony/console": "^6.4"
+        },
+        "autoload": {
+                "psr-4": {
+                        "OCA\\SuiteCRM\\": "lib/"
+                }
+        },
+        "autoload-dev": {
+                "psr-4": {
+                        "OCA\\SuiteCRM\\Tests\\": "tests/php/",
+                        "OCP\\": "vendor/nextcloud/ocp/OCP/",
+                        "OC\\": "vendor/nextcloud/ocp/OC/"
+                }
+        },
+        "scripts": {
+                "test": "phpunit --configuration phpunit.xml",
+                "stan": "phpstan analyse --configuration phpstan.neon"
+        },
+        "config": {
+                "sort-packages": true,
+                "platform": {
+                        "php": "8.2"
+                }
+        }
+}

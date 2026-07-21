@@ -1,12 +1,12 @@
 <?xml version="1.0"?>
 <info>
-	<id>integration_suitecrm</id>
+	<id>njordium_suitecrm</id>
 	<name>SuiteCRM integration</name>
 	<summary>Integration of SuiteCRM 8.x Customer Relationship Management application</summary>
 	<description><![CDATA[SuiteCRM 8.x integration provides a dashboard widget displaying your important notifications,
 	a search provider for content and notifications for activity in SuiteCRM 8.x.
 	SuiteCRM 7.x is no longer supported.]]></description>
-	<version>1.9.1</version>
+	<version>2.0.0</version>
 	<licence>agpl</licence>
 	<author>Julien Veyssier</author>
 	<author homepage="https://njordium.com">Kim Haverblad</author>
@@ -35,4 +35,15 @@
 		<personal>OCA\SuiteCRM\Settings\Personal</personal>
 		<personal-section>OCA\SuiteCRM\Settings\PersonalSection</personal-section>
 	</settings>
+	<!--
+		2.0.0 rename: copy admin config + per-user prefs from the legacy
+		app id `integration_suitecrm` to the new fork-owned id
+		`njordium_suitecrm` on `occ upgrade`. Idempotent no-op on fresh
+		installs. See lib/Migration/CopyLegacyAppConfig.php.
+	-->
+	<repair-steps>
+		<post-migration>
+			<step>OCA\SuiteCRM\Migration\CopyLegacyAppConfig</step>
+		</post-migration>
+	</repair-steps>
 </info>

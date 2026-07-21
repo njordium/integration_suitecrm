@@ -7,8 +7,6 @@ Interact with your SuiteCRM instance from inside Nextcloud — search records, s
 
 **New here?** Skip straight to [`docs/getting-started.md`](docs/getting-started.md) for the zero-to-connected walkthrough (about 15 minutes end-to-end).
 
-**Upgrading from 1.9.x?** 2.0.0 renames the Nextcloud app id from `integration_suitecrm` to `njordium_suitecrm`. See [`docs/upgrade-1.9-to-2.0.md`](docs/upgrade-1.9-to-2.0.md) — the Migration Repair step copies your existing admin config and every user's OAuth tokens automatically.
-
 ---
 
 ## Features
@@ -43,7 +41,7 @@ The Personal Settings panel includes a Calendar Companion section that streamlin
 Ships with an `occ` command that walks every layer of the connection stack — admin config, SSRF guard, HTTP reachability, authorize endpoint, token endpoint — and reports exactly which layer is broken with the fix command:
 
 ```bash
-sudo -u www-data php /var/www/nextcloud/occ njordium_suitecrm:test-connection
+sudo -u www-data php /var/www/nextcloud/occ integration_suitecrm:test-connection
 ```
 
 Safe to run at any time; does not touch stored user tokens.
@@ -69,13 +67,13 @@ Safe to run at any time; does not touch stored user tokens.
 Search for "SuiteCRM integration" in Apps → Integration.
 
 ### From a release zip (recommended for production)
-Download `njordium_suitecrm-<version>.zip` from the [Releases page](https://github.com/njordium/integration_suitecrm/releases). Extract it into your Nextcloud `custom_apps/` directory (**not** the bundled `apps/` directory), then enable the app via **Apps → Integration → SuiteCRM integration**. Each release also carries a SHA-256 file; verify integrity with `sha256sum -c njordium_suitecrm-<version>.zip.sha256`.
+Download `integration_suitecrm-<version>.zip` from the [Releases page](https://github.com/njordium/integration_suitecrm/releases). Extract it into your Nextcloud `custom_apps/` directory (**not** the bundled `apps/` directory), then enable the app via **Apps → Integration → SuiteCRM integration**. Each release also carries a SHA-256 file; verify integrity with `sha256sum -c integration_suitecrm-<version>.zip.sha256`.
 
 ### Manual install (source)
 ```bash
 cd /var/www/nextcloud/custom_apps
 git clone https://github.com/njordium/integration_suitecrm.git
-cd njordium_suitecrm
+cd integration_suitecrm
 npm ci
 npm run build
 ```
@@ -97,14 +95,14 @@ Reference version:
 2. Create an **OAuth2 Client** in SuiteCRM's "OAuth2 Clients and Tokens" admin section. A single client can be configured to accept both the authorization-code grant (recommended) and the password grant (fallback).
 3. In Nextcloud, open **Settings → Administration → Connected accounts → SuiteCRM integration** and enter the SuiteCRM instance URL, client ID, and client secret.
 4. **Redirect URI (for OAuth authorization-code flow):**
-add `<your-nextcloud-url>/apps/njordium_suitecrm/oauth-callback` as an allowed redirect URI on the OAuth2 Client you created in step 2.
+add `<your-nextcloud-url>/apps/integration_suitecrm/oauth-callback` as an allowed redirect URI on the OAuth2 Client you created in step 2.
 5. **Authorize endpoint path** (optional): the default `/Api/authorize` is what SuiteCRM 8.10.x exposes (verified live against a stock install). Older 8.x builds and upgraded-from-7.x installs may need `/legacy/oauth2/authorize` instead. Editable in the admin OAuth settings UI. To set it via the command line instead:
 ```bash
-sudo -u www-data php occ config:app:set njordium_suitecrm oauth_authorize_path --value="/Api/authorize"
+sudo -u www-data php occ config:app:set integration_suitecrm oauth_authorize_path --value="/Api/authorize"
 ```
 6. **Verify the wiring:**
 ```bash
-sudo -u www-data php occ njordium_suitecrm:test-connection
+sudo -u www-data php occ integration_suitecrm:test-connection
 ```
 Walks every layer of the connection stack and reports exactly which layer is broken. Should print `All checks passed` before any user tries to connect.
 
@@ -135,7 +133,7 @@ For the calendar-sync companion module, use the "Calendar sync (SuiteCRM module)
 
 ### Connect flow
 
-- **Primary — OAuth 2.0 authorization code (recommended):** clicking "Connect via SuiteCRM OAuth" issues a state-bound authorize URL and redirects the browser to SuiteCRM's login/consent screen. On approval SuiteCRM redirects back to `/apps/njordium_suitecrm/oauth-callback`, which exchanges the code for tokens and lands the user back in Personal Settings. Your SuiteCRM password is never sent to Nextcloud.
+- **Primary — OAuth 2.0 authorization code (recommended):** clicking "Connect via SuiteCRM OAuth" issues a state-bound authorize URL and redirects the browser to SuiteCRM's login/consent screen. On approval SuiteCRM redirects back to `/apps/integration_suitecrm/oauth-callback`, which exchanges the code for tokens and lands the user back in Personal Settings. Your SuiteCRM password is never sent to Nextcloud.
 - **Fallback — password grant (Advanced):** available in the collapsible "Advanced" section for edge cases where a browser redirect back to Nextcloud is not viable (air-gapped setups, installs behind a redirect-blocking proxy, etc). The credentials are used once to obtain a token and never stored.
 
 ---
@@ -160,7 +158,7 @@ Preserve the `secret` value in Nextcloud's `config.php` across restores — stor
 
 ## Troubleshooting
 
-Keyed by symptom. When in doubt, run `occ njordium_suitecrm:test-connection` first — it reports which layer of the stack is broken with the exact fix command.
+Keyed by symptom. When in doubt, run `occ integration_suitecrm:test-connection` first — it reports which layer of the stack is broken with the exact fix command.
 
 ### `OAuth access token could not be obtained: Host "<addr>" violates local access rules`
 Nextcloud's SSRF guard is blocking outbound HTTP to your SuiteCRM's LAN IP. Fix:
@@ -180,7 +178,7 @@ A 64-hex-char value is SHA-256; anything starting with `$2y$` is bcrypt and won'
 ### Personal-settings SuiteCRM section renders empty (no errors in console)
 The `js/` bundles are missing. Happens when installing from the source tarball (`/archive/refs/heads/master.tar.gz`) instead of from a proper release or app-store install. On the host:
 ```bash
-cd /path/to/apps/njordium_suitecrm
+cd /path/to/apps/integration_suitecrm
 npm ci
 npm run build
 ```
@@ -243,7 +241,7 @@ CI (`.github/workflows/lint.yml`) runs all of the above on every push and PR acr
 
 ## Contributing
 
-Issues and pull requests welcome at [njordium/integration_suitecrm](https://github.com/njordium/integration_suitecrm/issues). When reporting a connection issue, please include the output of `occ njordium_suitecrm:test-connection`.
+Issues and pull requests welcome at [njordium/integration_suitecrm](https://github.com/njordium/integration_suitecrm/issues). When reporting a connection issue, please include the output of `occ integration_suitecrm:test-connection`.
 
 ---
 

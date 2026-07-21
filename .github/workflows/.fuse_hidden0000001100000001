@@ -125,9 +125,9 @@ jobs:
         run: |
           set -euo pipefail
           ls -la js/
-          test -f js/njordium_suitecrm-personalSettings.js
-          test -f js/njordium_suitecrm-adminSettings.js
-          test -f js/njordium_suitecrm-dashboard.js
+          test -f js/integration_suitecrm-personalSettings.js
+          test -f js/integration_suitecrm-adminSettings.js
+          test -f js/integration_suitecrm-dashboard.js
 
       # -----------------------------------------------------------------
       # Package + checksum.
@@ -138,7 +138,7 @@ jobs:
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
           STAGING=/tmp/pkg
-          mkdir -p "${STAGING}/njordium_suitecrm"
+          mkdir -p "${STAGING}/integration_suitecrm"
 
           # rsync everything, then exclude the dev-only artefacts. Explicit
           # exclude list rather than an include list so a new source file
@@ -178,15 +178,15 @@ jobs:
             --exclude='.tool-versions' \
             --exclude='.node-version' \
             --exclude='.php-version' \
-            ./ "${STAGING}/njordium_suitecrm/"
+            ./ "${STAGING}/integration_suitecrm/"
 
           echo "--- Package contents (first 60 files) ---"
-          find "${STAGING}/njordium_suitecrm" -type f | sort | head -60
+          find "${STAGING}/integration_suitecrm" -type f | sort | head -60
           echo "--- Total size ---"
-          du -sh "${STAGING}/njordium_suitecrm"
+          du -sh "${STAGING}/integration_suitecrm"
 
-          ZIP="/tmp/njordium_suitecrm-${VERSION}.zip"
-          (cd "${STAGING}" && zip -r "${ZIP}" njordium_suitecrm/)
+          ZIP="/tmp/integration_suitecrm-${VERSION}.zip"
+          (cd "${STAGING}" && zip -r "${ZIP}" integration_suitecrm/)
           ls -la "${ZIP}"
 
           # Iter 38: SHA-256 alongside the zip for supply-chain
@@ -210,11 +210,11 @@ jobs:
           body: |
             Automated build for ${{ steps.version.outputs.version }}.
 
-            **Install:** download `njordium_suitecrm-${{ steps.version.outputs.version }}.zip` below, extract into your Nextcloud `custom_apps/` directory (this is the third-party app directory — do **not** use the bundled `apps/` directory), then enable via **Apps → Integration → SuiteCRM integration**.
+            **Install:** download `integration_suitecrm-${{ steps.version.outputs.version }}.zip` below, extract into your Nextcloud `custom_apps/` directory (this is the third-party app directory — do **not** use the bundled `apps/` directory), then enable via **Apps → Integration → SuiteCRM integration**.
 
             **Verify the download:**
             ```
-            sha256sum -c njordium_suitecrm-${{ steps.version.outputs.version }}.zip.sha256
+            sha256sum -c integration_suitecrm-${{ steps.version.outputs.version }}.zip.sha256
             ```
 
             This zip includes pre-built `js/` bundles — no `npm run build` needed on the target server.
@@ -225,7 +225,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v7
         with:
-          name: njordium_suitecrm-${{ steps.version.outputs.version }}
+          name: integration_suitecrm-${{ steps.version.outputs.version }}
           path: |
             ${{ steps.package.outputs.zip }}
             ${{ steps.package.outputs.sha256 }}

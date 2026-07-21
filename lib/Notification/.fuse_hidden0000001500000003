@@ -65,12 +65,12 @@ class Notifier implements INotifier {
 	 * @since 9.0.0
 	 */
 	public function prepare(INotification $notification, string $languageCode): INotification {
-		if ($notification->getApp() !== 'njordium_suitecrm') {
+		if ($notification->getApp() !== 'integration_suitecrm') {
 			// Not my app => throw
 			throw new InvalidArgumentException();
 		}
 
-		$l = $this->factory->get('njordium_suitecrm', $languageCode);
+		$l = $this->factory->get('integration_suitecrm', $languageCode);
 
 		switch ($notification->getSubject()) {
 		case 'reminder':

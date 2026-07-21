@@ -183,7 +183,7 @@ class ConfigController extends Controller {
                         return new DataResponse(['error' => 'OAuth not configured'], 400);
                 }
                 $state = $this->stateStore->generate($this->userId);
-                $redirectUri = $this->urlGenerator->linkToRouteAbsolute('njordium_suitecrm.config.oauthCallback');
+                $redirectUri = $this->urlGenerator->linkToRouteAbsolute('integration_suitecrm.config.oauthCallback');
                 $authorizeUrl = $suitecrmUrl . '/' . $authorizePath . '?' . http_build_query([
                         'response_type' => 'code',
                         'client_id' => $clientId,
@@ -233,7 +233,7 @@ class ConfigController extends Controller {
                 $suitecrmUrl = rtrim($this->appConfig->getValueString(Application::APP_ID, 'oauth_instance_url'), '/');
                 $clientId = $this->appConfig->getValueString(Application::APP_ID, 'client_id');
                 $clientSecret = $this->appConfig->getValueString(Application::APP_ID, 'client_secret');
-                $redirectUri = $this->urlGenerator->linkToRouteAbsolute('njordium_suitecrm.config.oauthCallback');
+                $redirectUri = $this->urlGenerator->linkToRouteAbsolute('integration_suitecrm.config.oauthCallback');
 
                 $result = $this->suitecrmAPIService->requestOAuthAccessToken($suitecrmUrl, [
                         'grant_type' => 'authorization_code',

@@ -19,15 +19,15 @@ Pick one:
 ```bash
 cd /var/www/nextcloud/custom_apps    # or apps/ depending on your layout
 git clone https://github.com/njordium/integration_suitecrm.git
-cd njordium_suitecrm
+cd integration_suitecrm
 npm ci
 npm run build
-sudo -u www-data php /var/www/nextcloud/occ app:enable njordium_suitecrm
+sudo -u www-data php /var/www/nextcloud/occ app:enable integration_suitecrm
 ```
 
-**Release-zip install:** grab `njordium_suitecrm-<version>.zip` from the [Releases page](https://github.com/njordium/integration_suitecrm/releases), extract into `custom_apps/`, enable the app. Zip already includes the built `js/` bundles, no `npm run build` needed.
+**Release-zip install:** grab `integration_suitecrm-<version>.zip` from the [Releases page](https://github.com/njordium/integration_suitecrm/releases), extract into `custom_apps/`, enable the app. Zip already includes the built `js/` bundles, no `npm run build` needed.
 
-Verify the app is enabled: **Settings → Administration → Overview** shows no complaints about `njordium_suitecrm`, and `Settings → Administration → Connected accounts` has a **SuiteCRM integration** section.
+Verify the app is enabled: **Settings → Administration → Overview** shows no complaints about `integration_suitecrm`, and `Settings → Administration → Connected accounts` has a **SuiteCRM integration** section.
 
 ## 2. Prepare SuiteCRM's OAuth2 layer
 
@@ -52,7 +52,7 @@ In SuiteCRM's admin UI:
 3. **Client ID:** anything — this is what Nextcloud will send. Something like `nc-suitecrm-client` works.
 4. **Secret:** click Generate, or type a strong random string. Note this value — you cannot recover it later; you'd have to reset and create a new client.
 5. **Grant Type:** **Authorization Code** is the recommended choice. If your setup absolutely cannot complete a browser redirect back to Nextcloud (air-gapped or redirect-blocking proxy), pick **Password** instead — Nextcloud's fallback "Advanced" panel supports it.
-6. **Redirect URL:** exactly `<your-nextcloud-public-url>/apps/njordium_suitecrm/oauth-callback`. **Byte-for-byte match matters** — `http` vs `https`, port number, trailing slash, all count. If your Nextcloud is `https://cloud.example.com`, this is `https://cloud.example.com/apps/njordium_suitecrm/oauth-callback`.
+6. **Redirect URL:** exactly `<your-nextcloud-public-url>/apps/integration_suitecrm/oauth-callback`. **Byte-for-byte match matters** — `http` vs `https`, port number, trailing slash, all count. If your Nextcloud is `https://cloud.example.com`, this is `https://cloud.example.com/apps/integration_suitecrm/oauth-callback`.
 
 Save. Note the Client ID + Secret; you'll paste them into Nextcloud next.
 
@@ -75,7 +75,7 @@ Save.
 The fork ships an `occ` command that walks every layer that has bitten users during setup:
 
 ```bash
-sudo -u www-data php /var/www/nextcloud/occ njordium_suitecrm:test-connection
+sudo -u www-data php /var/www/nextcloud/occ integration_suitecrm:test-connection
 ```
 
 Expected output when the wiring is correct:
@@ -141,7 +141,7 @@ Confirm each of the four surfaces works end-to-end.
 
 The [README's Troubleshooting section](../README.md#troubleshooting) is keyed by symptom for every failure mode we've encountered in the wild — `invalid_client` from SuiteCRM, empty settings section (missing JS bundles), SSRF-guard blocks, reverse-proxy scheme mismatches, and HSTS-cache surprises.
 
-If you hit something not covered there, `occ njordium_suitecrm:test-connection` from step 5 is the fastest first-line diagnostic. Its output tells you which layer is broken.
+If you hit something not covered there, `occ integration_suitecrm:test-connection` from step 5 is the fastest first-line diagnostic. Its output tells you which layer is broken.
 
 Filed issues welcome at [https://github.com/njordium/integration_suitecrm/issues](https://github.com/njordium/integration_suitecrm/issues) — please include the `occ test-connection` output.
 

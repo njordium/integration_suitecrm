@@ -6,80 +6,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-## 2.0.0 – 2026-07-22
-
-### ⚠ BREAKING CHANGES
-
-- **App id renamed** from `integration_suitecrm` to `njordium_suitecrm`. The Nextcloud App Store record for `integration_suitecrm` still points to Julien's original 1.0.3 (last updated November 2021), and every field the NC admin panel displays for our fork was being pulled from that stale record. Renaming the id de-couples the fork from that record for good.
-- The install folder is now `custom_apps/njordium_suitecrm/` — the old `custom_apps/integration_suitecrm/` will no longer be recognised.
-- The `occ` command is now `occ njordium_suitecrm:test-connection`. The old command name will not resolve.
-- Route names, OAuth redirect URI paths, config-app keys, and Vue translation domains all use the new id.
-
-### Migration
-
-A `Migration\CopyLegacyAppConfig` Repair step is registered under `<post-migration>` and runs automatically on `occ upgrade`. It copies every row from `oc_appconfig` and `oc_preferences` where `appid = 'integration_suitecrm'` under the new app id, skipping any target row that already exists (idempotent). Legacy rows are **not deleted** — a follow-up 2.1.0 Repair step will do that once 2.0.0 has been stable for a while, keeping a clean rollback path in the meantime.
-
-**Upgrade steps** (Docker example, adapt paths for LXC/bare-metal):
-
-```bash
-# Disable the old app
-docker exec -u www-data <container> php occ app:disable integration_suitecrm
-
-# Drop the new folder (zip contains a top-level `njordium_suitecrm/`)
-unzip njordium_suitecrm-v2.0.0.zip -d /path/to/nextcloud/custom_apps/
-
-# Enable the new app — this fires the Migration Repair step,
-# which copies your admin OAuth config + every user's OAuth tokens
-docker exec -u www-data <container> php occ app:enable njordium_suitecrm
-
-# Optional: after verifying everything works
-rm -rf /path/to/nextcloud/custom_apps/integration_suitecrm
-```
-
-**Users do not need to reconnect** — their per-user OAuth tokens carry over via the Repair step's copy of `oc_preferences`. The admin OAuth client id/secret/instance URL and authorize path also carry over automatically.
-
-### Rollback
-
-If v2.0.0 misbehaves for you, the old rows are untouched:
-
-```bash
-docker exec -u www-data <container> php occ app:disable njordium_suitecrm
-docker exec -u www-data <container> php occ app:enable integration_suitecrm
-```
-
-Everything's back where it was on 1.9.1.
-
-### What this fixes
-
-The "Latest updated: November 2021" line in the NC admin panel goes away — the new app id doesn't match any App Store record, so NC has no stale cache to render.
-
-### Added
-
-- **`lib/Migration/CopyLegacyAppConfig.php`**: `IRepairStep` implementation covering the id rename described above. Idempotent, safe on fresh installs, silent no-op when there is nothing to migrate. Registered in `appinfo/info.xml` under `<repair-steps><post-migration>`.
-
-### Changed
-
-- `<id>` in `appinfo/info.xml`: `integration_suitecrm` → `njordium_suitecrm`.
-- `Application::APP_ID`: same.
-- Webpack bundle output filenames: `integration_suitecrm-{personalSettings,adminSettings,dashboard,calendar}.js` → `njordium_suitecrm-*.js`.
-- Release workflow (`.github/workflows/release.yml`): staging directory, zip filename, artifact name, and README install instructions all reference the new id. The GitHub repo URL and Composer package identifier stay `njordium/integration_suitecrm` — those correspond to the repository path, not the Nextcloud app id.
-- All Vue `t()` translation domains, `loadState()` calls, `generateUrl()` prefixes.
-- All documentation examples (`README.md`, `docs/getting-started.md`, `docs/proxmox-lxc.md`, `docs/reverse-proxy.md`) reference the new id in commands and paths.
-
 ## 1.9.1 – 2026-07-22
 
-Follow-up release covering the audit-driven cleanup and enhancement work that closed several upstream `julien-nc/integration_suitecrm` issues after the 1.9.0 tag.
+Follow-up release covering the audit-driven cleanup and enhancement work that closed several upstream `julien-nc/njordium_suitecrm` issues after the 1.9.0 tag.
 
 ### Added
 
-- **`docs/getting-started.md`**: end-to-end admin walkthrough from an unconnected SuiteCRM install to a working integration with smoke tests. Explicit LDAP note calls out that AD-backed users must use the authcode flow, not the Advanced password fallback (closes upstream issues [#2](https://github.com/julien-nc/integration_suitecrm/issues/2), [#9](https://github.com/julien-nc/integration_suitecrm/issues/9), [#11](https://github.com/julien-nc/integration_suitecrm/issues/11)).
-- **Calendar widget: past-due-not-dispositioned items**: `SuiteCRMAPIService::getUpcoming()` now widens its date filter to include the last 30 days (configurable) and returns past-due Meetings/Calls whose status is still `Planned` and Tasks whose status is not `Completed`/`Deferred`. Each row carries an `is_overdue` flag for frontend badging. Before iter 50 the filter was `date > now` and past-due rows silently vanished. Closes upstream [#8](https://github.com/julien-nc/integration_suitecrm/issues/8).
-- **Admin UI "Reset connection" button**: `AdminSettings.vue` gets a warning-styled button that opens a confirmation dialog and DELETEs `/apps/integration_suitecrm/admin-config`, clearing `oauth_instance_url`, `client_id`, `client_secret`, and `oauth_authorize_path`. Individual user tokens are intentionally left in place — they'll fail their next SuiteCRM request and the per-user OAuth flow restarts automatically. Closes upstream [#14](https://github.com/julien-nc/integration_suitecrm/issues/14).
+- **`docs/getting-started.md`**: end-to-end admin walkthrough from an unconnected SuiteCRM install to a working integration with smoke tests. Explicit LDAP note calls out that AD-backed users must use the authcode flow, not the Advanced password fallback (closes upstream issues [#2](https://github.com/julien-nc/njordium_suitecrm/issues/2), [#9](https://github.com/julien-nc/njordium_suitecrm/issues/9), [#11](https://github.com/julien-nc/njordium_suitecrm/issues/11)).
+- **Calendar widget: past-due-not-dispositioned items**: `SuiteCRMAPIService::getUpcoming()` now widens its date filter to include the last 30 days (configurable) and returns past-due Meetings/Calls whose status is still `Planned` and Tasks whose status is not `Completed`/`Deferred`. Each row carries an `is_overdue` flag for frontend badging. Before iter 50 the filter was `date > now` and past-due rows silently vanished. Closes upstream [#8](https://github.com/julien-nc/njordium_suitecrm/issues/8).
+- **Admin UI "Reset connection" button**: `AdminSettings.vue` gets a warning-styled button that opens a confirmation dialog and DELETEs `/apps/njordium_suitecrm/admin-config`, clearing `oauth_instance_url`, `client_id`, `client_secret`, and `oauth_authorize_path`. Individual user tokens are intentionally left in place — they'll fail their next SuiteCRM request and the per-user OAuth flow restarts automatically. Closes upstream [#14](https://github.com/julien-nc/njordium_suitecrm/issues/14).
 - **PHPUnit regression coverage** for the new work: `testResetAdminConfigDeletesAllExpectedKeys` on `ConfigControllerTest`, and four new methods on `SuiteCRMAPIServiceTest` covering `getUpcoming`'s past-due / dispositioned / future-with-Held-status / Task-vocabulary paths plus a structural guard that every `UPCOMING_MODULES` row declares `overdue_statuses`.
 
 ### Changed
 
-- `README.md`: pointer to `docs/getting-started.md` at the top; mention of the `occ integration_suitecrm:test-connection` diagnostic in the Features and Configuration sections; Deployment scenarios now points at `docs/reverse-proxy.md` and `docs/proxmox-lxc.md` rather than duplicating them inline.
+- `README.md`: pointer to `docs/getting-started.md` at the top; mention of the `occ njordium_suitecrm:test-connection` diagnostic in the Features and Configuration sections; Deployment scenarios now points at `docs/reverse-proxy.md` and `docs/proxmox-lxc.md` rather than duplicating them inline.
 - `AUTHORS.md`: add Kim Haverblad as fork maintainer.
 - `CHANGELOG.md`: 1.9.0 backfill covering iters 33-46 (this file).
 
@@ -102,7 +42,7 @@ Backfills the full body of work landed between the 1.8.0 tag and the 1.9.0 relea
 
 - **Enriched OAuth error envelope** (`SuiteCRMAPIService::requestOAuthAccessToken()`): the token-exchange call now returns `error_kind`, `http_status`, `error_code`, `error_description`, and the raw body on failure paths. `ConfigController::oauthCallback()` uses these to produce admin-friendly guidance for `local_server_blocked` (SSRF guard), `401 / invalid_client` (SHA-256 vs bcrypt trap + redirect_uri mismatch), and transport-level failures. Previously the actionable-error branches were unreachable dead code because the service's outer `catch(\Throwable)` swallowed every exception into `['error' => msg]`.
 - **Hardened release workflow** (`.github/workflows/release.yml`): inline lint/test gate (PHP syntax across 8.2/8.3/8.4, PHPStan, PHPUnit, JS lint, stylelint, webpack build, bundle presence check) runs before packaging; a version-sync step fails the release if the pushed tag does not match `<version>` in `appinfo/info.xml`; SHA-256 checksum is emitted alongside the zip; release body corrects `apps/` → `custom_apps/`. Dry-run twice via `workflow_dispatch` to prove the whole build path actually runs.
-- **`occ integration_suitecrm:test-connection` diagnostic**: five-check `occ` command covering admin-config completeness, SSRF-guard interaction with the target host, HTTP reachability, authorize endpoint (accepts 200/302/303/307/308 so all SuiteCRM 8.x variants pass), and the token endpoint (POST with a bogus grant, expects 400 with `unsupported_grant_type`). Live-run against SuiteCRM 8.10.1 — 8/8 green with the correct admin config.
+- **`occ njordium_suitecrm:test-connection` diagnostic**: five-check `occ` command covering admin-config completeness, SSRF-guard interaction with the target host, HTTP reachability, authorize endpoint (accepts 200/302/303/307/308 so all SuiteCRM 8.x variants pass), and the token endpoint (POST with a bogus grant, expects 400 with `unsupported_grant_type`). Live-run against SuiteCRM 8.10.1 — 8/8 green with the correct admin config.
 - **Reverse-proxy deployment reference** (`docs/reverse-proxy.md`): nginx (NC-only + NC+SuiteCRM), Apache with a working PHP-FPM handler block (do not copy-paste without it — mod_php-less Apache would serve `.php` files as text), Cloudflare Tunnel, and a dedicated "About allow_local_remote_servers" section that clarifies the SSRF guard resolves the target IP rather than caring about the request path.
 - **Proxmox LXC production reference** (`docs/proxmox-lxc.md`): grounded in a live Ubuntu 24.04 LTS + PHP 8.3 + NC 33 LXC. Two-LXC layout (Nextcloud + SuiteCRM), `pct create` commands, install scripts using `libapache2-mod-php` (matching what the popular Proxmox helper-script installers actually produce), `www-data` classic crontab for NC cron with an optional systemd-timer alternative, PVE-host nginx pointer, backup script preserving the NC config.php `secret` and the SuiteCRM OAuth2 keypair, upgrade path.
 - **Cross-module search widened to first_name for person modules**: Contacts and Leads now filter on both `last_name` and `first_name` via per-attribute requests + result dedup by `module|id`. First-name-only queries (typing `Serena` and expecting `Serena Arent`) now return hits; before iter 35 they returned zero. Documented the deliberate rejection of `filter[operator]=or` (SuiteCRM 8.4/8.5 DBAL applies OR at the top of the WHERE clause and returns every non-deleted row).
@@ -130,9 +70,9 @@ Backfills the full body of work landed between the 1.8.0 tag and the 1.9.0 relea
 - OAuth authcode flow end-to-end against SuiteCRM 8.10.1: authorize → consent → callback → token exchange → tokens stored, `user_name` + `user_id` populated on connect.
 - Unified search from Nextcloud 30 against SuiteCRM 8.10.1: `Serena` returns the "Serena Arent" Contact, `Arent` also returns the Contact, `AtoZ` returns the Account + Opportunity, all 10 diverse queries return HTTP 200.
 - Both dashboard widgets render with icons on the Nextcloud dashboard.
-- `occ integration_suitecrm:test-connection` runs green with the stock config and (as of iter 39) also green with a no-leading-slash `oauth_authorize_path` value.
+- `occ njordium_suitecrm:test-connection` runs green with the stock config and (as of iter 39) also green with a no-leading-slash `oauth_authorize_path` value.
 - Release workflow dry-run via `workflow_dispatch` produces a valid 7.03 MB zip with the correct layout (`lib/` + `js/` + `appinfo/` + `docs/` + `README` + `COPYING`, no `tests/` or `composer.json` or `.phpunit.cache/`).
-- `nextcloud.log` clean of `integration_suitecrm` warnings after 20 minutes of diverse activity.
+- `nextcloud.log` clean of `njordium_suitecrm` warnings after 20 minutes of diverse activity.
 - Ubuntu 24.04 + PHP 8.3 + NC 33 target OS/version validated read-only against the user's production LXC — every command in `docs/proxmox-lxc.md` grounded in what the popular installer scripts actually produce.
 
 ## 1.8.0 – 2026-07-01
@@ -169,7 +109,7 @@ Backfills the full body of work landed between the 1.8.0 tag and the 1.9.0 relea
 ### Added
 - New **SuiteCRM calendar** Nextcloud dashboard widget listing today's + next-7-days Meetings, Calls, and Tasks assigned to the current user, sorted chronologically
 - `SuiteCRMAPIService::getUpcoming()` — data-driven fetch across Meetings/Calls/Tasks with server-side date + assignee filters; returns rows tagged with `type` and a normalised `event_ts` for client-side sorting
-- New `GET /apps/integration_suitecrm/upcoming` endpoint
+- New `GET /apps/njordium_suitecrm/upcoming` endpoint
 - Vue component `Calendar.vue` with the same visibility-loop pattern as the reminders widget
 
 ### Changed

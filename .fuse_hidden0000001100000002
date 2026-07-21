@@ -6,66 +6,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-## 2.0.0 – 2026-07-22
-
-### ⚠ BREAKING CHANGES
-
-- **App id renamed** from `integration_suitecrm` to `njordium_suitecrm`. The Nextcloud App Store record for `integration_suitecrm` still points to Julien's original 1.0.3 (last updated November 2021), and every field the NC admin panel displays for our fork was being pulled from that stale record. Renaming the id de-couples the fork from that record for good.
-- The install folder is now `custom_apps/njordium_suitecrm/` — the old `custom_apps/integration_suitecrm/` will no longer be recognised.
-- The `occ` command is now `occ njordium_suitecrm:test-connection`. The old command name will not resolve.
-- Route names, OAuth redirect URI paths, config-app keys, and Vue translation domains all use the new id.
-
-### Migration
-
-A `Migration\CopyLegacyAppConfig` Repair step is registered under `<post-migration>` and runs automatically on `occ upgrade`. It copies every row from `oc_appconfig` and `oc_preferences` where `appid = 'integration_suitecrm'` under the new app id, skipping any target row that already exists (idempotent). Legacy rows are **not deleted** — a follow-up 2.1.0 Repair step will do that once 2.0.0 has been stable for a while, keeping a clean rollback path in the meantime.
-
-**Upgrade steps** (Docker example, adapt paths for LXC/bare-metal):
-
-```bash
-# Disable the old app
-docker exec -u www-data <container> php occ app:disable integration_suitecrm
-
-# Drop the new folder (zip contains a top-level `njordium_suitecrm/`)
-unzip njordium_suitecrm-v2.0.0.zip -d /path/to/nextcloud/custom_apps/
-
-# Enable the new app — this fires the Migration Repair step,
-# which copies your admin OAuth config + every user's OAuth tokens
-docker exec -u www-data <container> php occ app:enable njordium_suitecrm
-
-# Optional: after verifying everything works
-rm -rf /path/to/nextcloud/custom_apps/integration_suitecrm
-```
-
-**Users do not need to reconnect** — their per-user OAuth tokens carry over via the Repair step's copy of `oc_preferences`. The admin OAuth client id/secret/instance URL and authorize path also carry over automatically.
-
-### Rollback
-
-If v2.0.0 misbehaves for you, the old rows are untouched:
-
-```bash
-docker exec -u www-data <container> php occ app:disable njordium_suitecrm
-docker exec -u www-data <container> php occ app:enable integration_suitecrm
-```
-
-Everything's back where it was on 1.9.1.
-
-### What this fixes
-
-The "Latest updated: November 2021" line in the NC admin panel goes away — the new app id doesn't match any App Store record, so NC has no stale cache to render.
-
-### Added
-
-- **`lib/Migration/CopyLegacyAppConfig.php`**: `IRepairStep` implementation covering the id rename described above. Idempotent, safe on fresh installs, silent no-op when there is nothing to migrate. Registered in `appinfo/info.xml` under `<repair-steps><post-migration>`.
-
-### Changed
-
-- `<id>` in `appinfo/info.xml`: `integration_suitecrm` → `njordium_suitecrm`.
-- `Application::APP_ID`: same.
-- Webpack bundle output filenames: `integration_suitecrm-{personalSettings,adminSettings,dashboard,calendar}.js` → `njordium_suitecrm-*.js`.
-- Release workflow (`.github/workflows/release.yml`): staging directory, zip filename, artifact name, and README install instructions all reference the new id. The GitHub repo URL and Composer package identifier stay `njordium/integration_suitecrm` — those correspond to the repository path, not the Nextcloud app id.
-- All Vue `t()` translation domains, `loadState()` calls, `generateUrl()` prefixes.
-- All documentation examples (`README.md`, `docs/getting-started.md`, `docs/proxmox-lxc.md`, `docs/reverse-proxy.md`) reference the new id in commands and paths.
-
 ## 1.9.1 – 2026-07-22
 
 Follow-up release covering the audit-driven cleanup and enhancement work that closed several upstream `julien-nc/integration_suitecrm` issues after the 1.9.0 tag.

@@ -5,19 +5,19 @@
 	<div id="suitecrm_prefs" class="section">
 		<h2>
 			<a class="icon icon-suitecrm" />
-			{{ t('njordium_suitecrm', 'SuiteCRM integration') }}
+			{{ t('integration_suitecrm', 'SuiteCRM integration') }}
 		</h2>
 
 		<NcNoteCard v-if="!oAuthConfigured" type="warning">
-			{{ t('njordium_suitecrm', 'No SuiteCRM OAuth app configured. Ask your Nextcloud administrator to configure SuiteCRM connected accounts admin section.') }}
+			{{ t('integration_suitecrm', 'No SuiteCRM OAuth app configured. Ask your Nextcloud administrator to configure SuiteCRM connected accounts admin section.') }}
 		</NcNoteCard>
 
 		<div v-else id="suitecrm-content">
 			<div class="fields">
 				<NcTextField
 					v-model="state.oauth_instance_url"
-					:label="t('njordium_suitecrm', 'SuiteCRM instance address')"
-					:placeholder="t('njordium_suitecrm', 'https://my.suitecrm.org')"
+					:label="t('integration_suitecrm', 'SuiteCRM instance address')"
+					:placeholder="t('integration_suitecrm', 'https://my.suitecrm.org')"
 					:disabled="true" />
 			</div>
 
@@ -30,31 +30,31 @@
 						<template #icon>
 							<LoginIcon :size="20" />
 						</template>
-						{{ t('njordium_suitecrm', 'Connect via SuiteCRM OAuth (recommended)') }}
+						{{ t('integration_suitecrm', 'Connect via SuiteCRM OAuth (recommended)') }}
 					</NcButton>
 				</div>
 				<p class="settings-hint">
-					{{ t('njordium_suitecrm', 'You will be redirected to your SuiteCRM instance to sign in and approve access. This is the recommended, more secure connect path.') }}
+					{{ t('integration_suitecrm', 'You will be redirected to your SuiteCRM instance to sign in and approve access. This is the recommended, more secure connect path.') }}
 				</p>
 
 				<details class="advanced-fallback">
 					<summary>
-						{{ t('njordium_suitecrm', 'Advanced: username + password fallback (SuiteCRM legacy grant)') }}
+						{{ t('integration_suitecrm', 'Advanced: username + password fallback (SuiteCRM legacy grant)') }}
 					</summary>
 					<NcNoteCard type="info">
-						{{ t('njordium_suitecrm', 'Only use this if your SuiteCRM instance cannot complete a browser redirect back to Nextcloud. Your login and password are not stored — they are only used once to obtain an access token.') }}
+						{{ t('integration_suitecrm', 'Only use this if your SuiteCRM instance cannot complete a browser redirect back to Nextcloud. Your login and password are not stored — they are only used once to obtain an access token.') }}
 					</NcNoteCard>
 					<div class="fields">
 						<NcTextField
 							v-model="login"
-							:label="t('njordium_suitecrm', 'User name')"
-							:placeholder="t('njordium_suitecrm', 'SuiteCRM login')"
+							:label="t('integration_suitecrm', 'User name')"
+							:placeholder="t('integration_suitecrm', 'SuiteCRM login')"
 							@keyup.enter="onConnect" />
 
 						<NcPasswordField
 							v-model="password"
-							:label="t('njordium_suitecrm', 'Password')"
-							:placeholder="t('njordium_suitecrm', 'SuiteCRM password')"
+							:label="t('integration_suitecrm', 'Password')"
+							:placeholder="t('integration_suitecrm', 'SuiteCRM password')"
 							@keyup.enter="onConnect" />
 					</div>
 					<div class="actions">
@@ -65,7 +65,7 @@
 							<template #icon>
 								<LoginIcon :size="20" />
 							</template>
-							{{ t('njordium_suitecrm', 'Connect with username + password') }}
+							{{ t('integration_suitecrm', 'Connect with username + password') }}
 						</NcButton>
 					</div>
 				</details>
@@ -74,13 +74,13 @@
 			<div v-if="connected" class="actions">
 				<span class="connected-label">
 					<CheckCircleIcon :size="20" class="connected-icon" />
-					{{ t('njordium_suitecrm', 'Connected as {user}', { user: state.user_name }) }}
+					{{ t('integration_suitecrm', 'Connected as {user}', { user: state.user_name }) }}
 				</span>
 				<NcButton variant="secondary" @click="onLogoutClick">
 					<template #icon>
 						<LogoutIcon :size="20" />
 					</template>
-					{{ t('njordium_suitecrm', 'Disconnect from SuiteCRM') }}
+					{{ t('integration_suitecrm', 'Disconnect from SuiteCRM') }}
 				</NcButton>
 			</div>
 
@@ -88,46 +88,46 @@
 				<NcCheckboxRadioSwitch
 					:modelValue="!!state.search_enabled"
 					@update:checked="onSearchChange">
-					{{ t('njordium_suitecrm', 'Enable unified search for contacts, accounts, leads, opportunities and cases') }}
+					{{ t('integration_suitecrm', 'Enable unified search for contacts, accounts, leads, opportunities and cases') }}
 				</NcCheckboxRadioSwitch>
 				<NcNoteCard v-if="state.search_enabled" type="warning">
-					{{ t('njordium_suitecrm', 'Warning, everything you type in the search bar will be sent to your SuiteCRM instance.') }}
+					{{ t('integration_suitecrm', 'Warning, everything you type in the search bar will be sent to your SuiteCRM instance.') }}
 				</NcNoteCard>
 
 				<NcCheckboxRadioSwitch
 					:modelValue="!!state.notification_enabled"
 					@update:checked="onNotificationChange">
-					{{ t('njordium_suitecrm', 'Enable notifications for reminders on calls and meetings') }}
+					{{ t('integration_suitecrm', 'Enable notifications for reminders on calls and meetings') }}
 				</NcCheckboxRadioSwitch>
 			</div>
 
 			<div v-if="connected" class="suitecrm-companion">
 				<h3>
 					<CalendarSyncIcon :size="20" class="companion-heading-icon" />
-					{{ t('njordium_suitecrm', 'Calendar sync (SuiteCRM module)') }}
+					{{ t('integration_suitecrm', 'Calendar sync (SuiteCRM module)') }}
 				</h3>
 				<NcNoteCard type="info">
-					{{ t('njordium_suitecrm', 'The companion SuiteCRM module pulls your Nextcloud calendar into SuiteCRM and pushes Meetings/Calls back. Configure it inside SuiteCRM (User Profile → Nextcloud Calendar Integration) with the values below.') }}
+					{{ t('integration_suitecrm', 'The companion SuiteCRM module pulls your Nextcloud calendar into SuiteCRM and pushes Meetings/Calls back. Configure it inside SuiteCRM (User Profile → Nextcloud Calendar Integration) with the values below.') }}
 				</NcNoteCard>
 				<div v-if="companion" class="suitecrm-companion__rows">
 					<div class="suitecrm-companion__row">
-						<label>{{ t('njordium_suitecrm', 'Nextcloud URL') }}</label>
+						<label>{{ t('integration_suitecrm', 'Nextcloud URL') }}</label>
 						<code>{{ companion.nextcloud_url }}</code>
 						<NcButton variant="tertiary" @click="copy(companion.nextcloud_url, $event)">
 							<template #icon>
 								<ContentCopyIcon :size="18" />
 							</template>
-							{{ t('njordium_suitecrm', 'Copy') }}
+							{{ t('integration_suitecrm', 'Copy') }}
 						</NcButton>
 					</div>
 					<div class="suitecrm-companion__row">
-						<label>{{ t('njordium_suitecrm', 'Nextcloud login') }}</label>
+						<label>{{ t('integration_suitecrm', 'Nextcloud login') }}</label>
 						<code>{{ companion.login }}</code>
 						<NcButton variant="tertiary" @click="copy(companion.login, $event)">
 							<template #icon>
 								<ContentCopyIcon :size="18" />
 							</template>
-							{{ t('njordium_suitecrm', 'Copy') }}
+							{{ t('integration_suitecrm', 'Copy') }}
 						</NcButton>
 					</div>
 					<div class="suitecrm-companion__row">
@@ -135,12 +135,12 @@
 							<template #icon>
 								<KeyPlusIcon :size="20" />
 							</template>
-							{{ t('njordium_suitecrm', 'Generate Nextcloud App Password') }}
+							{{ t('integration_suitecrm', 'Generate Nextcloud App Password') }}
 						</NcButton>
 					</div>
 				</div>
 				<p v-else class="settings-hint">
-					{{ t('njordium_suitecrm', 'Loading companion details…') }}
+					{{ t('integration_suitecrm', 'Loading companion details…') }}
 				</p>
 			</div>
 		</div>
@@ -185,7 +185,7 @@ export default {
 
 	data() {
 		return {
-			state: loadState('njordium_suitecrm', 'user-config'),
+			state: loadState('integration_suitecrm', 'user-config'),
 			login: '',
 			password: '',
 			loading: false,
@@ -210,10 +210,10 @@ export default {
 		const urlParams = new URLSearchParams(paramString)
 		const zmToken = urlParams.get('suitecrmToken')
 		if (zmToken === 'success') {
-			showSuccess(t('njordium_suitecrm', 'Successfully connected to SuiteCRM!'))
+			showSuccess(t('integration_suitecrm', 'Successfully connected to SuiteCRM!'))
 		} else if (zmToken === 'error') {
-			const message = urlParams.get('message') || t('njordium_suitecrm', 'Unknown error')
-			showError(t('njordium_suitecrm', 'OAuth access token could not be obtained:') + ' ' + message)
+			const message = urlParams.get('message') || t('integration_suitecrm', 'Unknown error')
+			showError(t('integration_suitecrm', 'OAuth access token could not be obtained:') + ' ' + message)
 		}
 		this.loadCompanion()
 	},
@@ -221,7 +221,7 @@ export default {
 	methods: {
 		async loadCompanion() {
 			try {
-				const response = await axios.get(generateUrl('/apps/njordium_suitecrm/calendar-companion'))
+				const response = await axios.get(generateUrl('/apps/integration_suitecrm/calendar-companion'))
 				this.companion = response.data
 			} catch {
 				// Companion is a best-effort enhancement; failure is silent so it
@@ -232,7 +232,7 @@ export default {
 		async copy(value, event) {
 			try {
 				await navigator.clipboard.writeText(value)
-				showSuccess(t('njordium_suitecrm', 'Copied to clipboard'))
+				showSuccess(t('integration_suitecrm', 'Copied to clipboard'))
 			} catch {
 				const range = document.createRange()
 				range.selectNodeContents(event.target.previousElementSibling)
@@ -261,13 +261,13 @@ export default {
 			const req = {
 				values,
 			}
-			const url = generateUrl('/apps/njordium_suitecrm/config')
+			const url = generateUrl('/apps/integration_suitecrm/config')
 			axios.put(url, req)
 				.then(() => {
-					showSuccess(t('njordium_suitecrm', 'SuiteCRM options saved'))
+					showSuccess(t('integration_suitecrm', 'SuiteCRM options saved'))
 				})
 				.catch((error) => {
-					showError(t('njordium_suitecrm', 'Failed to save SuiteCRM options')
+					showError(t('integration_suitecrm', 'Failed to save SuiteCRM options')
 						+ ': ' + error.response.request.responseText)
 				})
 				.then(() => {
@@ -281,19 +281,19 @@ export default {
 		async onOAuthConnect() {
 			this.authorizing = true
 			try {
-				const url = generateUrl('/apps/njordium_suitecrm/oauth-authorize-url')
+				const url = generateUrl('/apps/integration_suitecrm/oauth-authorize-url')
 				const response = await axios.get(url)
 				if (response.data && response.data.authorize_url) {
 					window.location = response.data.authorize_url
 					// leave `authorizing = true` — the whole page is about to unload.
 					return
 				}
-				showError(t('njordium_suitecrm', 'OAuth is not configured on the server.'))
+				showError(t('integration_suitecrm', 'OAuth is not configured on the server.'))
 			} catch (error) {
 				if (error.response?.data?.error) {
-					showError(t('njordium_suitecrm', 'Failed to start OAuth flow') + ': ' + error.response.data.error)
+					showError(t('integration_suitecrm', 'Failed to start OAuth flow') + ': ' + error.response.data.error)
 				} else {
-					showError(t('njordium_suitecrm', 'Failed to start OAuth flow'))
+					showError(t('integration_suitecrm', 'Failed to start OAuth flow'))
 				}
 			} finally {
 				this.authorizing = false
@@ -302,7 +302,7 @@ export default {
 
 		onConnect() {
 			this.loading = true
-			const url = generateUrl('/apps/njordium_suitecrm/oauth-connect')
+			const url = generateUrl('/apps/integration_suitecrm/oauth-connect')
 			const req = {
 				login: this.login,
 				password: this.password,
@@ -315,10 +315,10 @@ export default {
 				.catch((error) => {
 					if (error.response) {
 						if (error.response?.data?.error) {
-							showError(t('njordium_suitecrm', 'Failed')
+							showError(t('integration_suitecrm', 'Failed')
 								+ ': ' + error.response.data.error)
 						} else if (error.response.request && error.response.request.responseText) {
-							showError(t('njordium_suitecrm', 'Failed')
+							showError(t('integration_suitecrm', 'Failed')
 								+ ': ' + error.response.request.responseText)
 						}
 					}

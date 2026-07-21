@@ -5,21 +5,21 @@
 	<div id="suitecrm_prefs" class="section">
 		<h2>
 			<a class="icon icon-suitecrm" />
-			{{ t('njordium_suitecrm', 'SuiteCRM integration') }}
+			{{ t('integration_suitecrm', 'SuiteCRM integration') }}
 		</h2>
 
 		<NcNoteCard type="info">
 			<p>
-				{{ t('njordium_suitecrm', 'If you want to allow your Nextcloud users to use OAuth to authenticate to a SuiteCRM instance, create a "new password client" in your SuiteCRM admin settings ("OAuth2 Clients and Tokens" section) and put the client ID and secret below.') }}
+				{{ t('integration_suitecrm', 'If you want to allow your Nextcloud users to use OAuth to authenticate to a SuiteCRM instance, create a "new password client" in your SuiteCRM admin settings ("OAuth2 Clients and Tokens" section) and put the client ID and secret below.') }}
 			</p>
 			<p>
-				{{ t('njordium_suitecrm', 'Make sure you created private and public keys for your SuiteCRM instance. Authentication won\'t work if those keys are missing.') }}
+				{{ t('integration_suitecrm', 'Make sure you created private and public keys for your SuiteCRM instance. Authentication won\'t work if those keys are missing.') }}
 				<a
 					href="https://docs.suitecrm.com/developer/api/developer-setup-guide/json-api/#_generate_private_and_public_key_for_oauth2"
 					target="_blank"
 					rel="noopener noreferrer"
 					class="external-link">
-					{{ t('njordium_suitecrm', 'SuiteCRM OAuth2 documentation') }}
+					{{ t('integration_suitecrm', 'SuiteCRM OAuth2 documentation') }}
 					<OpenInNewIcon :size="14" />
 				</a>
 			</p>
@@ -28,19 +28,19 @@
 		<div class="fields">
 			<NcTextField
 				v-model="state.oauth_instance_url"
-				:label="t('njordium_suitecrm', 'SuiteCRM instance address')"
-				:placeholder="t('njordium_suitecrm', 'https://my.suitecrm.org')"
+				:label="t('integration_suitecrm', 'SuiteCRM instance address')"
+				:placeholder="t('integration_suitecrm', 'https://my.suitecrm.org')"
 				@update:value="onInput" />
 
 			<NcPasswordField
 				v-model="state.client_id"
-				:label="t('njordium_suitecrm', 'Application ID')"
-				:placeholder="t('njordium_suitecrm', 'ID of your application')"
+				:label="t('integration_suitecrm', 'Application ID')"
+				:placeholder="t('integration_suitecrm', 'ID of your application')"
 				@update:value="onInput" />
 
 			<NcPasswordField
 				v-model="newSecret"
-				:label="t('njordium_suitecrm', 'Application secret')"
+				:label="t('integration_suitecrm', 'Application secret')"
 				:placeholder="secretPlaceholder"
 				@update:value="onInput" />
 
@@ -52,8 +52,8 @@
 			-->
 			<NcTextField
 				v-model="state.oauth_authorize_path"
-				:label="t('njordium_suitecrm', 'OAuth authorize endpoint path')"
-				:helperText="t('njordium_suitecrm', '(SuiteCRM 8.10.x default: /Api/authorize. Older installs may use /legacy/oauth2/authorize.)')"
+				:label="t('integration_suitecrm', 'OAuth authorize endpoint path')"
+				:helperText="t('integration_suitecrm', '(SuiteCRM 8.10.x default: /Api/authorize. Older installs may use /legacy/oauth2/authorize.)')"
 				@update:value="onInput" />
 		</div>
 
@@ -66,23 +66,23 @@
 			endpoint and clear the local form state.
 		-->
 		<div class="reset-zone">
-			<h3>{{ t('njordium_suitecrm', 'Reset connection') }}</h3>
+			<h3>{{ t('integration_suitecrm', 'Reset connection') }}</h3>
 			<p class="reset-explanation">
-				{{ t('njordium_suitecrm', 'Clears the SuiteCRM instance URL, client ID, client secret, and authorize path. Use this to start over after entering the wrong credentials, or when moving to a different SuiteCRM instance. Individual users stay connected until their next SuiteCRM request; they are then prompted to reconnect via the OAuth flow.') }}
+				{{ t('integration_suitecrm', 'Clears the SuiteCRM instance URL, client ID, client secret, and authorize path. Use this to start over after entering the wrong credentials, or when moving to a different SuiteCRM instance. Individual users stay connected until their next SuiteCRM request; they are then prompted to reconnect via the OAuth flow.') }}
 			</p>
 			<NcButton variant="warning" @click="showResetDialog = true">
 				<template #icon>
 					<DeleteIcon :size="20" />
 				</template>
-				{{ t('njordium_suitecrm', 'Reset connection') }}
+				{{ t('integration_suitecrm', 'Reset connection') }}
 			</NcButton>
 		</div>
 
 		<NcDialog
 			v-if="showResetDialog"
 			:open="showResetDialog"
-			:name="t('njordium_suitecrm', 'Reset SuiteCRM connection?')"
-			:message="t('njordium_suitecrm', 'This will clear the SuiteCRM instance URL, client ID, client secret, and authorize path from the admin configuration. Individual users stay connected until their next SuiteCRM request, then reconnect through the OAuth flow. This cannot be undone.')"
+			:name="t('integration_suitecrm', 'Reset SuiteCRM connection?')"
+			:message="t('integration_suitecrm', 'This will clear the SuiteCRM instance URL, client ID, client secret, and authorize path from the admin configuration. Individual users stay connected until their next SuiteCRM request, then reconnect through the OAuth flow. This cannot be undone.')"
 			:buttons="resetDialogButtons"
 			@close="showResetDialog = false" />
 	</div>
@@ -119,7 +119,7 @@ export default {
 
 	data() {
 		return {
-			state: loadState('njordium_suitecrm', 'admin-config'),
+			state: loadState('integration_suitecrm', 'admin-config'),
 			// Secret input is separate from `state` so we can distinguish
 			// "user typed a new value" (send it) from "user hasn't touched
 			// this field" (leave the stored secret untouched).
@@ -144,8 +144,8 @@ export default {
 
 		secretPlaceholder() {
 			return this.secretIsStored
-				? t('njordium_suitecrm', 'A secret is stored — type to replace')
-				: t('njordium_suitecrm', 'Client secret of your application')
+				? t('integration_suitecrm', 'A secret is stored — type to replace')
+				: t('integration_suitecrm', 'Client secret of your application')
 		},
 
 		/**
@@ -156,14 +156,14 @@ export default {
 		resetDialogButtons() {
 			return [
 				{
-					label: t('njordium_suitecrm', 'Cancel'),
+					label: t('integration_suitecrm', 'Cancel'),
 					variant: 'secondary',
 					callback: () => {
 						this.showResetDialog = false
 					},
 				},
 				{
-					label: t('njordium_suitecrm', 'Reset connection'),
+					label: t('integration_suitecrm', 'Reset connection'),
 					variant: 'error',
 					callback: () => this.performReset(),
 				},
@@ -186,7 +186,7 @@ export default {
 		 * naturally.
 		 */
 		performReset() {
-			const url = generateUrl('/apps/njordium_suitecrm/admin-config')
+			const url = generateUrl('/apps/integration_suitecrm/admin-config')
 			axios.delete(url)
 				.then(() => {
 					this.state.oauth_instance_url = ''
@@ -195,10 +195,10 @@ export default {
 					this.state.oauth_authorize_path = ''
 					this.newSecret = ''
 					this.showResetDialog = false
-					showSuccess(t('njordium_suitecrm', 'SuiteCRM connection reset — enter new credentials to reconnect'))
+					showSuccess(t('integration_suitecrm', 'SuiteCRM connection reset — enter new credentials to reconnect'))
 				})
 				.catch((error) => {
-					showError(t('njordium_suitecrm', 'Failed to reset SuiteCRM connection')
+					showError(t('integration_suitecrm', 'Failed to reset SuiteCRM connection')
 						+ ': ' + (error.response?.request?.responseText || error.message || ''))
 				})
 		},
@@ -217,10 +217,10 @@ export default {
 				values.client_secret = this.newSecret
 			}
 			const req = { values }
-			const url = generateUrl('/apps/njordium_suitecrm/admin-config')
+			const url = generateUrl('/apps/integration_suitecrm/admin-config')
 			axios.put(url, req)
 				.then(() => {
-					showSuccess(t('njordium_suitecrm', 'SuiteCRM admin options saved'))
+					showSuccess(t('integration_suitecrm', 'SuiteCRM admin options saved'))
 					if (this.newSecret !== '') {
 						// Buffer consumed by the server; clear the input so the
 						// stored-secret placeholder returns and the next auto-save
@@ -230,7 +230,7 @@ export default {
 					}
 				})
 				.catch((error) => {
-					showError(t('njordium_suitecrm', 'Failed to save SuiteCRM admin options')
+					showError(t('integration_suitecrm', 'Failed to save SuiteCRM admin options')
 						+ ': ' + error.response.request.responseText)
 				})
 		},

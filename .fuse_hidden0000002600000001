@@ -1,13 +1,11 @@
 # SuiteCRM integration for Nextcloud
 
-> **Actively maintained fork** of [julien-nc/integration_suitecrm](https://github.com/julien-nc/integration_suitecrm) by Julien Veyssier.
+> **Actively maintained fork** of [julien-nc/njordium_suitecrm](https://github.com/julien-nc/njordium_suitecrm) by Julien Veyssier.
 > Updated for **Nextcloud 30–34** and **SuiteCRM 8.x**, migrated to Vue 3 / `@nextcloud/vue` v9, and extended with reference cards, smart picker, calendar widget, encrypted token storage, and a companion CalDAV sync module.
 
 Interact with your SuiteCRM instance from inside Nextcloud — search records, see upcoming events on your dashboard, get notified about meeting reminders, and paste CRM links into Talk/Notes for rich preview cards.
 
 **New here?** Skip straight to [`docs/getting-started.md`](docs/getting-started.md) for the zero-to-connected walkthrough (about 15 minutes end-to-end).
-
-**Upgrading from 1.9.x?** 2.0.0 renames the Nextcloud app id from `integration_suitecrm` to `njordium_suitecrm`. See [`docs/upgrade-1.9-to-2.0.md`](docs/upgrade-1.9-to-2.0.md) — the Migration Repair step copies your existing admin config and every user's OAuth tokens automatically.
 
 ---
 
