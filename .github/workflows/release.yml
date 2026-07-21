@@ -189,35 +189,56 @@ jobs:
           (cd "${STAGING}" && zip -r "${ZIP}" njordium_suitecrm/)
           ls -la "${ZIP}"
 
-          # Iter 38: SHA-256 alongside the zip for supply-chain
+          # Iter 64: tar.gz alongside the zip.
+          # The Nextcloud App Store (apps.nextcloud.com) requires
+          # tar.gz for release submissions and rejects zip archives.
+          # Same staging tree, different archiver — this way both
+          # formats contain byte-identical file trees so the SHA-256
+          # of the app payload is (modulo compression) preserved.
+          # Direct-install admins still get the zip they're used to;
+          # App Store submissions (iter 66) use the tarball.
+          TARGZ="/tmp/njordium_suitecrm-${VERSION}.tar.gz"
+          (cd "${STAGING}" && tar czf "${TARGZ}" njordium_suitecrm/)
+          ls -la "${TARGZ}"
+
+          # Iter 38: SHA-256 alongside each archive for supply-chain
           # verification. `sha256sum -c file.sha256` on the target
           # confirms the download was not tampered with in transit.
-          SHA256="${ZIP}.sha256"
-          (cd "$(dirname "${ZIP}")" && sha256sum "$(basename "${ZIP}")" > "${SHA256}")
-          echo "--- SHA-256 checksum ---"
-          cat "${SHA256}"
+          ZIP_SHA256="${ZIP}.sha256"
+          (cd "$(dirname "${ZIP}")" && sha256sum "$(basename "${ZIP}")" > "${ZIP_SHA256}")
+          TARGZ_SHA256="${TARGZ}.sha256"
+          (cd "$(dirname "${TARGZ}")" && sha256sum "$(basename "${TARGZ}")" > "${TARGZ_SHA256}")
+          echo "--- SHA-256 checksums ---"
+          cat "${ZIP_SHA256}" "${TARGZ_SHA256}"
 
           echo "zip=${ZIP}" >> "$GITHUB_OUTPUT"
-          echo "sha256=${SHA256}" >> "$GITHUB_OUTPUT"
+          echo "sha256=${ZIP_SHA256}" >> "$GITHUB_OUTPUT"
+          echo "targz=${TARGZ}" >> "$GITHUB_OUTPUT"
+          echo "targz_sha256=${TARGZ_SHA256}" >> "$GITHUB_OUTPUT"
 
-      - name: Create/update GitHub Release with asset
+      - name: Create/update GitHub Release with assets
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v3
         with:
           files: |
             ${{ steps.package.outputs.zip }}
             ${{ steps.package.outputs.sha256 }}
+            ${{ steps.package.outputs.targz }}
+            ${{ steps.package.outputs.targz_sha256 }}
           body: |
             Automated build for ${{ steps.version.outputs.version }}.
 
-            **Install:** download `njordium_suitecrm-${{ steps.version.outputs.version }}.zip` below, extract into your Nextcloud `custom_apps/` directory (this is the third-party app directory — do **not** use the bundled `apps/` directory), then enable via **Apps → Integration → SuiteCRM integration**.
+            **Install (direct):** download `njordium_suitecrm-${{ steps.version.outputs.version }}.zip` below, extract into your Nextcloud `custom_apps/` directory (this is the third-party app directory — do **not** use the bundled `apps/` directory), then enable via **Apps → Integration → SuiteCRM integration**.
+
+            **Install (Nextcloud App Store):** search for **SuiteCRM integration** in your Nextcloud admin panel — the App Store record is fed from `njordium_suitecrm-${{ steps.version.outputs.version }}.tar.gz` (same file tree as the zip, tar.gz format required by the store).
 
             **Verify the download:**
             ```
             sha256sum -c njordium_suitecrm-${{ steps.version.outputs.version }}.zip.sha256
+            sha256sum -c njordium_suitecrm-${{ steps.version.outputs.version }}.tar.gz.sha256
             ```
 
-            This zip includes pre-built `js/` bundles — no `npm run build` needed on the target server.
+            Both archives include pre-built `js/` bundles — no `npm run build` needed on the target server.
 
             See [README](https://github.com/njordium/integration_suitecrm/blob/master/README.md) for admin setup, deployment scenarios, and troubleshooting.
 
@@ -229,4 +250,6 @@ jobs:
           path: |
             ${{ steps.package.outputs.zip }}
             ${{ steps.package.outputs.sha256 }}
+            ${{ steps.package.outputs.targz }}
+            ${{ steps.package.outputs.targz_sha256 }}
           retention-days: 30

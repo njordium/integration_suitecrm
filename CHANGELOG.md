@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 2.0.1 – 2026-07-22
+
+Prep release for Nextcloud App Store submission. No functional change — 1.9.x and 2.0.0 users can skip this if they only install direct from the GitHub release zip; upgrading is only necessary once we publish on apps.nextcloud.com.
+
+### Changed
+
+- **`appinfo/info.xml`** now uses the SPDX license identifier `AGPL-3.0-or-later` in place of the deprecated `agpl` shorthand. Nextcloud 31 and later require SPDX; the shorthand was only ever valid on NC 30 and would have caused App Store schema validation to fail on submit.
+- **`appinfo/info.xml`** self-references the App Store XSD (`xmlns:xsi` + `xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd"`) so IDEs and CI validators catch schema drift before it hits the store.
+- **`appinfo/info.xml`** now declares `<repository type="git">https://github.com/njordium/integration_suitecrm</repository>` for App Store metadata completeness.
+
+### Added
+
+- **`.github/workflows/release.yml`** now emits `njordium_suitecrm-<version>.tar.gz` alongside the existing `.zip`, both with matching `.sha256` files. The Nextcloud App Store submission API requires `tar.gz`; direct-install admins can continue using the zip. Both archives are built from the same rsync-staged tree so the file contents are byte-identical.
+
 ## 2.0.0 – 2026-07-22
 
 ### ⚠ BREAKING CHANGES

@@ -1,13 +1,14 @@
 <?xml version="1.0"?>
-<info>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
 	<id>njordium_suitecrm</id>
 	<name>SuiteCRM integration</name>
 	<summary>Integration of SuiteCRM 8.x Customer Relationship Management application</summary>
 	<description><![CDATA[SuiteCRM 8.x integration provides a dashboard widget displaying your important notifications,
 	a search provider for content and notifications for activity in SuiteCRM 8.x.
 	SuiteCRM 7.x is no longer supported.]]></description>
-	<version>2.0.0</version>
-	<licence>agpl</licence>
+	<version>2.0.1</version>
+	<licence>AGPL-3.0-or-later</licence>
 	<author>Julien Veyssier</author>
 	<author homepage="https://njordium.com">Kim Haverblad</author>
 	<namespace>SuiteCRM</namespace>
@@ -18,6 +19,7 @@
 	<category>dashboard</category>
 	<website>https://github.com/njordium/integration_suitecrm</website>
 	<bugs>https://github.com/njordium/integration_suitecrm/issues</bugs>
+	<repository type="git">https://github.com/njordium/integration_suitecrm</repository>
 	<screenshot>https://github.com/njordium/integration_suitecrm/raw/master/img/screenshot1.jpg</screenshot>
 	<dependencies>
 		<php min-version="8.2"/>
