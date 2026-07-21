@@ -202,7 +202,7 @@ jobs:
 
       - name: Create/update GitHub Release with asset
         if: github.event_name == 'push'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             ${{ steps.package.outputs.zip }}
