@@ -2,7 +2,7 @@
 	<NcDialog
 		v-if="open"
 		:name="dialogTitle"
-		:no-close="submitting"
+		:noClose="submitting"
 		size="normal"
 		@closing="$emit('close')">
 		<div class="task-followup-modal">
@@ -84,8 +84,9 @@
  * user, contact link, follow-up date reminder) can land in later iters
  * once the base flow is proven in production.
  *
+ * Introduced in iter 69a (v2.0.2). See CHANGELOG for context.
+ *
  * @author Kim Haverblad
- * @since v2.0.2 (iter 69a)
  */
 import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '@nextcloud/dialogs'
