@@ -4,104 +4,166 @@ declare(strict_types=1);
 
 namespace OCA\SuiteCRM\Tests\Migration;
 
-use OCA\SuiteCRM\AppInfo\Application;
-use OCA\SuiteCRM\Migration\CopyLegacyAppConfig;
-use OCP\IDBConnection;
-use OCP\Migration\IOutput;
-use OCP\Migration\IRepairStep;
 use PHPUnit\Framework\TestCase;
-use ReflectionClass;
 
 /**
- * Structural coverage for {@see CopyLegacyAppConfig}, the 2.0.0 Repair
- * step that copies admin config + user preferences from the legacy
- * `integration_suitecrm` app id to `njordium_suitecrm`.
+ * Structural regression coverage for the 2.0.0 Migration Repair step
+ * {@see \OCA\SuiteCRM\Migration\CopyLegacyAppConfig}.
  *
- * Behavioural coverage (rows are actually copied, idempotency holds,
- * existing target rows are preserved) is exercised live on the test
- * Nextcloud instance as part of the 2.0.0 upgrade smoke test. That is
- * the same environment the code runs in production, so it is a truer
- * regression signal than a full IDBConnection fake would give here.
+ * These are file-content assertions rather than runtime unit tests
+ * because the fork's `composer.json` does not pull in `doctrine/dbal`
+ * (only the `nextcloud/ocp` interface stubs), and PHPUnit's
+ * `createMock(IDBConnection::class)` triggers autoload of
+ * `OCP\DB\QueryBuilder\IQueryBuilder`, which resolves a
+ * `Doctrine\DBAL\ParameterType` class-level constant at load time —
+ * that class is not on the test classpath, so the mock generator dies
+ * before the test body runs. See iter 61b for the diagnostic history.
  *
- * These structural tests catch the highest-value regression classes:
+ * File-content assertions are weaker than behaviour tests but catch
+ * the highest-value regression classes for a one-shot migration:
  *
- * - a refactor accidentally changes the legacy app id string
- * - the class stops implementing IRepairStep so NC's DI can't load it
- * - getName() drops one of the two ids and admins can't tell what ran
+ *   - the legacy app id string drifts (would silently skip migration)
+ *   - the class stops implementing `IRepairStep` (NC's DI would fail
+ *     to register the step)
+ *   - `getName()` or `run()` disappears
+ *   - the Repair step is dropped from `appinfo/info.xml`, so it
+ *     stops running on `occ upgrade`
+ *
+ * Actual copy semantics — rows are moved, target keys are preserved
+ * on collision, empty state is a no-op — are exercised live during
+ * the 2.0.0 upgrade smoke test on the test Nextcloud instance. The
+ * `occ upgrade` run emits a summary line with concrete row counts
+ * that we verify against seeded fixtures on the real database.
  *
  * @Code Changes by: Kim Haverblad, 2026
  */
 class CopyLegacyAppConfigTest extends TestCase {
 
 	private const LEGACY_APP_ID = 'integration_suitecrm';
+	private const NEW_APP_ID = 'njordium_suitecrm';
 
-	public function testImplementsRepairStepInterface(): void {
-		$db = $this->createMock(IDBConnection::class);
-		$sut = new CopyLegacyAppConfig($db);
+	private string $sutPath;
+	private string $infoXmlPath;
 
-		$this->assertInstanceOf(IRepairStep::class, $sut);
+	protected function setUp(): void {
+		$repoRoot = dirname(__DIR__, 3);
+		$this->sutPath = $repoRoot . '/lib/Migration/CopyLegacyAppConfig.php';
+		$this->infoXmlPath = $repoRoot . '/appinfo/info.xml';
 	}
 
-	public function testGetNameMentionsBothLegacyAndNewAppId(): void {
-		$db = $this->createMock(IDBConnection::class);
-		$sut = new CopyLegacyAppConfig($db);
-
-		$name = $sut->getName();
-		$this->assertNotEmpty($name);
-		$this->assertStringContainsString(self::LEGACY_APP_ID, $name);
-		$this->assertStringContainsString(Application::APP_ID, $name);
+	public function testMigrationFileExists(): void {
+		$this->assertFileExists($this->sutPath);
 	}
 
-	public function testLegacyAppIdConstantPointsAtOriginalAppStoreId(): void {
-		// If someone renames LEGACY_APP_ID away from 'integration_suitecrm',
-		// the migration would silently stop finding any legacy rows on the
-		// upgrade path. Guard the exact string.
-		$ref = new ReflectionClass(CopyLegacyAppConfig::class);
-		$const = $ref->getReflectionConstant('LEGACY_APP_ID');
-		$this->assertNotFalse($const, 'LEGACY_APP_ID const must exist on CopyLegacyAppConfig.');
-		$this->assertSame(self::LEGACY_APP_ID, $const->getValue());
+	public function testMigrationDeclaresIRepairStep(): void {
+		$body = (string)file_get_contents($this->sutPath);
+		$this->assertStringContainsString(
+			'implements IRepairStep',
+			$body,
+			'CopyLegacyAppConfig must implement OCP\\Migration\\IRepairStep '
+			. 'so Nextcloud\'s DI picks it up on `occ upgrade`.',
+		);
 	}
 
-	public function testTargetAppIdIsCurrentApplicationAppId(): void {
-		// The migration must write under the CURRENT Application::APP_ID,
-		// not a hardcoded string that could drift if the app id is
-		// renamed again in the future.
-		$this->assertSame('njordium_suitecrm', Application::APP_ID);
-
-		$db = $this->createMock(IDBConnection::class);
-		$sut = new CopyLegacyAppConfig($db);
-		$this->assertStringContainsString(Application::APP_ID, $sut->getName());
+	public function testMigrationDeclaresRequiredMethods(): void {
+		$body = (string)file_get_contents($this->sutPath);
+		$this->assertMatchesRegularExpression(
+			'/public\s+function\s+getName\s*\(/',
+			$body,
+			'IRepairStep requires a public getName() method.',
+		);
+		$this->assertMatchesRegularExpression(
+			'/public\s+function\s+run\s*\(\s*IOutput/',
+			$body,
+			'IRepairStep requires a public run(IOutput) method.',
+		);
 	}
 
-	public function testRunOnEmptyLegacyStateEmitsNoOpMessage(): void {
-		// This is the ONE behavioural test we can do without wiring a
-		// full DB fake: when there are no legacy rows, getQueryBuilder()
-		// hands out builders whose executeQuery() returns an empty
-		// IResult. We stub that chain and verify the "nothing to
-		// migrate" branch fires.
-		$emptyResult = $this->createMock(\OCP\DB\IResult::class);
-		$emptyResult->method('fetch')->willReturn(false);
-		$emptyResult->method('fetchOne')->willReturn(0);
-		$emptyResult->method('closeCursor')->willReturn(true);
+	public function testLegacyAppIdConstantIsCorrect(): void {
+		// If someone edits LEGACY_APP_ID away from 'integration_suitecrm'
+		// the migration silently stops finding any row to copy on
+		// upgraded instances. Guard the exact string.
+		$body = (string)file_get_contents($this->sutPath);
+		$this->assertMatchesRegularExpression(
+			"/const\s+LEGACY_APP_ID\s*=\s*'" . self::LEGACY_APP_ID . "'/",
+			$body,
+			'LEGACY_APP_ID const must be "' . self::LEGACY_APP_ID . '" — the '
+			. 'app id used on Julien\'s original App Store record and '
+			. 'every 1.x deployment of this fork.',
+		);
+	}
 
-		$qb = $this->createMock(\OCP\DB\QueryBuilder\IQueryBuilder::class);
-		$qb->method('select')->willReturnSelf();
-		$qb->method('from')->willReturnSelf();
-		$qb->method('where')->willReturnSelf();
-		$qb->method('andWhere')->willReturnSelf();
-		$qb->method('createNamedParameter')->willReturn(':p');
-		$qb->method('expr')->willReturn($this->createMock(\OCP\DB\QueryBuilder\IExpressionBuilder::class));
-		$qb->method('func')->willReturn($this->createMock(\OCP\DB\QueryBuilder\IQueryFunction::class));
-		$qb->method('executeQuery')->willReturn($emptyResult);
+	public function testMigrationReadsFromLegacyAppConfigAndPreferences(): void {
+		// Migration must touch both tables — admin config alone leaves
+		// per-user OAuth tokens stranded and every connected user has
+		// to re-authorise SuiteCRM after the rename.
+		$body = (string)file_get_contents($this->sutPath);
+		$this->assertStringContainsString("'appconfig'", $body);
+		$this->assertStringContainsString("'preferences'", $body);
+	}
 
-		$db = $this->createMock(IDBConnection::class);
-		$db->method('getQueryBuilder')->willReturn($qb);
+	public function testMigrationTargetsCurrentApplicationAppId(): void {
+		// The write side must reference Application::APP_ID (not a
+		// hardcoded string) so if the app id is ever renamed again the
+		// migration follows automatically.
+		$body = (string)file_get_contents($this->sutPath);
+		$this->assertStringContainsString(
+			'Application::APP_ID',
+			$body,
+			'Migration must write under the current Application::APP_ID '
+			. 'symbol, not a duplicated string literal.',
+		);
+	}
 
-		$output = $this->createMock(IOutput::class);
-		$output->expects($this->once())
-			->method('info')
-			->with($this->stringContains('nothing to migrate'));
+	public function testMigrationDoesNotDeleteLegacyRows(): void {
+		// 2.0.0 leaves legacy rows in place so a rollback to 1.9.x is
+		// trivial. The `->delete()` call is deferred to a follow-up
+		// 2.1.0 repair step once 2.0.0 has been stable in production.
+		$body = (string)file_get_contents($this->sutPath);
+		$this->assertStringNotContainsString(
+			'->delete(',
+			$body,
+			'2.0.0 Migration must NOT delete legacy rows — that would '
+			. 'break the rollback path. Deletion is scheduled for 2.1.0.',
+		);
+	}
 
-		(new CopyLegacyAppConfig($db))->run($output);
+	public function testInfoXmlRegistersMigrationAsPostMigrationStep(): void {
+		$this->assertFileExists($this->infoXmlPath);
+		$infoXml = (string)file_get_contents($this->infoXmlPath);
+
+		$this->assertStringContainsString(
+			'<repair-steps>',
+			$infoXml,
+			'appinfo/info.xml must declare <repair-steps>.',
+		);
+
+		// Extract just the <repair-steps> block so we do not trip on a
+		// stray "<step>" element inside a comment elsewhere.
+		$matched = preg_match(
+			'|<repair-steps>(.*?)</repair-steps>|s',
+			$infoXml,
+			$m,
+		);
+		$this->assertSame(1, $matched, '<repair-steps> block malformed.');
+		$this->assertStringContainsString(
+			'<post-migration>',
+			$m[1],
+			'CopyLegacyAppConfig runs after schema migration.',
+		);
+		$this->assertStringContainsString(
+			'<step>OCA\SuiteCRM\Migration\CopyLegacyAppConfig</step>',
+			$m[1],
+			'appinfo/info.xml must register the CopyLegacyAppConfig step.',
+		);
+	}
+
+	public function testInfoXmlAppIdIsNewFork(): void {
+		$infoXml = (string)file_get_contents($this->infoXmlPath);
+		$this->assertMatchesRegularExpression(
+			'|<id>\s*' . preg_quote(self::NEW_APP_ID, '|') . '\s*</id>|',
+			$infoXml,
+			'appinfo/info.xml <id> must be "' . self::NEW_APP_ID . '" for 2.0.0.',
+		);
 	}
 }
