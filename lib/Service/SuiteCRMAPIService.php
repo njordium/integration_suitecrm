@@ -453,7 +453,9 @@ class SuiteCRMAPIService {
 			if (isset($response['error'])) {
 				return $response;
 			}
-			$overdueActionable = $moduleDef['overdue_statuses'] ?? [];
+			// PHPStan proves overdue_statuses is present on every UPCOMING_MODULES row,
+			// so a null-coalesce fallback would be dead code (level 5 rejects it).
+			$overdueActionable = $moduleDef['overdue_statuses'];
 			foreach ($response['data'] ?? [] as $row) {
 				$dateStr = $row['attributes'][$moduleDef['date_attr']] ?? null;
 				if ($dateStr === null || $dateStr === '') {
