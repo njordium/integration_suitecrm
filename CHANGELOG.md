@@ -17,6 +17,9 @@ Diagnostic release + write-path infrastructure. Adds the `--push-test` flag to t
 - **`SuiteCRMAPIService::linkRecord(url, token, userId, fromModule, fromId, relationship, toType, toId)`**: attaches one SuiteCRM record to another via a named relationship using the JSON:API resource-linkage envelope. Iter 68.
 - **`SuiteCRMAPIService::request()` gained a `bool $jsonBody = false` optional parameter** that switches the request body from form-encoded to JSON with the `vnd.api+json` content type. Backward-compatible — read call sites keep their existing behaviour. Iter 68.
 - **PHPUnit coverage for `createRecord()` + `linkRecord()`** (5 new tests on `SuiteCRMAPIServiceTest`): envelope shape guarantees, endpoint routing, URL-encoding of module names, error-envelope propagation. Iter 68.
+- **`POST /apps/njordium_suitecrm/task-followup`**: new controller endpoint on `SuiteCRMAPIController` that creates a follow-up SuiteCRM Task linked back to a source record via `parent_type` + `parent_id`. Whitelists source modules (Meetings, Calls, Tasks, Contacts, Accounts, Leads, Opportunities, Cases — anything else 400s with a clear message), validates priority to SuiteCRM's High/Medium/Low enum, propagates SuiteCRM errors as 502 with the original envelope. Iter 69a.
+- **`TaskFollowupModal.vue`** component (`src/components/`): reusable dialog for capturing task name + due date + priority + notes, POSTs to `/task-followup`, emits `created` on success. Not yet wired into either dashboard widget — that's iter 69b. Iter 69a.
+- **PHPUnit coverage for the task-followup endpoint** (10 new tests on new `SuiteCRMAPIControllerTest`): auth guard, name/sourceId/priority validation, source-module whitelist, `parent_type`/`parent_id` linking, optional `date_due` omission, all 8 whitelisted parent modules accepted, error propagation as 502. Iter 69a.
 
 ## 2.0.1 – 2026-07-22
 
