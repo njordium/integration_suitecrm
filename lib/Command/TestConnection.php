@@ -16,6 +16,7 @@ use OCP\IAppConfig;
 use OCP\IConfig;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
@@ -39,7 +40,15 @@ class TestConnection extends Command {
 
 	protected function configure(): void {
 		$this->setName('njordium_suitecrm:test-connection')
-			->setDescription('Verify Nextcloud can reach the configured SuiteCRM instance and OAuth endpoints');
+			->setDescription('Verify Nextcloud can reach the configured SuiteCRM instance and OAuth endpoints')
+			->addOption(
+				'push-test',
+				null,
+				InputOption::VALUE_NONE,
+				'After the read-side checks pass, also verify write capability by POSTing a throwaway Task record to SuiteCRM. '
+				. 'Uses the OAuth2 client_credentials grant (admin-scoped, does not touch any user\'s stored token). '
+				. 'This is the assurance step before building any write features on top of SuiteCRMAPIService::request(..., \'POST\').',
+			);
 	}
 
 	protected function execute(InputInterface $input, OutputInterface $output): int {
@@ -241,6 +250,150 @@ class TestConnection extends Command {
 			// Same reasoning as authorize: network failure here breaks connect.
 			$this->fail($output, sprintf('Token endpoint (%s): %s', $tokenPathDisplay, $e->getMessage()));
 			$anyFail = true;
+		}
+
+		// -----------------------------------------------------------------
+		// 6. Optional: --push-test. Verify write capability end-to-end.
+		//
+		//    Iteration 67 — assurance gate before we commit to building
+		//    any of the four planned write features (email→Case,
+		//    Talk→Note, follow-up Task from widget, Deck↔Opportunity).
+		//    If this check passes on the target SuiteCRM instance, the
+		//    `POST` branch of `SuiteCRMAPIService::request()` is proven
+		//    to interoperate with that SuiteCRM's V8 JSON:API surface
+		//    and we can build with confidence.
+		//
+		//    Uses the OAuth2 `client_credentials` grant (SuiteCRM 8.x
+		//    "Password Client" type supports both `password` and
+		//    `client_credentials`) so no user token is required and no
+		//    stored token is touched. Creates a throwaway record in the
+		//    Tasks module — Tasks is chosen because it's the least
+		//    load-bearing module in a real deployment (no attendee
+		//    linkage, no calendar cascade) and easiest to delete.
+		//    Skipped automatically if any of the read-side checks
+		//    above failed — no point testing writes if the endpoint
+		//    isn't reachable in the first place.
+		// -----------------------------------------------------------------
+		if ($input->getOption('push-test')) {
+			$output->writeln('');
+			$output->writeln('<info>--push-test: verifying write capability</info>');
+
+			if ($anyFail) {
+				$output->writeln('  <comment>Skipped — a required read-side check failed above. Fix that first, then re-run.</comment>');
+				return Command::FAILURE;
+			}
+
+			// 6a. Acquire an admin-scoped access token via
+			//     client_credentials grant. If SuiteCRM's OAuth2 client
+			//     isn't configured to accept that grant, this fails fast
+			//     with a specific hint pointing at the admin UI.
+			$accessToken = null;
+			try {
+				$response = $client->post($tokenUrl, $baseOpts + [
+					'form_params' => [
+						'grant_type' => 'client_credentials',
+						'client_id' => $clientId,
+						'client_secret' => $clientSecret,
+					],
+				]);
+				$status = $response->getStatusCode();
+				$body = (string)$response->getBody();
+				if ($status === 200) {
+					$decoded = json_decode($body, true);
+					$accessToken = $decoded['access_token'] ?? null;
+					if ($accessToken === null) {
+						$this->fail($output, sprintf(
+							'Token exchange (client_credentials): HTTP 200 but no access_token in response body: %s',
+							substr($body, 0, 200),
+						));
+						return Command::FAILURE;
+					}
+					$this->pass($output, sprintf(
+						'Token exchange (client_credentials): HTTP 200, access_token acquired (%d chars)',
+						strlen($accessToken),
+					));
+				} else {
+					$decoded = json_decode($body, true);
+					$err = $decoded['error'] ?? '(no error field)';
+					$this->fail($output, sprintf(
+						'Token exchange (client_credentials): HTTP %d, error="%s"',
+						$status,
+						$err,
+					), [
+						'The `client_credentials` grant is not enabled on your OAuth2 client.',
+						'In SuiteCRM Admin → OAuth2 Clients and Tokens, edit your client and set OAuth2 Grant Type to include both "password" AND "client_credentials" (the "Password Client" type covers both).',
+						'Alternatively: leave it as password-only and skip --push-test — the write features will use per-user tokens acquired via the standard authcode flow, this is only for the diagnostic.',
+					]);
+					return Command::FAILURE;
+				}
+			} catch (Throwable $e) {
+				$this->fail($output, sprintf('Token exchange (client_credentials): %s', $e->getMessage()));
+				return Command::FAILURE;
+			}
+
+			// 6b. POST a throwaway Task record. Chose Tasks over other
+			//     modules because it's the safest (no attendee cascade,
+			//     no calendar publication, no lead-scoring side effects)
+			//     and admin can hard-delete it via the SuiteCRM UI in
+			//     one click.
+			$now = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
+			$tasksUrl = rtrim($url, '/') . '/Api/V8/module/Tasks';
+			$payload = [
+				'data' => [
+					'type' => 'Tasks',
+					'attributes' => [
+						'name' => 'occ push-test',
+						'description' => sprintf(
+							'Throwaway record created by `occ njordium_suitecrm:test-connection --push-test` at %s. Safe to delete.',
+							$now,
+						),
+						'status' => 'Not Started',
+					],
+				],
+			];
+
+			try {
+				$response = $client->post($tasksUrl, $baseOpts + [
+					'headers' => [
+						'User-Agent' => 'Nextcloud SuiteCRM integration (test-connection)',
+						'Authorization' => 'Bearer ' . $accessToken,
+						'Content-Type' => 'application/vnd.api+json',
+						'Accept' => 'application/vnd.api+json',
+					],
+					'body' => (string)json_encode($payload),
+				]);
+				$status = $response->getStatusCode();
+				$body = (string)$response->getBody();
+
+				if ($status === 200 || $status === 201) {
+					$decoded = json_decode($body, true);
+					$recordId = $decoded['data']['id'] ?? '(no id in response body)';
+					$this->pass($output, sprintf(
+						'Create Task (POST /Api/V8/module/Tasks): HTTP %d, id=%s',
+						$status,
+						$recordId,
+					));
+					$output->writeln('');
+					$output->writeln('  <info>Foundation verified — the POST branch of SuiteCRMAPIService::request() interoperates with this SuiteCRM instance\'s V8 JSON:API.</info>');
+					$output->writeln('');
+					$output->writeln(sprintf('  Inspect: %s → All → Tasks → find "occ push-test"', rtrim($url, '/')));
+					$output->writeln('  Delete when done (either the SuiteCRM UI one-click, or re-run this command with --cleanup=' . (string)$recordId . ').');
+				} else {
+					$this->fail($output, sprintf(
+						'Create Task (POST /Api/V8/module/Tasks): HTTP %d — %s',
+						$status,
+						substr($body, 0, 500),
+					), [
+						'The token exchange worked but the write was rejected.',
+						'Common causes: missing "status" enum value (SuiteCRM defaults changed?), missing required custom field, or JSON:API envelope mis-shaped.',
+						'Paste the HTTP body above back into the plan discussion and iter 67 will adapt the payload.',
+					]);
+					return Command::FAILURE;
+				}
+			} catch (Throwable $e) {
+				$this->fail($output, sprintf('Create Task: %s', $e->getMessage()));
+				return Command::FAILURE;
+			}
 		}
 
 		// -----------------------------------------------------------------

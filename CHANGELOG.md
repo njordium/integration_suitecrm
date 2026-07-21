@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 2.0.2 – 2026-07-22
+
+Diagnostic release + write-path infrastructure. Adds the `--push-test` flag to the `occ` connection command so admins can verify writes against a target SuiteCRM instance, plus internal `SuiteCRMAPIService::createRecord()` and `linkRecord()` methods that the four planned user-intent write features (iter 69-72) will build on. No user-visible behaviour changes yet — the write features land in 2.1.0.
+
+### Added
+
+- **`occ njordium_suitecrm:test-connection --push-test`**: after the five read-side checks pass, exchange the OAuth2 `client_credentials` grant for an admin-scoped access token, POST a throwaway Task record to `/Api/V8/module/Tasks`, and report the created record ID plus a UI path to inspect and delete it. Uses no per-user token and does not touch `oc_preferences`. Safe to invoke against production instances — the record is clearly marked `occ push-test` in name and `Safe to delete` in description. Iter 67 assurance gate for the planned iter 68-72 write-feature series.
+- **`SuiteCRMAPIService::createRecord(url, token, userId, module, attributes)`**: wraps caller-supplied attributes in the V8 JSON:API envelope (`{data: {type, attributes}}`) and POSTs to `/module/{module}` with the correct `application/vnd.api+json` content type. Delegates to the existing `request()` method so token-refresh retry + error envelopes stay in one place. Iter 68.
+- **`SuiteCRMAPIService::linkRecord(url, token, userId, fromModule, fromId, relationship, toType, toId)`**: attaches one SuiteCRM record to another via a named relationship using the JSON:API resource-linkage envelope. Iter 68.
+- **`SuiteCRMAPIService::request()` gained a `bool $jsonBody = false` optional parameter** that switches the request body from form-encoded to JSON with the `vnd.api+json` content type. Backward-compatible — read call sites keep their existing behaviour. Iter 68.
+- **PHPUnit coverage for `createRecord()` + `linkRecord()`** (5 new tests on `SuiteCRMAPIServiceTest`): envelope shape guarantees, endpoint routing, URL-encoding of module names, error-envelope propagation. Iter 68.
+
 ## 2.0.1 – 2026-07-22
 
 Prep release for Nextcloud App Store submission. No functional change — 1.9.x and 2.0.0 users can skip this if they only install direct from the GitHub release zip; upgrading is only necessary once we publish on apps.nextcloud.com.

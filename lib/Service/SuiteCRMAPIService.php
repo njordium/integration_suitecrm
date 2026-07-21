@@ -623,7 +623,7 @@ class SuiteCRMAPIService {
 	 */
 	public function request(string $suitecrmUrl, string $accessToken, string $userId,
 							string $endPoint, array $params = [], string $method = 'GET',
-							int $retryCount = 0): array {
+							int $retryCount = 0, bool $jsonBody = false): array {
 		try {
 			$url = $suitecrmUrl . '/Api/index.php/V8/' . $endPoint;
 			$options = [
@@ -647,6 +647,15 @@ class SuiteCRMAPIService {
 					}
 					$paramsContent .= http_build_query($params);
 					$url .= '?' . $paramsContent;
+				} elseif ($jsonBody) {
+					// Iter 68: write requests to SuiteCRM 8.x V8 API require
+					// the JSON:API envelope + `application/vnd.api+json`
+					// content type. Enabled only when the caller opts in
+					// via $jsonBody=true — read call sites keep the legacy
+					// form-encoded body they were built against.
+					$options['headers']['Content-Type'] = 'application/vnd.api+json';
+					$options['headers']['Accept'] = 'application/vnd.api+json';
+					$options['body'] = (string)json_encode($params);
 				} else {
 					$options['body'] = $params;
 				}
@@ -692,7 +701,7 @@ class SuiteCRMAPIService {
 					$this->tokens->setRefreshToken($userId, $result['refresh_token']);
 					// retry the request with new access token
 					return $this->request(
-						$suitecrmUrl, $accessToken, $userId, $endPoint, $params, $method, $retryCount + 1
+						$suitecrmUrl, $accessToken, $userId, $endPoint, $params, $method, $retryCount + 1, $jsonBody
 					);
 				}
 			}
@@ -703,6 +712,95 @@ class SuiteCRMAPIService {
 			]);
 			return ['error' => $e->getMessage(), 'body' => $errorBody];
 		}
+	}
+
+	/**
+	 * Create a record in a SuiteCRM module via the V8 JSON:API.
+	 *
+	 * Iter 68 — foundation for the four planned write features (Task
+	 * from widget, Talk → Note, Email → Case, Deck ↔ Opportunity).
+	 * Wraps the caller-supplied attributes in the required JSON:API
+	 * envelope, then delegates to {@see request()} with $jsonBody=true
+	 * so the token-refresh retry and error handling stay in one place.
+	 *
+	 * Successful response shape (SuiteCRM 8.10.x):
+	 *   [
+	 *     'data' => [
+	 *       'type' => 'Tasks',       // module name
+	 *       'id'   => '<uuid>',      // the created record id
+	 *       'attributes' => [...],   // full attribute set of the new record
+	 *     ],
+	 *   ]
+	 *
+	 * Error response is whatever {@see request()} returns for that layer
+	 * — same envelope as read failures so callers can share error paths.
+	 *
+	 * @param string $suitecrmUrl  Base SuiteCRM instance URL (no trailing slash needed)
+	 * @param string $accessToken  Valid OAuth2 access token
+	 * @param string $userId       Nextcloud user id (used for token refresh on 401)
+	 * @param string $module       SuiteCRM module name (e.g. 'Tasks', 'Notes', 'Cases')
+	 * @param array $attributes    Field values for the new record (module-specific)
+	 * @return array               JSON:API response or {'error' => ...} envelope
+	 */
+	public function createRecord(string $suitecrmUrl, string $accessToken, string $userId,
+								 string $module, array $attributes): array {
+		$payload = [
+			'data' => [
+				'type' => $module,
+				'attributes' => $attributes,
+			],
+		];
+		return $this->request(
+			$suitecrmUrl, $accessToken, $userId,
+			'module/' . rawurlencode($module),
+			$payload, 'POST', 0, true,
+		);
+	}
+
+	/**
+	 * Attach one SuiteCRM record to another via a named relationship.
+	 *
+	 * Iter 68. Used for the parent_type/parent_id linkages that the four
+	 * write features need — a follow-up Task linked back to the source
+	 * Meeting, a Note attached to a Contact, a Case attached to an
+	 * Account, and so on. SuiteCRM's V8 JSON:API exposes relationship
+	 * management at `/module/{module}/{id}/relationships/{relationship}`.
+	 *
+	 * For the common case of parent_type/parent_id, prefer setting those
+	 * two fields directly in the {@see createRecord()} attributes map —
+	 * it's one round trip instead of two. Use `linkRecord()` when you
+	 * need a many-to-many link that isn't reachable through the flat
+	 * attribute set (e.g. Contacts attached to a Meeting as attendees).
+	 *
+	 * @param string $suitecrmUrl
+	 * @param string $accessToken
+	 * @param string $userId
+	 * @param string $fromModule    Owning-side module (e.g. 'Meetings')
+	 * @param string $fromId        Owning-side record id
+	 * @param string $relationship  Relationship name (e.g. 'contacts')
+	 * @param string $toType        Related-side module (e.g. 'Contacts')
+	 * @param string $toId          Related-side record id
+	 * @return array
+	 */
+	public function linkRecord(string $suitecrmUrl, string $accessToken, string $userId,
+							   string $fromModule, string $fromId, string $relationship,
+							   string $toType, string $toId): array {
+		$payload = [
+			'data' => [
+				'type' => $toType,
+				'id' => $toId,
+			],
+		];
+		return $this->request(
+			$suitecrmUrl, $accessToken, $userId,
+			sprintf(
+				'module/%s/%s/relationships/%s',
+				rawurlencode($fromModule),
+				rawurlencode($fromId),
+				rawurlencode($relationship),
+			),
+			$payload, 'POST', 0, true,
+		);
 	}
 
 	/**
