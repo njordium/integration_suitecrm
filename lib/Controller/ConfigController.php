@@ -122,6 +122,36 @@ class ConfigController extends Controller {
         }
 
         /**
+         * Reset all admin configuration values. After reset the admin must
+         * re-enter the SuiteCRM instance URL, client ID, and client secret
+         * before any user can connect.
+         *
+         * Iteration 51 (upstream issue #14): before this iteration, an admin
+         * who picked the wrong OAuth2 client type (password vs authorization
+         * code) or seeded a bad client_secret had no visible affordance to
+         * start over — they had to reach for `occ config:app:delete` on the
+         * shell. Now the button is right in the admin settings.
+         *
+         * Individual user tokens are deliberately NOT cleared here — each
+         * user's next SuiteCRM request will 401 (the credentials the tokens
+         * were issued against are gone) and the app's normal reconnect flow
+         * will kick in. Wiping every user's token would need a
+         * `callForAllUsers` loop and would silently invalidate SuiteCRM
+         * sessions for users who had nothing to do with the admin config
+         * mistake.
+         *
+         * @return DataResponse
+         */
+        #[FrontpageRoute(verb: 'DELETE', url: '/admin-config')]
+        public function resetAdminConfig(): DataResponse {
+                foreach (['oauth_instance_url', 'client_id', 'client_secret', 'oauth_authorize_path'] as $key) {
+                        $this->appConfig->deleteKey(Application::APP_ID, $key);
+                }
+                $this->logger->info('SuiteCRM admin config reset via admin UI', ['app' => Application::APP_ID]);
+                return new DataResponse(1);
+        }
+
+        /**
          * Build the SuiteCRM 8.x OAuth authorize URL and hand it back to Vue so the
          * frontend can `window.location = authorize_url`.
          *

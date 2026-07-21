@@ -56,6 +56,35 @@
 				:helperText="t('integration_suitecrm', '(SuiteCRM 8.10.x default: /Api/authorize. Older installs may use /legacy/oauth2/authorize.)')"
 				@update:value="onInput" />
 		</div>
+
+		<!--
+			Iteration 51 (upstream issue #14): "Reset connection" affordance.
+			Closes the case where an admin picked the wrong OAuth2 client type
+			in SuiteCRM (password vs authorization code) or seeded a bad
+			client_secret and had no visible way to start over. The button
+			opens a confirmation dialog; on confirm we DELETE the admin-config
+			endpoint and clear the local form state.
+		-->
+		<div class="reset-zone">
+			<h3>{{ t('integration_suitecrm', 'Reset connection') }}</h3>
+			<p class="reset-explanation">
+				{{ t('integration_suitecrm', 'Clears the SuiteCRM instance URL, client ID, client secret, and authorize path. Use this to start over after entering the wrong credentials, or when moving to a different SuiteCRM instance. Individual users stay connected until their next SuiteCRM request; they are then prompted to reconnect via the OAuth flow.') }}
+			</p>
+			<NcButton type="warning" @click="showResetDialog = true">
+				<template #icon>
+					<DeleteIcon :size="20" />
+				</template>
+				{{ t('integration_suitecrm', 'Reset connection') }}
+			</NcButton>
+		</div>
+
+		<NcDialog
+			v-if="showResetDialog"
+			:open="showResetDialog"
+			:name="t('integration_suitecrm', 'Reset SuiteCRM connection?')"
+			:message="t('integration_suitecrm', 'This will clear the SuiteCRM instance URL, client ID, client secret, and authorize path from the admin configuration. Individual users stay connected until their next SuiteCRM request, then reconnect through the OAuth flow. This cannot be undone.')"
+			:buttons="resetDialogButtons"
+			@close="showResetDialog = false" />
 	</div>
 </template>
 
@@ -64,9 +93,12 @@ import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
+import NcButton from '@nextcloud/vue/components/NcButton'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcPasswordField from '@nextcloud/vue/components/NcPasswordField'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
+import DeleteIcon from 'vue-material-design-icons/Delete.vue'
 import OpenInNewIcon from 'vue-material-design-icons/OpenInNew.vue'
 import { delay } from '../utils.js'
 
@@ -74,6 +106,9 @@ export default {
 	name: 'AdminSettings',
 
 	components: {
+		DeleteIcon,
+		NcButton,
+		NcDialog,
 		NcNoteCard,
 		NcPasswordField,
 		NcTextField,
@@ -89,6 +124,8 @@ export default {
 			// "user typed a new value" (send it) from "user hasn't touched
 			// this field" (leave the stored secret untouched).
 			newSecret: '',
+			// Iteration 51: reset confirmation dialog visibility.
+			showResetDialog: false,
 		}
 	},
 
@@ -110,6 +147,28 @@ export default {
 				? t('integration_suitecrm', 'A secret is stored — type to replace')
 				: t('integration_suitecrm', 'Client secret of your application')
 		},
+
+		/**
+		 * Iteration 51: buttons rendered by NcDialog. Kept as a computed so
+		 * the translation strings are re-evaluated if the user changes NC's
+		 * UI language between dialog opens.
+		 */
+		resetDialogButtons() {
+			return [
+				{
+					label: t('integration_suitecrm', 'Cancel'),
+					type: 'secondary',
+					callback: () => {
+						this.showResetDialog = false
+					},
+				},
+				{
+					label: t('integration_suitecrm', 'Reset connection'),
+					type: 'error',
+					callback: () => this.performReset(),
+				},
+			]
+		},
 	},
 
 	methods: {
@@ -117,6 +176,31 @@ export default {
 			delay(() => {
 				this.saveOptions()
 			}, 2000)()
+		},
+
+		/**
+		 * Iteration 51: DELETE the admin-config endpoint, then clear the
+		 * local form state so the fields reset without a page reload.
+		 * User tokens are intentionally left in place — they'll fail their
+		 * next SuiteCRM request and the per-user OAuth flow restarts
+		 * naturally.
+		 */
+		performReset() {
+			const url = generateUrl('/apps/integration_suitecrm/admin-config')
+			axios.delete(url)
+				.then(() => {
+					this.state.oauth_instance_url = ''
+					this.state.client_id = ''
+					this.state.client_secret_set = false
+					this.state.oauth_authorize_path = ''
+					this.newSecret = ''
+					this.showResetDialog = false
+					showSuccess(t('integration_suitecrm', 'SuiteCRM connection reset — enter new credentials to reconnect'))
+				})
+				.catch((error) => {
+					showError(t('integration_suitecrm', 'Failed to reset SuiteCRM connection')
+						+ ': ' + (error.response?.request?.responseText || error.message || ''))
+				})
 		},
 
 		saveOptions() {
@@ -175,6 +259,25 @@ export default {
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
+	}
+
+	.reset-zone {
+		max-width: 500px;
+		margin-block-start: 40px;
+		margin-inline-start: 30px;
+		padding-block-start: 20px;
+		border-block-start: 1px solid var(--color-border);
+
+		h3 {
+			margin-block-end: 8px;
+			font-weight: bold;
+		}
+
+		.reset-explanation {
+			margin-block-end: 12px;
+			color: var(--color-text-maxcontrast);
+			font-size: 0.9em;
+		}
 	}
 }
 
