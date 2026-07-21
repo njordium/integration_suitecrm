@@ -70,7 +70,7 @@
 			<p class="reset-explanation">
 				{{ t('integration_suitecrm', 'Clears the SuiteCRM instance URL, client ID, client secret, and authorize path. Use this to start over after entering the wrong credentials, or when moving to a different SuiteCRM instance. Individual users stay connected until their next SuiteCRM request; they are then prompted to reconnect via the OAuth flow.') }}
 			</p>
-			<NcButton type="warning" @click="showResetDialog = true">
+			<NcButton variant="warning" @click="showResetDialog = true">
 				<template #icon>
 					<DeleteIcon :size="20" />
 				</template>
@@ -157,14 +157,14 @@ export default {
 			return [
 				{
 					label: t('integration_suitecrm', 'Cancel'),
-					type: 'secondary',
+					variant: 'secondary',
 					callback: () => {
 						this.showResetDialog = false
 					},
 				},
 				{
 					label: t('integration_suitecrm', 'Reset connection'),
-					type: 'error',
+					variant: 'error',
 					callback: () => this.performReset(),
 				},
 			]
