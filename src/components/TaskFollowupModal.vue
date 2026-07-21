@@ -14,7 +14,7 @@
 				ref="nameField"
 				:value.sync="name"
 				:label="t('njordium_suitecrm', 'Task name')"
-				:placeholder="t('njordium_suitecrm', 'Follow up …')"
+				:placeholder="t('njordium_suitecrm', 'Follow up ...')"
 				:disabled="submitting"
 				required />
 
@@ -44,7 +44,7 @@
 					:disabled="submitting"
 					rows="3"
 					class="task-followup-modal__textarea"
-					:placeholder="t('njordium_suitecrm', 'Details, agenda items, action items …')" />
+					:placeholder="t('njordium_suitecrm', 'Details, agenda items, action items ...')" />
 			</label>
 		</div>
 
@@ -62,7 +62,7 @@
 				<template v-if="submitting" #icon>
 					<NcLoadingIcon :size="20" />
 				</template>
-				{{ submitting ? t('njordium_suitecrm', 'Creating …') : t('njordium_suitecrm', 'Create Task') }}
+				{{ submitting ? t('njordium_suitecrm', 'Creating ...') : t('njordium_suitecrm', 'Create Task') }}
 			</NcButton>
 		</template>
 	</NcDialog>
@@ -84,7 +84,8 @@
  * user, contact link, follow-up date reminder) can land in later iters
  * once the base flow is proven in production.
  *
- * @Code Changes by: Kim Haverblad, 2026
+ * @author Kim Haverblad
+ * @since v2.0.2 (iter 69a)
  */
 import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '@nextcloud/dialogs'
@@ -111,14 +112,17 @@ export default {
 			type: Boolean,
 			default: false,
 		},
+
 		sourceModule: {
 			type: String,
 			required: true,
 		},
+
 		sourceId: {
 			type: String,
 			required: true,
 		},
+
 		sourceLabel: {
 			type: String,
 			default: '',
@@ -148,6 +152,7 @@ export default {
 				? t('njordium_suitecrm', 'Create follow-up Task')
 				: t('njordium_suitecrm', 'Create SuiteCRM Task')
 		},
+
 		canSubmit() {
 			return this.name.trim().length > 0
 		},

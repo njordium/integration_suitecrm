@@ -229,24 +229,40 @@ class SuiteCRMAPIControllerTest extends TestCase {
 		$this->assertStringContainsString('token expired', $response->getData()['body']);
 	}
 
-	public function testCreateFollowupTaskAcceptsAllListedParentModules(): void {
-		$expected = ['Meetings', 'Calls', 'Tasks', 'Contacts', 'Accounts', 'Leads', 'Opportunities', 'Cases'];
+	/**
+	 * Data-driven check that every whitelisted parent module reaches the
+	 * SuiteCRM API without a 400. Uses dataProvider so PHPUnit runs each
+	 * case with its own setUp() / mocks — instantiating the TestCase
+	 * class ourselves inside a foreach breaks PHPUnit's lifecycle.
+	 *
+	 * @dataProvider provideWhitelistedParentModules
+	 */
+	public function testCreateFollowupTaskAcceptsWhitelistedParentModule(string $module): void {
+		$controller = $this->makeController('alice');
 
-		foreach ($expected as $module) {
-			// Fresh controller per iteration so the createRecord mock's
-			// expectation count doesn't overlap across modules.
-			$fresh = new SuiteCRMAPIControllerTest();
-			$fresh->setUp();
-			$controller = $fresh->makeController('alice');
+		$this->apiService->expects($this->once())
+			->method('createRecord')
+			->willReturn(['data' => ['id' => 'ok']]);
 
-			$fresh->apiService->expects($this->once())
-				->method('createRecord')
-				->willReturn(['data' => ['id' => 'ok']]);
+		$response = $controller->createFollowupTask($module, 'src-1', 'Follow up');
 
-			$response = $controller->createFollowupTask($module, 'src-1', 'Follow up');
+		$this->assertSame(200, $response->getStatus(),
+			sprintf('Module "%s" should be accepted as a valid Task parent', $module));
+	}
 
-			$this->assertSame(200, $response->getStatus(),
-				sprintf('Module "%s" should be accepted as a valid Task parent', $module));
-		}
+	/**
+	 * @return array<string, array{string}>
+	 */
+	public static function provideWhitelistedParentModules(): array {
+		return [
+			'Meetings' => ['Meetings'],
+			'Calls' => ['Calls'],
+			'Tasks' => ['Tasks'],
+			'Contacts' => ['Contacts'],
+			'Accounts' => ['Accounts'],
+			'Leads' => ['Leads'],
+			'Opportunities' => ['Opportunities'],
+			'Cases' => ['Cases'],
+		];
 	}
 }
