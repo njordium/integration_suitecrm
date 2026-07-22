@@ -102,25 +102,26 @@
 			</div>
 
 			<div v-if="connected" class="suitecrm-widget-prefs">
-				<h3>
-					<ViewDashboardOutlineIcon :size="20" class="widget-prefs-heading-icon" />
+				<h3 class="suitecrm-widget-prefs__heading">
+					<ViewDashboardOutlineIcon :size="20" />
 					{{ t('njordium_suitecrm', 'Dashboard widget preferences') }}
 				</h3>
 				<div class="suitecrm-widget-prefs__group">
 					<span class="suitecrm-widget-prefs__group-label">
 						{{ t('njordium_suitecrm', 'Pipeline widget mode') }}
 					</span>
-					<div class="suitecrm-widget-prefs__radios">
-						<NcCheckboxRadioSwitch
-							v-for="option in pipelineModeOptions"
-							:key="option.value"
+					<div
+						v-for="option in pipelineModeOptions"
+						:key="option.value"
+						class="suitecrm-widget-prefs__radio">
+						<input
+							:id="'pipeline-mode-' + option.value"
 							type="radio"
 							name="pipeline_mode"
 							:value="option.value"
-							:modelValue="pipelineMode"
-							@update:modelValue="onPipelineModeChange">
-							{{ option.label }}
-						</NcCheckboxRadioSwitch>
+							:checked="pipelineMode === option.value"
+							@change="onPipelineModeChange(option.value)">
+						<label :for="'pipeline-mode-' + option.value">{{ option.label }}</label>
 					</div>
 				</div>
 				<p class="settings-hint">
@@ -129,8 +130,8 @@
 			</div>
 
 			<div v-if="connected" class="suitecrm-quick-actions">
-				<h3>
-					<PlusBoxOutlineIcon :size="20" class="quick-actions-heading-icon" />
+				<h3 class="suitecrm-quick-actions__heading">
+					<PlusBoxOutlineIcon :size="20" />
 					{{ t('njordium_suitecrm', 'Quick actions to SuiteCRM') }}
 				</h3>
 				<p class="settings-hint">
@@ -515,6 +516,47 @@ export default {
 		color: var(--color-text-maxcontrast);
 		margin-block-start: 8px;
 		max-width: 500px;
+	}
+
+	// Iter 79 hotfix: scoped h3 layout so the icon aligns inline with the
+	// section heading text instead of floating far to the right.
+	.suitecrm-widget-prefs__heading,
+	.suitecrm-quick-actions__heading {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-block-start: 24px;
+	}
+
+	.suitecrm-widget-prefs {
+		&__group {
+			margin-block-start: 12px;
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+			max-width: 500px;
+		}
+
+		&__group-label {
+			font-weight: 500;
+			margin-block-end: 4px;
+		}
+
+		&__radio {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+
+			input[type="radio"] {
+				accent-color: var(--color-primary-element);
+				cursor: pointer;
+			}
+
+			label {
+				cursor: pointer;
+				color: var(--color-main-text);
+			}
+		}
 	}
 
 	.advanced-fallback {
