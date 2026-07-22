@@ -14,11 +14,14 @@ use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 
+use OCP\AppFramework\Http\Events\BeforeTemplateRenderedEvent;
+
 use OCA\SuiteCRM\Dashboard\SuiteCRMCalendarWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMCasesWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMPipelineWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMTasksWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMWidget;
+use OCA\SuiteCRM\Listener\AddQuickActionsScriptListener;
 use OCA\SuiteCRM\Notification\Notifier;
 use OCA\SuiteCRM\Reference\SuiteCRMReferenceProvider;
 use OCA\SuiteCRM\Search\SuiteCRMSearchProvider;
@@ -45,6 +48,9 @@ class Application extends App implements IBootstrap {
 		$context->registerSearchProvider(SuiteCRMSearchProvider::class);
 		$context->registerReferenceProvider(SuiteCRMReferenceProvider::class);
 		$context->registerNotifierService(Notifier::class);
+		// Iter 79: inject the global Quick Actions floating action button
+		// on every full page render for signed-in users.
+		$context->registerEventListener(BeforeTemplateRenderedEvent::class, AddQuickActionsScriptListener::class);
 	}
 
 	public function boot(IBootContext $context): void {

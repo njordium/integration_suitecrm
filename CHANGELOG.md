@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 2.3.0 – 2026-07-22
+
+Adds a **global Quick Actions floating button** so reps can log a Talk conversation, link a Deck card, or convert an email to a Case from anywhere in Nextcloud — no more navigating to Personal Settings first. A keyboard shortcut (`Cmd/Ctrl+Shift+K`) opens the menu and `1`/`2`/`3` jump directly to each action once the menu is up.
+
+The FAB reuses the same modal components already shipped in 2.1.0, so the fetch/format/submit paths are unchanged — this is purely a UX shortcut that removes clicks from the daily workflow. NC Mail and NC Talk don't currently expose stable third-party message-action APIs at NC 30, so a deep app-specific integration (a "Log to SuiteCRM" button embedded in the Mail message header, or on a Talk conversation menu) is deferred until a supported extension slot lands.
+
+### Added
+
+- **Global Quick Actions floating action button** (`QuickActionsFab.vue`): fixed to the bottom-right of every Nextcloud page for signed-in users linked to SuiteCRM. Opens a three-item menu — Log Talk conversation, Link Deck card, Convert email to Case — each opening the corresponding modal from 2.1.0. Invisible when the user is not connected to SuiteCRM (rather than opening a dead-end "please connect first" modal). Iter 79.
+- **Keyboard shortcut `Cmd/Ctrl+Shift+K`** toggles the FAB menu open from anywhere in Nextcloud. Once open, `1` selects Talk, `2` selects Deck, `3` selects Email. Menu caption shows the platform-aware key label (`⌘` on Mac, `Ctrl` elsewhere). Iter 79.
+- **`Listener\AddQuickActionsScriptListener`**: registered against `BeforeTemplateRenderedEvent` in `Application::register()`. Injects the FAB script on every full-page render, skipped for unauthenticated visitors so the loader never runs for guests. Iter 79.
+- **`src/quickActions.js` + webpack entry**: mounts the FAB into a self-injected `#suitecrm-quick-actions-fab` div appended to `<body>`. Guards against double-mount when a misconfigured reverse proxy duplicates the script tag. Iter 79.
+
 ## 2.2.0 – 2026-07-22
 
 Three new dashboard widgets — **My open SuiteCRM Cases**, **My open SuiteCRM Tasks**, and **My SuiteCRM pipeline** — round out the Nextcloud home dashboard for role-diverse SuiteCRM users. The two workload widgets follow the same shape as the existing schedule widget shipped in 2.0.x; the pipeline widget adds a per-user framing preference so reps whose deals close on a quarterly cadence, reps chasing top-value long-tail deals, and reps forecasting against a weighted-value target each see their pipeline the way they think about it.

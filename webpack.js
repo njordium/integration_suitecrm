@@ -18,6 +18,7 @@ webpackConfig.entry = {
     cases: { import: path.join(__dirname, 'src', 'cases.js'), filename: 'njordium_suitecrm-cases.js' },
     tasks: { import: path.join(__dirname, 'src', 'tasks.js'), filename: 'njordium_suitecrm-tasks.js' },
     pipeline: { import: path.join(__dirname, 'src', 'pipeline.js'), filename: 'njordium_suitecrm-pipeline.js' },
+    quickactions: { import: path.join(__dirname, 'src', 'quickActions.js'), filename: 'njordium_suitecrm-quickactions.js' },
 }
 
 module.exports = webpackConfig
