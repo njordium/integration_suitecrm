@@ -5,9 +5,10 @@
 		</label>
 
 		<NcTextField
-			v-model="urlInput"
-			:placeholder="t('njordium_suitecrm', 'Paste a SuiteCRM record URL …')"
-			:disabled="disabled" />
+			:value="urlInput"
+			:placeholder="t('njordium_suitecrm', 'Paste a SuiteCRM record URL …')"
+			:disabled="disabled"
+			@update:value="onInput" />
 
 		<p v-if="parsed" class="suitecrm-record-picker__parsed">
 			<CheckCircleIcon :size="16" class="suitecrm-record-picker__icon-ok" />
@@ -38,19 +39,19 @@
  * from a tiny modal would be worse UX (unknown search terms, few
  * results shown, no context) even after significantly more code.
  *
- * The URL regex mirrors OCA\SuiteCRM\Reference\RecordUrlParser on the
- * backend so the reference-provider preview cards and the write-side
- * picker accept the exact same URL shapes.
+ * The URL regex mirrors {@see \OCA\SuiteCRM\Reference\RecordUrlParser}
+ * on the backend so the reference-provider preview cards and the
+ * write-side picker accept the exact same URL shapes.
  *
  * Consumed by TalkToNoteModal (iter 70b), LinkDeckCardModal (iter 71b),
- * EmailToCaseModal (iter 72b) - each modal binds v-model to a `record`
+ * EmailToCaseModal (iter 72b) — each modal binds v-model to a `record`
  * data property and renders the picker inside its form.
  *
  * @author Kim Haverblad
  */
-import NcTextField from '@nextcloud/vue/components/NcTextField'
 import AlertCircleIcon from 'vue-material-design-icons/AlertCircle.vue'
 import CheckCircleIcon from 'vue-material-design-icons/CheckCircle.vue'
+import NcTextField from '@nextcloud/vue/components/NcTextField'
 
 const RECORD_URL_PATTERN = /\/index\.php\?[^"\s]*module=([A-Za-z0-9_]+)(?:&|&amp;)[^"\s]*record=([a-zA-Z0-9-]+)/
 
@@ -131,6 +132,10 @@ export default {
 	},
 
 	methods: {
+		onInput(value) {
+			this.urlInput = value
+		},
+
 		parseUrl(url) {
 			if (!url) {
 				return null
