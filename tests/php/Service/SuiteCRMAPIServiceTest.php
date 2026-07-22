@@ -773,6 +773,11 @@ class SuiteCRMAPIServiceTest extends TestCase {
 		// filter by `assigned_user_id`, so the query would return every
 		// Case in the tenant. The service returns [] instead — the
 		// controller renders it as an empty widget.
+		//
+		// PHPUnit's default mock return for IConfig::getUserValue is
+		// `null`, not `''` (the OCP interface's declared return type
+		// varies by NC version), so the empty case is stubbed explicitly.
+		$this->stubSuiteCRMUserId('');
 		$requestCalls = 0;
 		$service = $this->makeService(function () use (&$requestCalls) {
 			$requestCalls++;
@@ -1029,6 +1034,9 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	// ---------------------------------------------------------------------
 
 	public function testGetMyTasksReturnsEmptyWhenNoSuiteCRMUserIdStored(): void {
+		// See {@see testGetMyCasesReturnsEmptyWhenNoSuiteCRMUserIdStored}
+		// for why the empty return is stubbed explicitly.
+		$this->stubSuiteCRMUserId('');
 		$requestCalls = 0;
 		$service = $this->makeService(function () use (&$requestCalls) {
 			$requestCalls++;
@@ -1341,6 +1349,9 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	// ---------------------------------------------------------------------
 
 	public function testGetMyPipelineReturnsEmptyWhenNoSuiteCRMUserIdStored(): void {
+		// See {@see testGetMyCasesReturnsEmptyWhenNoSuiteCRMUserIdStored}
+		// for why the empty return is stubbed explicitly.
+		$this->stubSuiteCRMUserId('');
 		$requestCalls = 0;
 		$service = $this->makeService(function () use (&$requestCalls) {
 			$requestCalls++;
