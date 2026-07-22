@@ -640,7 +640,11 @@ class SuiteCRMAPIServiceTest extends TestCase {
 			['name' => 'Follow up', 'description' => 'Called client', 'status' => 'Not Started'],
 		);
 
-		$this->assertSame('module/Tasks', $capturedEndpoint);
+		// v2.1.1 hotfix: creation endpoint is `module` (no module
+		// suffix) — the module name is in `data.type` of the JSON:API
+		// payload. See createRecord() docblock for the SuiteCRM 8.10.x
+		// route-registration reasoning.
+		$this->assertSame('module', $capturedEndpoint);
 		$this->assertSame('POST', $capturedMethod);
 		$this->assertTrue($capturedJsonBody, 'createRecord() must set $jsonBody=true so request() sends application/vnd.api+json');
 		$this->assertSame([
@@ -656,17 +660,21 @@ class SuiteCRMAPIServiceTest extends TestCase {
 		$this->assertSame('abc-123', $result['data']['id']);
 	}
 
-	public function testCreateRecordUrlEncodesModuleName(): void {
-		// SuiteCRM module names are all ASCII in practice, but the
-		// endpoint construction must still guard against injection if a
-		// future module name contains slashes or spaces.
+	public function testCreateRecordEndpointIsAlwaysSuffixlessModule(): void {
+		// v2.1.1: with the JSON:API-compliant creation endpoint the
+		// module name never appears in the URL path — it lives in
+		// `data.type`. Weird module names therefore can't inject via
+		// the URL. This is a defensive check to guard the invariant.
 		$capturedEndpoint = null;
-		$service = $this->makeService(function (...$args) use (&$capturedEndpoint) {
+		$capturedType = null;
+		$service = $this->makeService(function (...$args) use (&$capturedEndpoint, &$capturedType) {
 			$capturedEndpoint = $args[3];
+			$capturedType = $args[4]['data']['type'] ?? null;
 			return ['data' => []];
 		});
 		$service->createRecord('https://crm', 'tok', 'u', 'Weird Module/Name', []);
-		$this->assertSame('module/Weird%20Module%2FName', $capturedEndpoint);
+		$this->assertSame('module', $capturedEndpoint);
+		$this->assertSame('Weird Module/Name', $capturedType);
 	}
 
 	public function testCreateRecordPropagatesRequestErrorEnvelope(): void {

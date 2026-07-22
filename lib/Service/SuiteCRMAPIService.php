@@ -762,9 +762,18 @@ class SuiteCRMAPIService {
 				'attributes' => $attributes,
 			],
 		];
+		// Endpoint is `/Api/V8/module` — WITHOUT the module suffix.
+		// This is the strict JSON:API creation route; the module name
+		// travels in `data.type`. Discovered while smoke-testing the
+		// email-to-case flow against SuiteCRM 8.10.1: `POST /module/Cases`
+		// returned 405 "Must be one of: GET" even though `POST
+		// /module/Tasks` worked fine in iter 67's --push-test. Some
+		// modules (Tasks) tolerate the suffixed URL as a legacy path;
+		// Cases and probably others reject it. The suffix-less form is
+		// the JSON:API-compliant one and works uniformly.
 		return $this->request(
 			$suitecrmUrl, $accessToken, $userId,
-			'module/' . rawurlencode($module),
+			'module',
 			$payload, 'POST', 0, true,
 		);
 	}

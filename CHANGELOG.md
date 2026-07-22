@@ -12,7 +12,8 @@ Critical hotfix for the write features shipped in 2.1.0. Every POST from `SuiteC
 
 ### Fixed
 
-- **`SuiteCRMAPIService::request()` URL construction**: dropped the `/index.php/` segment. SuiteCRM 8.10.x's URL rewriter accepts both `/Api/V8/` and `/Api/index.php/V8/` for GET (both hit the same controller), but ONLY the short form for POST/PUT/DELETE — the `index.php` variant returns 405 with `Must be one of: GET`. Discovered by smoke-testing 2.1.0's Convert email to Case flow against SuiteCRM 8.10.1: the Case POST 405'd until this URL was flattened. Iter 67's `--push-test` had happened to use the correct short form in its own inline URL, which is why write feasibility was confirmed there but the runtime path bit here. Read call sites are unaffected — the short form works for both verbs.
+- **`SuiteCRMAPIService::createRecord()` endpoint route**: the creation URL is `POST /Api/V8/module` (no module suffix); the module name travels in `data.type` of the JSON:API payload. The previous `POST /Api/V8/module/{module}` form happened to work for Tasks but SuiteCRM 8.10.1 rejects it for Cases (and probably several other modules) with 405 `Method not allowed. Must be one of: GET`. This is the JSON:API-compliant route, so it works uniformly across modules. PHPUnit tests updated to assert the new invariant (module always in `data.type`, never in URL path).
+- **`SuiteCRMAPIService::request()` URL prefix**: dropped the `/index.php/` segment (a first-pass hotfix attempt during the same debugging session). SuiteCRM 8.10.x's URL rewriter accepts both `/Api/V8/` and `/Api/index.php/V8/` for GET (both hit the same controller), so read call sites are unaffected. Keeping the shorter form for consistency with the SuiteCRM V8 documentation.
 
 ## 2.1.0 – 2026-07-22
 
