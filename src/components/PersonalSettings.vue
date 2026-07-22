@@ -106,16 +106,19 @@
 					<ViewDashboardOutlineIcon :size="20" class="widget-prefs-heading-icon" />
 					{{ t('njordium_suitecrm', 'Dashboard widget preferences') }}
 				</h3>
-				<label class="suitecrm-widget-prefs__field">
-					{{ t('njordium_suitecrm', 'Pipeline widget mode') }}
-					<NcSelect
-						:modelValue="selectedPipelineOption"
-						:options="pipelineModeOptions"
-						:clearable="false"
-						:searchable="false"
-						label="label"
-						@update:modelValue="onPipelineModeChange" />
-				</label>
+				<fieldset class="suitecrm-widget-prefs__radios">
+					<legend>{{ t('njordium_suitecrm', 'Pipeline widget mode') }}</legend>
+					<NcCheckboxRadioSwitch
+						v-for="option in pipelineModeOptions"
+						:key="option.value"
+						type="radio"
+						name="pipeline_mode"
+						:value="option.value"
+						:modelValue="pipelineMode"
+						@update:modelValue="onPipelineModeChange">
+						{{ option.label }}
+					</NcCheckboxRadioSwitch>
+				</fieldset>
 				<p class="settings-hint">
 					{{ pipelineModeHint }}
 				</p>
@@ -216,7 +219,6 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcPasswordField from '@nextcloud/vue/components/NcPasswordField'
-import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import CalendarSyncIcon from 'vue-material-design-icons/CalendarSync.vue'
 import CardsOutlineIcon from 'vue-material-design-icons/CardsOutline.vue'
@@ -243,7 +245,6 @@ export default {
 		NcCheckboxRadioSwitch,
 		NcNoteCard,
 		NcPasswordField,
-		NcSelect,
 		NcTextField,
 		TalkToNoteModal,
 		CalendarSyncIcon,
@@ -290,11 +291,6 @@ export default {
 				{ label: t('njordium_suitecrm', 'Top value'), value: 'top_value' },
 				{ label: t('njordium_suitecrm', 'Weighted value (amount × probability)'), value: 'weighted' },
 			]
-		},
-
-		selectedPipelineOption() {
-			return this.pipelineModeOptions.find((option) => option.value === this.pipelineMode)
-				|| this.pipelineModeOptions[0]
 		},
 
 		pipelineModeHint() {
@@ -383,16 +379,11 @@ export default {
 			this.saveOptions({ search_enabled: checked ? '1' : '0' })
 		},
 
-		onPipelineModeChange(option) {
-			// The selector emits the full option object because we bind
-			// against the object (not the reduced value) — that pattern
-			// dodges vue-select's mismatch bug when the model is a bare
-			// string and options are labelled objects.
-			if (!option || !option.value) {
-				return
-			}
-			this.pipelineMode = option.value
-			this.saveOptions({ pipeline_mode: option.value })
+		onPipelineModeChange(value) {
+			// NcCheckboxRadioSwitch in radio mode emits the selected
+			// `value` prop directly (a string), so we can store it as-is.
+			this.pipelineMode = value
+			this.saveOptions({ pipeline_mode: value })
 		},
 
 		saveOptions(values) {
