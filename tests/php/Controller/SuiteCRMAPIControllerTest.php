@@ -265,4 +265,150 @@ class SuiteCRMAPIControllerTest extends TestCase {
 			'Cases' => ['Cases'],
 		];
 	}
+
+	// ---------------------------------------------------------------------
+	// Iter 70a — logNote() coverage.
+	//
+	// Same failure-mode structure as createFollowupTask(): auth guard,
+	// input validation, target whitelist, happy path builds correct
+	// Note payload with parent_type/parent_id, SuiteCRM errors propagate
+	// as 502. Kept in the same test file rather than a new one because
+	// both endpoints share the SuiteCRMAPIController fixture and would
+	// otherwise duplicate setUp() / makeController() helpers.
+	// ---------------------------------------------------------------------
+
+	public function testLogNoteRequiresAuthenticatedUser(): void {
+		$controller = $this->makeController(null, '');
+
+		$response = $controller->logNote('Contacts', 'contact-1', 'Meeting recap');
+
+		$this->assertSame(401, $response->getStatus());
+		$this->assertSame('not connected', $response->getData()['error']);
+	}
+
+	public function testLogNoteRequiresName(): void {
+		$controller = $this->makeController('alice');
+		$this->apiService->expects($this->never())->method('createRecord');
+
+		$response = $controller->logNote('Contacts', 'contact-1', '');
+
+		$this->assertSame(400, $response->getStatus());
+		$this->assertSame('name is required', $response->getData()['error']);
+	}
+
+	public function testLogNoteRequiresTargetId(): void {
+		$controller = $this->makeController('alice');
+		$this->apiService->expects($this->never())->method('createRecord');
+
+		$response = $controller->logNote('Contacts', '', 'Meeting recap');
+
+		$this->assertSame(400, $response->getStatus());
+		$this->assertSame('targetId is required', $response->getData()['error']);
+	}
+
+	public function testLogNoteRejectsUnlistedTargetModule(): void {
+		$controller = $this->makeController('alice');
+		$this->apiService->expects($this->never())->method('createRecord');
+
+		// Users is deliberately NOT in the whitelist — attaching a Note
+		// to a system module would be a strange thing to allow and
+		// widens the endpoint's blast radius unnecessarily.
+		$response = $controller->logNote('Users', 'user-1', 'Test');
+
+		$this->assertSame(400, $response->getStatus());
+		$this->assertStringContainsString('Users', $response->getData()['error']);
+		$this->assertContains('Contacts', $response->getData()['allowed']);
+	}
+
+	public function testLogNoteHappyPathBuildsCorrectAttributes(): void {
+		$controller = $this->makeController('alice', 'tok', 'https://crm');
+
+		$this->apiService->expects($this->once())
+			->method('createRecord')
+			->with(
+				'https://crm', 'tok', 'alice',
+				'Notes',
+				$this->callback(function (array $attrs): bool {
+					return $attrs['name'] === 'Follow-up call recap'
+						&& $attrs['description'] === 'Discussed pricing and next steps.'
+						&& $attrs['parent_type'] === 'Contacts'
+						&& $attrs['parent_id'] === 'contact-42';
+				}),
+			)
+			->willReturn(['data' => ['type' => 'Notes', 'id' => 'note-99', 'attributes' => []]]);
+
+		$response = $controller->logNote(
+			'Contacts', 'contact-42',
+			'  Follow-up call recap  ',
+			'Discussed pricing and next steps.',
+		);
+
+		$this->assertSame(200, $response->getStatus());
+		$this->assertSame('note-99', $response->getData()['data']['id']);
+	}
+
+	public function testLogNoteAcceptsEmptyDescription(): void {
+		// The description field is optional — a Note with just a title is
+		// legitimate ("logged: call happened, no further detail").
+		$controller = $this->makeController('alice');
+
+		$this->apiService->expects($this->once())
+			->method('createRecord')
+			->with(
+				$this->anything(), $this->anything(), $this->anything(),
+				'Notes',
+				$this->callback(function (array $attrs): bool {
+					return $attrs['description'] === '';
+				}),
+			)
+			->willReturn(['data' => ['id' => 'ok']]);
+
+		$response = $controller->logNote('Contacts', 'contact-1', 'Bare note');
+		$this->assertSame(200, $response->getStatus());
+	}
+
+	public function testLogNotePropagatesSuiteCRMErrorAsBadGateway(): void {
+		$controller = $this->makeController('alice');
+
+		$this->apiService->method('createRecord')->willReturn([
+			'error' => 'Token expired',
+			'body' => '{"errors":[{"detail":"unauthorised"}]}',
+		]);
+
+		$response = $controller->logNote('Contacts', 'contact-1', 'Test');
+
+		$this->assertSame(502, $response->getStatus());
+		$this->assertSame('Token expired', $response->getData()['error']);
+	}
+
+	/**
+	 * @dataProvider provideWhitelistedNoteTargets
+	 */
+	public function testLogNoteAcceptsWhitelistedTargetModule(string $module): void {
+		$controller = $this->makeController('alice');
+
+		$this->apiService->expects($this->once())
+			->method('createRecord')
+			->willReturn(['data' => ['id' => 'ok']]);
+
+		$response = $controller->logNote($module, 'target-1', 'Test');
+		$this->assertSame(200, $response->getStatus(),
+			sprintf('Module "%s" should accept a Note attachment', $module));
+	}
+
+	/**
+	 * @return array<string, array{string}>
+	 */
+	public static function provideWhitelistedNoteTargets(): array {
+		return [
+			'Contacts' => ['Contacts'],
+			'Accounts' => ['Accounts'],
+			'Leads' => ['Leads'],
+			'Opportunities' => ['Opportunities'],
+			'Cases' => ['Cases'],
+			'Meetings' => ['Meetings'],
+			'Calls' => ['Calls'],
+			'Tasks' => ['Tasks'],
+		];
+	}
 }

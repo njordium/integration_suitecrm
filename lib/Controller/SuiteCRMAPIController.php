@@ -212,4 +212,82 @@ class SuiteCRMAPIController extends Controller {
 		return new DataResponse($result);
 	}
 
+	/**
+	 * Iter 70a — generic Note-creation endpoint.
+	 *
+	 * Creates a SuiteCRM Note record attached to any allowed parent
+	 * (Contacts, Accounts, Leads, Opportunities, Cases, Meetings,
+	 * Calls, Tasks). Intended as the primitive that later features
+	 * compose:
+	 *
+	 *  - iter 70b (Talk conversation → Note): frontend fetches Talk
+	 *    convo, formats transcript as markdown, POSTs here.
+	 *  - iter 71 (Deck card ↔ Opportunity): both sides get a Note
+	 *    referring to each other; the SuiteCRM side goes through here.
+	 *  - iter 72 (Email → Case): Case creation goes through a separate
+	 *    endpoint but the "log source email as Note on the Case" step
+	 *    could reuse this endpoint.
+	 *
+	 * Keeping the endpoint generic avoids duplicating the auth guard,
+	 * whitelist, and error propagation across three near-identical
+	 * flows.
+	 *
+	 * @param string $targetModule  SuiteCRM module the Note attaches to
+	 * @param string $targetId      Parent record id (UUID)
+	 * @param string $name          Required — Note title
+	 * @param string $description   Free-text body, may be markdown
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/log-note')]
+	public function logNote(
+		string $targetModule,
+		string $targetId,
+		string $name,
+		string $description = '',
+	): DataResponse {
+		if ($this->accessToken === '' || $this->userId === null) {
+			return new DataResponse(['error' => 'not connected'], 401);
+		}
+		if (trim($name) === '') {
+			return new DataResponse(['error' => 'name is required'], 400);
+		}
+		if ($targetId === '') {
+			return new DataResponse(['error' => 'targetId is required'], 400);
+		}
+
+		// Notes in SuiteCRM 8.x can attach to essentially any bean via
+		// parent_type/parent_id, but restricting to the modules the
+		// fork actually integrates with keeps error surfaces small and
+		// avoids exposing our endpoint as a generic write channel to
+		// any Sugar bean an attacker could name.
+		$allowedTargets = [
+			'Contacts', 'Accounts', 'Leads',
+			'Opportunities', 'Cases',
+			'Meetings', 'Calls', 'Tasks',
+		];
+		if (!in_array($targetModule, $allowedTargets, true)) {
+			return new DataResponse([
+				'error' => sprintf('target module "%s" is not allowed for Note attachment', $targetModule),
+				'allowed' => $allowedTargets,
+			], 400);
+		}
+
+		$attributes = [
+			'name' => trim($name),
+			'description' => $description,
+			'parent_type' => $targetModule,
+			'parent_id' => $targetId,
+		];
+
+		$result = $this->suitecrmAPIService->createRecord(
+			$this->suitecrmUrl, $this->accessToken, $this->userId,
+			'Notes', $attributes,
+		);
+
+		if (isset($result['error'])) {
+			return new DataResponse($result, 502);
+		}
+		return new DataResponse($result);
+	}
+
 }
