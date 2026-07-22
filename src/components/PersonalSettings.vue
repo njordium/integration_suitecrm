@@ -106,19 +106,23 @@
 					<ViewDashboardOutlineIcon :size="20" class="widget-prefs-heading-icon" />
 					{{ t('njordium_suitecrm', 'Dashboard widget preferences') }}
 				</h3>
-				<fieldset class="suitecrm-widget-prefs__radios">
-					<legend>{{ t('njordium_suitecrm', 'Pipeline widget mode') }}</legend>
-					<NcCheckboxRadioSwitch
-						v-for="option in pipelineModeOptions"
-						:key="option.value"
-						type="radio"
-						name="pipeline_mode"
-						:value="option.value"
-						:modelValue="pipelineMode"
-						@update:modelValue="onPipelineModeChange">
-						{{ option.label }}
-					</NcCheckboxRadioSwitch>
-				</fieldset>
+				<div class="suitecrm-widget-prefs__group">
+					<span class="suitecrm-widget-prefs__group-label">
+						{{ t('njordium_suitecrm', 'Pipeline widget mode') }}
+					</span>
+					<div class="suitecrm-widget-prefs__radios">
+						<NcCheckboxRadioSwitch
+							v-for="option in pipelineModeOptions"
+							:key="option.value"
+							type="radio"
+							name="pipeline_mode"
+							:value="option.value"
+							:modelValue="pipelineMode"
+							@update:modelValue="onPipelineModeChange">
+							{{ option.label }}
+						</NcCheckboxRadioSwitch>
+					</div>
+				</div>
 				<p class="settings-hint">
 					{{ pipelineModeHint }}
 				</p>
