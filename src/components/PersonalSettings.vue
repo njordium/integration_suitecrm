@@ -307,9 +307,7 @@ export default {
 			}
 			return t('njordium_suitecrm', 'The pipeline widget lists your open Opportunities whose close date falls in the current calendar quarter, earliest first.')
 		},
-	},
 
-	computed: {
 		oAuthConfigured() {
 			return this.state.oauth_instance_url && this.state.client_id && this.state.client_secret
 		},
