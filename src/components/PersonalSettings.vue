@@ -109,10 +109,11 @@
 				<label class="suitecrm-widget-prefs__field">
 					{{ t('njordium_suitecrm', 'Pipeline widget mode') }}
 					<NcSelect
-						v-model="pipelineMode"
+						:modelValue="selectedPipelineOption"
 						:options="pipelineModeOptions"
-						:reduce="(option) => option.value"
 						:clearable="false"
+						:searchable="false"
+						label="label"
 						@update:modelValue="onPipelineModeChange" />
 				</label>
 				<p class="settings-hint">
@@ -291,6 +292,11 @@ export default {
 			]
 		},
 
+		selectedPipelineOption() {
+			return this.pipelineModeOptions.find((option) => option.value === this.pipelineMode)
+				|| this.pipelineModeOptions[0]
+		},
+
 		pipelineModeHint() {
 			if (this.pipelineMode === 'top_value') {
 				return t('njordium_suitecrm', 'The pipeline widget lists your open Opportunities sorted by amount, largest first, regardless of close date. Deals with no amount sort last.')
@@ -377,15 +383,16 @@ export default {
 			this.saveOptions({ search_enabled: checked ? '1' : '0' })
 		},
 
-		onPipelineModeChange(newMode) {
-			// NcSelect emits either the option object or the reduced
-			// value depending on version — normalise to the raw string
-			// before storing.
-			const value = typeof newMode === 'object' && newMode !== null
-				? newMode.value
-				: newMode
-			this.pipelineMode = value
-			this.saveOptions({ pipeline_mode: value })
+		onPipelineModeChange(option) {
+			// The selector emits the full option object because we bind
+			// against the object (not the reduced value) — that pattern
+			// dodges vue-select's mismatch bug when the model is a bare
+			// string and options are labelled objects.
+			if (!option || !option.value) {
+				return
+			}
+			this.pipelineMode = option.value
+			this.saveOptions({ pipeline_mode: option.value })
 		},
 
 		saveOptions(values) {
