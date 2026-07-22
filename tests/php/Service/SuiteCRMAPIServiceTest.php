@@ -1549,14 +1549,23 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	public function testGetMyPipelineClosingQuarterSortsByCloseDateAsc(): void {
+		// Build two close dates guaranteed to be in the current quarter
+		// regardless of when this test runs: pick the middle two months of
+		// the current quarter and use the 15th of each. That avoids the
+		// quarter-boundary edge cases the earlier version of this test
+		// left unguarded (which PHPUnit's failOnRisky flagged as a test
+		// with no assertions on first-of-quarter days).
 		$this->stubSuiteCRMUserId('scrm-alice-uuid');
-		$today = new \DateTime();
-		// Pick two dates guaranteed to be in the current quarter regardless
-		// of when this test runs: today + 1 day and today. If today is Dec
-		// 31 the "+1 day" spills to next quarter — but that's edge enough
-		// to accept the test as documentation of intent even then. In every
-		// other case both dates land in the same quarter as `now`.
-		$requestStub = function () use ($today) {
+		$now = new \DateTime();
+		$month = (int) $now->format('n');
+		$year = (int) $now->format('Y');
+		$quarterFirstMonth = ((int) floor(($month - 1) / 3)) * 3 + 1;
+		$midMonth = $quarterFirstMonth + 1;
+		$laterMonth = $quarterFirstMonth + 2;
+		$earlierDate = sprintf('%04d-%02d-15', $year, $midMonth);
+		$laterDate = sprintf('%04d-%02d-15', $year, $laterMonth);
+
+		$requestStub = function () use ($earlierDate, $laterDate) {
 			return [
 				'data' => [
 					[
@@ -1566,7 +1575,7 @@ class SuiteCRMAPIServiceTest extends TestCase {
 							'amount' => '10000',
 							'probability' => '50',
 							'sales_stage' => 'Negotiation/Review',
-							'close_date' => (clone $today)->format('Y-m-d'),
+							'close_date' => $laterDate,
 						],
 					],
 					[
@@ -1576,7 +1585,7 @@ class SuiteCRMAPIServiceTest extends TestCase {
 							'amount' => '10000',
 							'probability' => '50',
 							'sales_stage' => 'Negotiation/Review',
-							'close_date' => (clone $today)->sub(new \DateInterval('P1D'))->format('Y-m-d'),
+							'close_date' => $earlierDate,
 						],
 					],
 				],
@@ -1585,13 +1594,9 @@ class SuiteCRMAPIServiceTest extends TestCase {
 		$service = $this->makeService($requestStub);
 		$results = $service->getMyPipeline('https://crm', 'tok', 'alice', 'closing_quarter', 20);
 
-		// Two rows returned only if today isn't the first day of a quarter
-		// (in which case the "-1 day" fixture spills to previous quarter and
-		// gets filtered out). Guard the assertion.
-		if (count($results) === 2) {
-			$this->assertSame('opp-earlier', $results[0]['id']);
-			$this->assertSame('opp-later', $results[1]['id']);
-		}
+		$this->assertCount(2, $results);
+		$this->assertSame('opp-earlier', $results[0]['id']);
+		$this->assertSame('opp-later', $results[1]['id']);
 	}
 
 	public function testGetMyPipelineUnknownModeFallsBackToDefault(): void {
