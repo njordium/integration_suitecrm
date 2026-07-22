@@ -60,7 +60,7 @@ class SuiteCRMPipelineWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIcon
 	}
 
 	public function getTitle(): string {
-		return $this->l10n->t('My SuiteCRM pipeline');
+		return $this->l10n->t('SuiteCRM Pipeline');
 	}
 
 	public function getOrder(): int {

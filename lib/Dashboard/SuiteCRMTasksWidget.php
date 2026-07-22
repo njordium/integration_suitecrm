@@ -56,7 +56,7 @@ class SuiteCRMTasksWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWid
 	}
 
 	public function getTitle(): string {
-		return $this->l10n->t('My open SuiteCRM Tasks');
+		return $this->l10n->t('SuiteCRM Tasks');
 	}
 
 	public function getOrder(): int {

@@ -61,7 +61,7 @@ class SuiteCRMCasesWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWid
 	}
 
 	public function getTitle(): string {
-		return $this->l10n->t('My open SuiteCRM Cases');
+		return $this->l10n->t('SuiteCRM Cases');
 	}
 
 	public function getOrder(): int {
