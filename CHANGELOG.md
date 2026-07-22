@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 2.1.1 – 2026-07-22
+
+Critical hotfix for the write features shipped in 2.1.0. Every POST from `SuiteCRMAPIService::createRecord()` (task-followup, log-note, link-deck-card, email-to-case) returned HTTP 405 Method Not Allowed against real SuiteCRM 8.10.x installs. Reads continued to work.
+
+### Fixed
+
+- **`SuiteCRMAPIService::request()` URL construction**: dropped the `/index.php/` segment. SuiteCRM 8.10.x's URL rewriter accepts both `/Api/V8/` and `/Api/index.php/V8/` for GET (both hit the same controller), but ONLY the short form for POST/PUT/DELETE — the `index.php` variant returns 405 with `Must be one of: GET`. Discovered by smoke-testing 2.1.0's Convert email to Case flow against SuiteCRM 8.10.1: the Case POST 405'd until this URL was flattened. Iter 67's `--push-test` had happened to use the correct short form in its own inline URL, which is why write feasibility was confirmed there but the runtime path bit here. Read call sites are unaffected — the short form works for both verbs.
+
 ## 2.1.0 – 2026-07-22
 
 Four user-intent write features that turn Nextcloud activity into linked SuiteCRM records. Personal Settings → **Quick actions to SuiteCRM** gains three buttons: Log Talk conversation as a Note, Link Deck card ↔ SuiteCRM record (with reciprocal comment on the card), Convert email to Case (paste form). A reusable `TaskFollowupModal.vue` component ships too — the widget-item wire-up that surfaces it is deferred to iter 69b.

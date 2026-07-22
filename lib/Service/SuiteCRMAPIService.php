@@ -625,7 +625,19 @@ class SuiteCRMAPIService {
 							string $endPoint, array $params = [], string $method = 'GET',
 							int $retryCount = 0, bool $jsonBody = false): array {
 		try {
-			$url = $suitecrmUrl . '/Api/index.php/V8/' . $endPoint;
+			// URL construction: SuiteCRM 8.10.x's Slim/Symfony router
+			// accepts BOTH `/Api/V8/{path}` and `/Api/index.php/V8/{path}`
+			// for GET (both go through the URL-rewriter to the same
+			// controller), but ONLY the `/Api/V8/` form is accepted
+			// for POST/PUT/DELETE — the `index.php` variant returns
+			// 405 Method Not Allowed for anything but GET. Discovered
+			// while smoke-testing v2.1.0 write features on live
+			// SuiteCRM 8.10.1 (a Case POST returned 405 with the
+			// message "Must be one of: GET" until this URL was flattened).
+			// Iter 67's --push-test happened to use the short form
+			// which is why write feasibility was confirmed then but
+			// the runtime path bit here.
+			$url = $suitecrmUrl . '/Api/V8/' . $endPoint;
 			$options = [
 				'headers' => [
 					'Authorization' => 'Bearer ' . $accessToken,
