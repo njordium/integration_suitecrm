@@ -290,4 +290,106 @@ class SuiteCRMAPIController extends Controller {
 		return new DataResponse($result);
 	}
 
+	/**
+	 * Iter 71a — Deck card → SuiteCRM record link (SuiteCRM side).
+	 *
+	 * Creates a Note on the target SuiteCRM record that points back at
+	 * a Nextcloud Deck card. The Deck side (a comment on the card
+	 * pointing at the SuiteCRM record) is handled by the frontend
+	 * because it can hit NC Deck's OCS API directly with the user's
+	 * session — no server-side cross-app coupling needed.
+	 *
+	 * Architecturally close to {@see logNote()} — both endpoints
+	 * ultimately call {@see SuiteCRMAPIService::createRecord()} with a
+	 * Notes payload. The reason for a dedicated endpoint:
+	 *
+	 *  1. Consistent Note-body formatting. Every Deck-linked Note
+	 *     reads "Linked from Nextcloud Deck card '<title>' at <url>",
+	 *     so a SuiteCRM user searching or filtering for "Nextcloud
+	 *     Deck card" gets a clean predictable hit set.
+	 *  2. URL validation lives here, not scattered in every caller.
+	 *     A Deck card URL that isn't at least a plausible URL means
+	 *     the caller's UI is buggy and we should refuse instead of
+	 *     dropping garbage into SuiteCRM.
+	 *  3. Testable domain logic — the body-format contract has its
+	 *     own tests.
+	 *
+	 * @param string $deckCardUrl    Fully-qualified URL of the Deck card
+	 * @param string $deckCardTitle  Human-readable card title (for Note body)
+	 * @param string $targetModule   SuiteCRM module the Note attaches to
+	 * @param string $targetId       Parent record id
+	 * @param string $extraNote      Optional free-text appended below the link
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/link-deck-card')]
+	public function linkDeckCard(
+		string $deckCardUrl,
+		string $deckCardTitle,
+		string $targetModule,
+		string $targetId,
+		string $extraNote = '',
+	): DataResponse {
+		if ($this->accessToken === '' || $this->userId === null) {
+			return new DataResponse(['error' => 'not connected'], 401);
+		}
+		if ($targetId === '') {
+			return new DataResponse(['error' => 'targetId is required'], 400);
+		}
+		if (trim($deckCardUrl) === '') {
+			return new DataResponse(['error' => 'deckCardUrl is required'], 400);
+		}
+		// Cheap URL sanity — filter_var catches the common mistakes
+		// (leading whitespace, missing scheme, `//host/path` shortcuts)
+		// without pulling in a full URL parser. We're not trying to
+		// verify the Deck card actually exists; that's the frontend's
+		// job because only the frontend has session-level access to
+		// Deck's API.
+		if (filter_var(trim($deckCardUrl), FILTER_VALIDATE_URL) === false) {
+			return new DataResponse(['error' => 'deckCardUrl is not a valid URL'], 400);
+		}
+
+		// Same whitelist as logNote — any of the eight modules the fork
+		// integrates with can be the SuiteCRM side of a Deck link.
+		$allowedTargets = [
+			'Contacts', 'Accounts', 'Leads',
+			'Opportunities', 'Cases',
+			'Meetings', 'Calls', 'Tasks',
+		];
+		if (!in_array($targetModule, $allowedTargets, true)) {
+			return new DataResponse([
+				'error' => sprintf('target module "%s" is not allowed', $targetModule),
+				'allowed' => $allowedTargets,
+			], 400);
+		}
+
+		// Compose the Note body. Format is deliberately stable so that
+		// a SuiteCRM search or export can identify Deck-sourced notes.
+		$titleLabel = trim($deckCardTitle) !== '' ? trim($deckCardTitle) : $deckCardUrl;
+		$body = sprintf(
+			"Linked from Nextcloud Deck card \"%s\"\nURL: %s",
+			$titleLabel,
+			trim($deckCardUrl),
+		);
+		if (trim($extraNote) !== '') {
+			$body .= "\n\n" . $extraNote;
+		}
+
+		$attributes = [
+			'name' => sprintf('Deck link: %s', $titleLabel),
+			'description' => $body,
+			'parent_type' => $targetModule,
+			'parent_id' => $targetId,
+		];
+
+		$result = $this->suitecrmAPIService->createRecord(
+			$this->suitecrmUrl, $this->accessToken, $this->userId,
+			'Notes', $attributes,
+		);
+
+		if (isset($result['error'])) {
+			return new DataResponse($result, 502);
+		}
+		return new DataResponse($result);
+	}
+
 }

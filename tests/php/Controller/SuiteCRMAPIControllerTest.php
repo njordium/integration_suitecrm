@@ -411,4 +411,176 @@ class SuiteCRMAPIControllerTest extends TestCase {
 			'Tasks' => ['Tasks'],
 		];
 	}
+
+	// ---------------------------------------------------------------------
+	// Iter 71a — linkDeckCard() coverage.
+	//
+	// Deck-side comment on the card is handled by the frontend (iter 71b,
+	// via NC Deck's OCS API). This endpoint just handles the SuiteCRM
+	// side: a Note attached to the target SuiteCRM record that points
+	// back at the Deck card. Body format is stable so SuiteCRM users
+	// can search for "Nextcloud Deck card" and get a clean hit set.
+	// ---------------------------------------------------------------------
+
+	public function testLinkDeckCardRequiresAuthenticatedUser(): void {
+		$controller = $this->makeController(null, '');
+
+		$response = $controller->linkDeckCard(
+			'https://nc.example.com/apps/deck/#/board/1/card/2',
+			'Q3 launch checklist',
+			'Opportunities', 'opp-42',
+		);
+
+		$this->assertSame(401, $response->getStatus());
+	}
+
+	public function testLinkDeckCardRequiresTargetId(): void {
+		$controller = $this->makeController('alice');
+		$this->apiService->expects($this->never())->method('createRecord');
+
+		$response = $controller->linkDeckCard(
+			'https://nc.example.com/apps/deck/#/board/1/card/2',
+			'Launch',
+			'Opportunities', '',
+		);
+
+		$this->assertSame(400, $response->getStatus());
+		$this->assertSame('targetId is required', $response->getData()['error']);
+	}
+
+	public function testLinkDeckCardRequiresDeckCardUrl(): void {
+		$controller = $this->makeController('alice');
+		$this->apiService->expects($this->never())->method('createRecord');
+
+		$response = $controller->linkDeckCard(
+			'   ', 'Launch',
+			'Opportunities', 'opp-1',
+		);
+
+		$this->assertSame(400, $response->getStatus());
+		$this->assertSame('deckCardUrl is required', $response->getData()['error']);
+	}
+
+	public function testLinkDeckCardRejectsMalformedUrl(): void {
+		$controller = $this->makeController('alice');
+		$this->apiService->expects($this->never())->method('createRecord');
+
+		$response = $controller->linkDeckCard(
+			'not a url at all',
+			'Launch',
+			'Opportunities', 'opp-1',
+		);
+
+		$this->assertSame(400, $response->getStatus());
+		$this->assertStringContainsString('not a valid URL', $response->getData()['error']);
+	}
+
+	public function testLinkDeckCardRejectsUnlistedTargetModule(): void {
+		$controller = $this->makeController('alice');
+		$this->apiService->expects($this->never())->method('createRecord');
+
+		$response = $controller->linkDeckCard(
+			'https://nc.example.com/apps/deck/#/board/1/card/2',
+			'Launch',
+			'Users', 'user-1',
+		);
+
+		$this->assertSame(400, $response->getStatus());
+		$this->assertContains('Opportunities', $response->getData()['allowed']);
+	}
+
+	public function testLinkDeckCardHappyPathBuildsStableNoteBody(): void {
+		$controller = $this->makeController('alice', 'tok', 'https://crm');
+
+		$this->apiService->expects($this->once())
+			->method('createRecord')
+			->with(
+				'https://crm', 'tok', 'alice',
+				'Notes',
+				$this->callback(function (array $attrs): bool {
+					// The exact body format is a documented contract —
+					// SuiteCRM users may search or filter on it.
+					return $attrs['name'] === 'Deck link: Q3 launch checklist'
+						&& str_contains($attrs['description'], 'Linked from Nextcloud Deck card "Q3 launch checklist"')
+						&& str_contains($attrs['description'], 'URL: https://nc.example.com/apps/deck/')
+						&& $attrs['parent_type'] === 'Opportunities'
+						&& $attrs['parent_id'] === 'opp-42';
+				}),
+			)
+			->willReturn(['data' => ['id' => 'note-11']]);
+
+		$response = $controller->linkDeckCard(
+			'https://nc.example.com/apps/deck/#/board/1/card/2',
+			'Q3 launch checklist',
+			'Opportunities', 'opp-42',
+		);
+
+		$this->assertSame(200, $response->getStatus());
+		$this->assertSame('note-11', $response->getData()['data']['id']);
+	}
+
+	public function testLinkDeckCardFallsBackToUrlWhenTitleEmpty(): void {
+		// If the Deck card has no title (rare but possible for
+		// freshly-created cards), the URL becomes the visible label.
+		$controller = $this->makeController('alice');
+
+		$this->apiService->expects($this->once())
+			->method('createRecord')
+			->with(
+				$this->anything(), $this->anything(), $this->anything(),
+				'Notes',
+				$this->callback(function (array $attrs): bool {
+					return str_contains($attrs['name'], 'https://nc.example.com/');
+				}),
+			)
+			->willReturn(['data' => ['id' => 'x']]);
+
+		$response = $controller->linkDeckCard(
+			'https://nc.example.com/apps/deck/#/board/1/card/2',
+			'   ',
+			'Opportunities', 'opp-1',
+		);
+
+		$this->assertSame(200, $response->getStatus());
+	}
+
+	public function testLinkDeckCardAppendsExtraNoteWhenProvided(): void {
+		$controller = $this->makeController('alice');
+
+		$this->apiService->expects($this->once())
+			->method('createRecord')
+			->with(
+				$this->anything(), $this->anything(), $this->anything(),
+				'Notes',
+				$this->callback(function (array $attrs): bool {
+					return str_contains($attrs['description'], 'Related to the summer campaign push.');
+				}),
+			)
+			->willReturn(['data' => ['id' => 'x']]);
+
+		$response = $controller->linkDeckCard(
+			'https://nc.example.com/apps/deck/#/board/1/card/2',
+			'Launch',
+			'Opportunities', 'opp-1',
+			'Related to the summer campaign push.',
+		);
+
+		$this->assertSame(200, $response->getStatus());
+	}
+
+	public function testLinkDeckCardPropagatesSuiteCRMErrorAsBadGateway(): void {
+		$controller = $this->makeController('alice');
+
+		$this->apiService->method('createRecord')->willReturn([
+			'error' => 'Bad payload',
+		]);
+
+		$response = $controller->linkDeckCard(
+			'https://nc.example.com/apps/deck/#/board/1/card/2',
+			'Launch',
+			'Opportunities', 'opp-1',
+		);
+
+		$this->assertSame(502, $response->getStatus());
+	}
 }
