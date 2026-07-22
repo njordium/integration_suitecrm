@@ -13,6 +13,7 @@ namespace OCA\SuiteCRM\Listener;
 use OCP\AppFramework\Http\Events\BeforeTemplateRenderedEvent;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
+use OCP\IConfig;
 use OCP\IUserSession;
 use OCP\Util;
 
@@ -39,6 +40,7 @@ class AddQuickActionsScriptListener implements IEventListener {
 
 	public function __construct(
 		private IUserSession $userSession,
+		private IConfig $config,
 	) {
 	}
 
@@ -46,7 +48,19 @@ class AddQuickActionsScriptListener implements IEventListener {
 		if (!($event instanceof BeforeTemplateRenderedEvent)) {
 			return;
 		}
-		if ($this->userSession->getUser() === null) {
+		$user = $this->userSession->getUser();
+		if ($user === null) {
+			return;
+		}
+		// Per-user opt-out: users who prefer to reach the write actions
+		// via Personal Settings (or via a custom key binding, or not at
+		// all) can uncheck the toggle and skip the FAB entirely. Missing
+		// row defaults to '1' so behaviour is unchanged for anyone who
+		// has never touched the setting.
+		$enabled = $this->config->getUserValue(
+			$user->getUID(), Application::APP_ID, 'quick_actions_enabled', '1'
+		);
+		if ($enabled !== '1') {
 			return;
 		}
 		Util::addScript(Application::APP_ID, Application::APP_ID . '-quickactions');

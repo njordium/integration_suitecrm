@@ -6,6 +6,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 2.3.2 – 2026-07-22
+
+Adds a per-user opt-out for the global Quick Actions floating button introduced in 2.3.0, and along the way fixes a live regression on the existing Personal Settings toggles.
+
+Users who prefer to reach the write actions from Personal Settings only (or via the keyboard shortcut, or not at all) can now hide the FAB without disabling the underlying feature. The shutoff sits at the server-side listener rather than at the mounted button, so opted-out users pay zero JS cost per page render.
+
+The 2.3.1 tag was skipped: while wiring the new checkbox we noticed that all three `NcCheckboxRadioSwitch` toggles on Personal Settings (search, notification, and the new FAB opt-out) rendered their initial state correctly but did not respond to clicks. Root cause was an `@update:checked` binding on a component that has since standardised on Vue 3's `update:modelValue` event and dropped the legacy one, so the handler simply never fired. Same class of two-way-binding regression we hit on the pipeline mode selector in 2.3.0. Rolled the fix into this release rather than shipping a broken 2.3.1 and a follow-up hotfix.
+
+### Added
+
+- **`quick_actions_enabled` personal preference** (`Settings\Personal`, `ConfigController::USER_ALLOWED_KEYS`): stored as `'1'`/`'0'` in `oc_preferences`. Default `'1'` on missing row so existing installs keep current behaviour without a migration. Bounded write path: only whitelisted keys reach `setUserValue`, so an authenticated user cannot write arbitrary rows via the setting endpoint.
+- **Toggle in Personal Settings** (`src/components/PersonalSettings.vue`): "Show the floating Quick Actions button on every page" checkbox under the Quick actions section, separated by a top border so it reads as a display preference for the buttons above rather than yet another workflow choice. Changes take effect on the next page reload since the server-side listener decides at render time whether to inject the script.
+
+### Changed
+
+- **`Listener\AddQuickActionsScriptListener`** now reads `quick_actions_enabled` from `IConfig::getUserValue` before calling `Util::addScript`. Missing row defaults to `'1'`, so the listener behaviour is unchanged for anyone who has never touched the toggle. When set to `'0'` the listener returns early, saving one `<script>` tag and the FAB mount cost on every page render.
+
+### Fixed
+
+- **Personal Settings toggles now respond to clicks** (`src/components/PersonalSettings.vue`): swapped `@update:checked` to `@update:modelValue` on all three `NcCheckboxRadioSwitch` bindings (search, notification, and the new FAB opt-out). No behavioural or persistence change beyond restoring click responsiveness. First-time save of `search_enabled`, `notification_enabled`, and `quick_actions_enabled` now writes to `oc_preferences` as intended.
+
 ## 2.3.0 – 2026-07-22
 
 Adds a **global Quick Actions floating button** so reps can log a Talk conversation, link a Deck card, or convert an email to a Case from anywhere in Nextcloud, with no need to navigate to Personal Settings first. A keyboard shortcut (`Cmd/Ctrl+Shift+K`) opens the menu and `1`/`2`/`3` jump directly to each action once the menu is up.

@@ -42,6 +42,11 @@ class Personal implements ISettings {
 		if (!in_array($pipelineMode, SuiteCRMAPIService::PIPELINE_MODES, true)) {
 			$pipelineMode = SuiteCRMAPIService::DEFAULT_PIPELINE_MODE;
 		}
+		// Global Quick Actions FAB opt-out. Default '1' so the button
+		// stays visible for anyone who hasn't touched the toggle; the
+		// listener also defaults to enabled when the row is missing,
+		// so this row is really only written when the user unchecks.
+		$quickActionsEnabled = $this->config->getUserValue($userId, Application::APP_ID, 'quick_actions_enabled', '1');
 
 		$clientID = $this->appConfig->getValueString(Application::APP_ID, 'client_id');
 		$clientSecret = ($this->appConfig->getValueString(Application::APP_ID, 'client_secret') !== '');
@@ -55,6 +60,7 @@ class Personal implements ISettings {
 			'notification_enabled' => ($notificationEnabled === '1'),
 			'user_name' => $userName,
 			'pipeline_mode' => $pipelineMode,
+			'quick_actions_enabled' => ($quickActionsEnabled === '1'),
 		]);
 		return new TemplateResponse(Application::APP_ID, 'personalSettings');
 	}

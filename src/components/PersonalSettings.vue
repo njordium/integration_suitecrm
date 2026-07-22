@@ -87,7 +87,7 @@
 			<div v-if="connected" class="toggles">
 				<NcCheckboxRadioSwitch
 					:modelValue="!!state.search_enabled"
-					@update:checked="onSearchChange">
+					@update:modelValue="onSearchChange">
 					{{ t('njordium_suitecrm', 'Enable unified search for contacts, accounts, leads, opportunities and cases') }}
 				</NcCheckboxRadioSwitch>
 				<NcNoteCard v-if="state.search_enabled" type="warning">
@@ -96,7 +96,7 @@
 
 				<NcCheckboxRadioSwitch
 					:modelValue="!!state.notification_enabled"
-					@update:checked="onNotificationChange">
+					@update:modelValue="onNotificationChange">
 					{{ t('njordium_suitecrm', 'Enable notifications for reminders on calls and meetings') }}
 				</NcCheckboxRadioSwitch>
 			</div>
@@ -156,6 +156,16 @@
 						</template>
 						{{ t('njordium_suitecrm', 'Convert email to Case …') }}
 					</NcButton>
+				</div>
+				<div class="suitecrm-quick-actions__fab-toggle">
+					<NcCheckboxRadioSwitch
+						:modelValue="!!state.quick_actions_enabled"
+						@update:modelValue="onQuickActionsFabChange">
+						{{ t('njordium_suitecrm', 'Show the floating Quick Actions button on every page') }}
+					</NcCheckboxRadioSwitch>
+					<p class="settings-hint">
+						{{ t('njordium_suitecrm', 'When enabled, a "+" button appears in the bottom-right of every Nextcloud page for one-click access to the actions above. Turn off if you prefer to reach the actions from this settings page only. Takes effect on the next page reload.') }}
+					</p>
 				</div>
 			</div>
 
@@ -389,6 +399,16 @@ export default {
 			this.saveOptions({ pipeline_mode: value })
 		},
 
+		onQuickActionsFabChange(checked) {
+			// Server-side listener reads this on the next page render and
+			// skips the script tag, so the change takes effect after the
+			// user navigates or reloads. We deliberately do not force a
+			// reload here to avoid interrupting whatever the user is doing
+			// in the settings page.
+			this.state.quick_actions_enabled = checked
+			this.saveOptions({ quick_actions_enabled: checked ? '1' : '0' })
+		},
+
 		saveOptions(values) {
 			const req = {
 				values,
@@ -518,6 +538,13 @@ export default {
 
 	// Scoped h3 layout so the icon aligns inline with the section heading
 	// text instead of floating far to the right.
+	.suitecrm-quick-actions__fab-toggle {
+		margin-block-start: 20px;
+		padding-block-start: 12px;
+		border-block-start: 1px solid var(--color-border);
+		max-width: 500px;
+	}
+
 	.suitecrm-widget-prefs__heading,
 	.suitecrm-quick-actions__heading {
 		display: flex;

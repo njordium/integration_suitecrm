@@ -48,6 +48,12 @@ class ConfigController extends Controller {
                 // unknown value stored here silently falls back to the
                 // default rather than crashing the widget.
                 'pipeline_mode',
+                // Global Quick Actions FAB opt-out. Stored as '1'/'0'
+                // (IConfig::setUserValue always stringifies). When set
+                // to '0' the AddQuickActionsScriptListener skips the
+                // script tag entirely so opted-out users pay zero JS
+                // cost per page render. Default on missing row is '1'.
+                'quick_actions_enabled',
         ];
 
         public function __construct(string $appName,
