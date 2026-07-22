@@ -15,9 +15,9 @@ use PHPUnit\Framework\TestCase;
  * (only the `nextcloud/ocp` interface stubs), and PHPUnit's
  * `createMock(IDBConnection::class)` triggers autoload of
  * `OCP\DB\QueryBuilder\IQueryBuilder`, which resolves a
- * `Doctrine\DBAL\ParameterType` class-level constant at load time —
+ * `Doctrine\DBAL\ParameterType` class-level constant at load time,
  * that class is not on the test classpath, so the mock generator dies
- * before the test body runs. See iter 61b for the diagnostic history.
+ * before the test body runs.
  *
  * File-content assertions are weaker than behaviour tests but catch
  * the highest-value regression classes for a one-shot migration:
@@ -29,8 +29,8 @@ use PHPUnit\Framework\TestCase;
  *   - the Repair step is dropped from `appinfo/info.xml`, so it
  *     stops running on `occ upgrade`
  *
- * Actual copy semantics — rows are moved, target keys are preserved
- * on collision, empty state is a no-op — are exercised live during
+ * Actual copy semantics, rows are moved, target keys are preserved
+ * on collision, empty state is a no-op, are exercised live during
  * the 2.0.0 upgrade smoke test on the test Nextcloud instance. The
  * `occ upgrade` run emits a summary line with concrete row counts
  * that we verify against seeded fixtures on the real database.
@@ -87,14 +87,14 @@ class CopyLegacyAppConfigTest extends TestCase {
 		$this->assertMatchesRegularExpression(
 			"/const\s+LEGACY_APP_ID\s*=\s*'" . self::LEGACY_APP_ID . "'/",
 			$body,
-			'LEGACY_APP_ID const must be "' . self::LEGACY_APP_ID . '" — the '
+			'LEGACY_APP_ID const must be "' . self::LEGACY_APP_ID . '", the '
 			. 'app id used on Julien\'s original App Store record and '
 			. 'every 1.x deployment of this fork.',
 		);
 	}
 
 	public function testMigrationReadsFromLegacyAppConfigAndPreferences(): void {
-		// Migration must touch both tables — admin config alone leaves
+		// Migration must touch both tables, admin config alone leaves
 		// per-user OAuth tokens stranded and every connected user has
 		// to re-authorise SuiteCRM after the rename.
 		$body = (string)file_get_contents($this->sutPath);
@@ -123,7 +123,7 @@ class CopyLegacyAppConfigTest extends TestCase {
 		$this->assertStringNotContainsString(
 			'->delete(',
 			$body,
-			'2.0.0 Migration must NOT delete legacy rows — that would '
+			'2.0.0 Migration must NOT delete legacy rows, that would '
 			. 'break the rollback path. Deletion is scheduled for 2.1.0.',
 		);
 	}

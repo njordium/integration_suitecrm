@@ -23,12 +23,10 @@ use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
 /**
- * Iteration 17 — Finding 49
- *
  * Regression coverage for the token-refresh retry inside
  * {@see SuiteCRMAPIService::request()}. The retry path is the single most
- * failure-prone branch in the whole app (silently swallows 401s + rewrites
- * user tokens) and was previously untested.
+ * failure-prone branch in the whole app (it silently swallows 401s and
+ * rewrites user tokens) and was previously untested.
  */
 class SuiteCRMAPIServiceRefreshTest extends TestCase {
 
@@ -60,7 +58,7 @@ class SuiteCRMAPIServiceRefreshTest extends TestCase {
 		$this->l10n->method('t')->willReturnArgument(0);
 		$this->clientService->method('newClient')->willReturn($this->client);
 
-		// Sensible defaults for the refresh path — client_id/client_secret
+		// Sensible defaults for the refresh path. Client_id/client_secret
 		// resolution happens inside the catch block.
 		$this->appConfig->method('getValueString')->willReturnCallback(
 			static fn (string $app, string $key, string $default = '') => match ($key) {
@@ -86,8 +84,8 @@ class SuiteCRMAPIServiceRefreshTest extends TestCase {
 	}
 
 	/**
-	 * Happy path: first GET → 401 → refresh yields fresh tokens → second
-	 * GET returns 200 → decoded body bubbles out of the top-level call.
+	 * Happy path: first GET returns 401, refresh yields fresh tokens, second
+	 * GET returns 200, and the decoded body bubbles out of the top-level call.
 	 */
 	public function testRefreshOnceThenSucceedsReturnsRetryResult(): void {
 		$exception = new ClientException(
@@ -136,7 +134,7 @@ class SuiteCRMAPIServiceRefreshTest extends TestCase {
 	}
 
 	/**
-	 * Refresh itself fails (no access_token in the response) → the outer
+	 * Refresh itself fails (no access_token in the response). The outer
 	 * request() returns an error payload rather than retrying blindly.
 	 */
 	public function testRefreshFailsReturnsErrorResult(): void {
@@ -182,8 +180,8 @@ class SuiteCRMAPIServiceRefreshTest extends TestCase {
 			new Psr7Response(401),
 		);
 
-		// Both GETs 401 — but only the first one is allowed to trigger a
-		// refresh because retryCount goes 0 → 1 on the recursive call.
+		// Both GETs 401, but only the first one is allowed to trigger a
+		// refresh because retryCount goes from 0 to 1 on the recursive call.
 		$this->client->expects($this->exactly(2))
 			->method('get')
 			->willThrowException($exception);

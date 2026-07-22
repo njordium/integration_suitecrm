@@ -30,19 +30,18 @@ use OCA\SuiteCRM\Service\TokenStorage;
  * Nextcloud home dashboard widget listing SuiteCRM reminders (Meetings, Calls)
  * assigned to the current user and about to fire.
  *
- * Iteration 19 (Finding 26): migrated from the legacy IWidget-only surface
- * to the modern IAPIWidget + IIconWidget interfaces so the Nextcloud 30+
- * "Dashboard" app can lazy-load items as JSON instead of eagerly mounting
- * the Vue widget just to discover it's empty. The legacy IWidget path
- * (load() + registered Vue callback) is preserved so the classic dashboard
- * keeps working — this is an additive, dual-mode migration.
+ * Implements IAPIWidget + IIconWidget so the Nextcloud 30+ "Dashboard" app
+ * can lazy-load items as JSON instead of eagerly mounting the Vue widget
+ * just to discover it's empty. The legacy IWidget path (load() + registered
+ * Vue callback) is preserved so the classic dashboard keeps working (an
+ * additive, dual-mode migration).
  *
- * Iteration 43 (compat forward-look): added IAPIWidgetV2 on top. The NC 27+
- * dashboard app prefers V2 because it returns a {@see WidgetItems} envelope
- * carrying an `emptyContentMessage` string — otherwise the widget shell
- * shows a generic "No entries" placeholder that never mentions SuiteCRM
- * or hints at how to connect. V1's getItems() is kept unchanged so any
- * older NC that only knows about V1 still gets the item list.
+ * IAPIWidgetV2 is also implemented. The NC 27+ dashboard app prefers V2
+ * because it returns a {@see WidgetItems} envelope carrying an
+ * `emptyContentMessage` string. Otherwise the widget shell shows a generic
+ * "No entries" placeholder that never mentions SuiteCRM or hints at how to
+ * connect. V1's getItems() is kept unchanged so any older NC that only
+ * knows about V1 still gets the item list.
  */
 class SuiteCRMWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWidget {
 
@@ -96,7 +95,7 @@ class SuiteCRMWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWidget {
 	 *
 	 * `$since` is an opaque cursor emitted as `sinceId` on the last item of the
 	 * previous page. This widget interprets it as a Unix timestamp so pagination
-	 * lines up with SuiteCRM's `date_willexecute` filter — matching the Vue
+	 * lines up with SuiteCRM's `date_willexecute` filter, matching the Vue
 	 * frontend's `eventSinceTimestamp=moment().unix()` behaviour.
 	 *
 	 * Returns an empty array (rather than throwing) when the user is not
@@ -154,10 +153,8 @@ class SuiteCRMWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWidget {
 	 * ("No SuiteCRM notifications!" rather than the generic "No entries").
 	 *
 	 * The dashboard app tries IAPIWidgetV2 first and falls back to
-	 * IAPIWidget if the widget doesn't implement it — we implement both
+	 * IAPIWidget if the widget doesn't implement it. We implement both
 	 * to stay safe across the NC 30-34 range.
-	 *
-	 * Iteration 43.
 	 */
 	public function getItemsV2(string $userId, ?string $since = null, int $limit = 7): WidgetItems {
 		$items = $this->getItems($userId, $since, $limit);

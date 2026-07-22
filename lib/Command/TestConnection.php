@@ -26,7 +26,7 @@ use Throwable;
  * One-shot diagnostic that walks admins through every layer that has
  * bitten users during setup. Each check prints PASS / FAIL / WARN with
  * the exact `occ` command or config change that would fix it. Runs
- * without touching stored user tokens — safe to invoke at any time.
+ * without touching stored user tokens, safe to invoke at any time.
  */
 class TestConnection extends Command {
 
@@ -55,7 +55,7 @@ class TestConnection extends Command {
 		$anyFail = false;
 		$warnCount = 0;
 
-		$output->writeln('<info>SuiteCRM integration — connection diagnostic</info>');
+		$output->writeln('<info>SuiteCRM integration, connection diagnostic</info>');
 		$output->writeln('');
 
 		// -----------------------------------------------------------------
@@ -93,20 +93,19 @@ class TestConnection extends Command {
 			$this->pass($output, 'Admin config: client_secret is set (hidden)');
 		}
 
-		// Iteration 39 (iter-28 audit fix, part 1/2): normalize the authorize
-		// path the same way ConfigController::oauthAuthorizeUrl() does — strip
-		// any leading slash so the URL is reconstructed as
+		// Normalize the authorize path the same way
+		// ConfigController::oauthAuthorizeUrl() does: strip any leading slash
+		// so the URL is reconstructed as
 		// rtrim($url, '/') . '/' . ltrim($path, '/'). Without this, an admin
 		// who sets `oauth_authorize_path=Api/authorize` (no leading slash) via
 		// `occ config:app:set` gets a false-negative here (test-connection
 		// constructs `http://foo.comApi/authorize` and 404s) while the actual
-		// OAuth flow works fine (the controller normalizes it). The audit
-		// caught this divergence between the command and the controller.
+		// OAuth flow works fine (the controller normalizes it).
 		$normalizedAuthorizePath = ltrim($authorizePath, '/');
-		// Iteration 39 (iter-28 audit fix, part 2/2): derive the token path
-		// from the authorize path rather than hardcoding `/Api/access_token`.
-		// SuiteCRM 8.x installs upgraded from 7.x expose the OAuth endpoints
-		// at `/legacy/oauth2/authorize` + `/legacy/oauth2/access_token`; the
+		// Derive the token path from the authorize path rather than
+		// hardcoding `/Api/access_token`. SuiteCRM 8.x installs upgraded
+		// from 7.x expose the OAuth endpoints at
+		// `/legacy/oauth2/authorize` + `/legacy/oauth2/access_token`; the
 		// old hardcoded check would 404 on those installs even when the
 		// endpoints are perfectly fine. If the authorize path doesn't end in
 		// `/authorize` we fall back to the fresh-8.x default rather than
@@ -126,7 +125,7 @@ class TestConnection extends Command {
 		$isPrivate = $this->isPrivateAddress($host);
 
 		if ($isPrivate && !$allowLocal) {
-			// This isn't just advisory — the token exchange WILL fail with
+			// This isn't just advisory, the token exchange WILL fail with
 			// "Host violates local access rules" on the first user connect.
 			// Report as a hard fail so the exit code signals CI/monitoring.
 			$this->fail($output, sprintf(
@@ -140,7 +139,7 @@ class TestConnection extends Command {
 		} else if ($isPrivate) {
 			$this->pass($output, sprintf('SSRF guard: host "%s" is private but allow_local_remote_servers=true', $host));
 		} else {
-			$this->pass($output, sprintf('SSRF guard: host "%s" is public — no whitelist needed', $host));
+			$this->pass($output, sprintf('SSRF guard: host "%s" is public, no whitelist needed', $host));
 		}
 
 		// -----------------------------------------------------------------
@@ -192,7 +191,7 @@ class TestConnection extends Command {
 			// a login form. All three are valid signals that the authorize endpoint
 			// exists and would redirect a real user through the OAuth consent flow.
 			// Live-verified via `occ njordium_suitecrm:test-connection` against
-			// SuiteCRM 8.10.1 — Iteration 31 caught the 307-case regression.
+			// SuiteCRM 8.10.1; the 307-case was caught in a regression audit.
 			if (in_array($status, [200, 302, 303, 307, 308], true)) {
 				$this->pass($output, sprintf('Authorize endpoint (%s): HTTP %d (OK)', $authorizePath, $status));
 			} elseif ($status === 404) {
@@ -209,20 +208,20 @@ class TestConnection extends Command {
 			}
 		} catch (Throwable $e) {
 			// A network-level failure here means users won't get past "Connect"
-			// — hard fail, not advisory.
+			//, hard fail, not advisory.
 			$this->fail($output, sprintf('Authorize endpoint (%s): %s', $authorizePath, $e->getMessage()));
 			$anyFail = true;
 		}
 
 		// -----------------------------------------------------------------
-		// 5. Token endpoint existence — POST with intentionally-bad grant.
+		// 5. Token endpoint existence, POST with intentionally-bad grant.
 		//    A 400 { unsupported_grant_type } proves the endpoint is alive
 		//    and correctly parses OAuth2 errors; a 404 means the path is
 		//    wrong or SuiteCRM's Api isn't enabled at all.
 		// -----------------------------------------------------------------
-		// Iteration 39: token URL derived from the authorize path (see the
-		// preg_replace above). Presented as /-prefixed in log lines to match
-		// the authorize path's display style.
+		// Token URL derived from the authorize path (see the preg_replace
+		// above). Presented as /-prefixed in log lines to match the
+		// authorize path's display style.
 		$tokenUrl = rtrim($url, '/') . '/' . $tokenPath;
 		$tokenPathDisplay = '/' . $tokenPath;
 		try {
@@ -239,7 +238,7 @@ class TestConnection extends Command {
 				$this->fail($output, sprintf('Token endpoint (%s): HTTP 404', $tokenPathDisplay), [
 					'SuiteCRM API is not exposed at this path. Are the OpenSSL keys generated?',
 					'For fresh 8.10.x installs: /Api/V8/OAuth2/{private,public}.key must exist inside the SuiteCRM install',
-					'If oauth_authorize_path is /legacy/oauth2/authorize, the token endpoint is /legacy/oauth2/access_token — check the legacy layout produced the same keypair',
+					'If oauth_authorize_path is /legacy/oauth2/authorize, the token endpoint is /legacy/oauth2/access_token, check the legacy layout produced the same keypair',
 				]);
 				$anyFail = true;
 			} else {
@@ -255,23 +254,23 @@ class TestConnection extends Command {
 		// -----------------------------------------------------------------
 		// 6. Optional: --push-test. Verify write capability end-to-end.
 		//
-		//    Iteration 67 — assurance gate before we commit to building
-		//    any of the four planned write features (email→Case,
-		//    Talk→Note, follow-up Task from widget, Deck↔Opportunity).
-		//    If this check passes on the target SuiteCRM instance, the
-		//    `POST` branch of `SuiteCRMAPIService::request()` is proven
-		//    to interoperate with that SuiteCRM's V8 JSON:API surface
-		//    and we can build with confidence.
+		//    Assurance gate before committing to building any of the
+		//    write features (email to Case, Talk to Note, follow-up Task
+		//    from widget, Deck linked to Opportunity). If this check
+		//    passes on the target SuiteCRM instance, the `POST` branch
+		//    of `SuiteCRMAPIService::request()` is proven to interoperate
+		//    with that SuiteCRM's V8 JSON:API surface, and we can build
+		//    with confidence.
 		//
 		//    Uses the OAuth2 `client_credentials` grant (SuiteCRM 8.x
 		//    "Password Client" type supports both `password` and
 		//    `client_credentials`) so no user token is required and no
 		//    stored token is touched. Creates a throwaway record in the
-		//    Tasks module — Tasks is chosen because it's the least
+		//    Tasks module, Tasks is chosen because it's the least
 		//    load-bearing module in a real deployment (no attendee
 		//    linkage, no calendar cascade) and easiest to delete.
 		//    Skipped automatically if any of the read-side checks
-		//    above failed — no point testing writes if the endpoint
+		//    above failed, no point testing writes if the endpoint
 		//    isn't reachable in the first place.
 		// -----------------------------------------------------------------
 		if ($input->getOption('push-test')) {
@@ -279,7 +278,7 @@ class TestConnection extends Command {
 			$output->writeln('<info>--push-test: verifying write capability</info>');
 
 			if ($anyFail) {
-				$output->writeln('  <comment>Skipped — a required read-side check failed above. Fix that first, then re-run.</comment>');
+				$output->writeln('  <comment>Skipped, a required read-side check failed above. Fix that first, then re-run.</comment>');
 				return Command::FAILURE;
 			}
 
@@ -322,7 +321,7 @@ class TestConnection extends Command {
 					), [
 						'The `client_credentials` grant is not enabled on your OAuth2 client.',
 						'In SuiteCRM Admin → OAuth2 Clients and Tokens, edit your client and set OAuth2 Grant Type to include both "password" AND "client_credentials" (the "Password Client" type covers both).',
-						'Alternatively: leave it as password-only and skip --push-test — the write features will use per-user tokens acquired via the standard authcode flow, this is only for the diagnostic.',
+						'Alternatively: leave it as password-only and skip --push-test, the write features will use per-user tokens acquired via the standard authcode flow, this is only for the diagnostic.',
 					]);
 					return Command::FAILURE;
 				}
@@ -374,19 +373,19 @@ class TestConnection extends Command {
 						$recordId,
 					));
 					$output->writeln('');
-					$output->writeln('  <info>Foundation verified — the POST branch of SuiteCRMAPIService::request() interoperates with this SuiteCRM instance\'s V8 JSON:API.</info>');
+					$output->writeln('  <info>Foundation verified, the POST branch of SuiteCRMAPIService::request() interoperates with this SuiteCRM instance\'s V8 JSON:API.</info>');
 					$output->writeln('');
 					$output->writeln(sprintf('  Inspect: %s → All → Tasks → find "occ push-test"', rtrim($url, '/')));
 					$output->writeln('  Delete when done (either the SuiteCRM UI one-click, or re-run this command with --cleanup=' . (string)$recordId . ').');
 				} else {
 					$this->fail($output, sprintf(
-						'Create Task (POST /Api/V8/module/Tasks): HTTP %d — %s',
+						'Create Task (POST /Api/V8/module/Tasks): HTTP %d, %s',
 						$status,
 						substr($body, 0, 500),
 					), [
 						'The token exchange worked but the write was rejected.',
 						'Common causes: missing "status" enum value (SuiteCRM defaults changed?), missing required custom field, or JSON:API envelope mis-shaped.',
-						'Paste the HTTP body above back into the plan discussion and iter 67 will adapt the payload.',
+						'Inspect the HTTP body above to identify which field SuiteCRM rejected, and adjust the payload accordingly.',
 					]);
 					return Command::FAILURE;
 				}
@@ -436,7 +435,7 @@ class TestConnection extends Command {
 
 	/**
 	 * Test whether a host string resolves to an RFC-1918 / loopback
-	 * address. Simple heuristic — good enough for the "will NC's SSRF
+	 * address. Simple heuristic, good enough for the "will NC's SSRF
 	 * guard block this?" check.
 	 */
 	private function isPrivateAddress(string $host): bool {
@@ -446,7 +445,7 @@ class TestConnection extends Command {
 		// If it's already an IP, use it directly; else resolve.
 		$ip = filter_var($host, FILTER_VALIDATE_IP) ? $host : gethostbyname($host);
 		if ($ip === $host && !filter_var($ip, FILTER_VALIDATE_IP)) {
-			// Resolution failed — err on the safe side, assume public
+			// Resolution failed, err on the safe side, assume public
 			return false;
 		}
 		if ($ip === '127.0.0.1' || $ip === '::1' || str_starts_with($ip, '127.')) {

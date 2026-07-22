@@ -32,7 +32,7 @@ use OCP\Search\SearchResultEntry;
  * Named subclass of {@see SearchResultEntry} used by
  * {@see SuiteCRMSearchProvider::search()} when constructing rows for the
  * Nextcloud unified-search response. The parent class is instantiable on
- * its own — this subclass exists purely to give the type a fork-owned
+ * its own, this subclass exists purely to give the type a fork-owned
  * name so IDE navigation and PHPStan analysis stay inside the app's
  * namespace instead of jumping into `OCP\Search`. Empty body is
  * intentional.

@@ -1,12 +1,12 @@
 # Upgrading from 1.9.x to 2.0.0
 
-Version 2.0.0 renames the Nextcloud app id from `integration_suitecrm` to `njordium_suitecrm`. This is the only breaking change in the release. Every setting on your existing 1.9.x install — admin OAuth config, the SuiteCRM instance URL, the client id/secret, the authorize path, every per-user OAuth token — carries across automatically via a Repair step that runs on `occ upgrade`. Users do not need to re-authorise SuiteCRM.
+Version 2.0.0 renames the Nextcloud app id from `integration_suitecrm` to `njordium_suitecrm`. This is the only breaking change in the release. Every setting on your existing 1.9.x install, admin OAuth config, the SuiteCRM instance URL, the client id/secret, the authorize path, every per-user OAuth token, carries across automatically via a Repair step that runs on `occ upgrade`. Users do not need to re-authorise SuiteCRM.
 
 The rename exists because the Nextcloud App Store still lists `integration_suitecrm` as Julien Veyssier's original app (last updated November 2021, version 1.0.3), and NC merges that stale record into what it shows for our fork. Renaming the id cleanly detaches the fork from the App Store cache.
 
 ## Prerequisites
 
-- A working 1.9.x install (any 1.9.x patch level is fine — the migration is version-agnostic within the 1.9.x line).
+- A working 1.9.x install (any 1.9.x patch level is fine, the migration is version-agnostic within the 1.9.x line).
 - Shell access to the Nextcloud host and permission to run `occ` as `www-data`.
 - The `njordium_suitecrm-v2.0.0.zip` release asset and its `.sha256`.
 
@@ -39,7 +39,7 @@ unzip -q /tmp/njordium_suitecrm-v2.0.0.zip -d /opt/nextcloud/data/nc/custom_apps
 chown -R 33:33 /opt/nextcloud/data/nc/custom_apps/njordium_suitecrm
 ```
 
-The zip contains a top-level `njordium_suitecrm/` directory that matches the new app id — this is required for NC to load the app.
+The zip contains a top-level `njordium_suitecrm/` directory that matches the new app id, this is required for NC to load the app.
 
 ### 4. Enable the new app
 
@@ -55,14 +55,33 @@ Migrated 4 admin config key(s) and 7 user preference row(s) from "integration_su
 
 On a fresh install with no legacy rows, the step is silent.
 
-### 5. Verify
+### 5. Update the SuiteCRM OAuth2 Client Redirect URL
 
-- `occ app:list | grep -E 'integration_suitecrm|njordium_suitecrm'` — old app should be disabled, new app enabled at 2.0.0.
-- **Settings → Administration → Connected accounts → SuiteCRM integration** shows your existing instance URL, application id, and authorize path pre-filled. The client secret shows as "A secret is stored — type to replace".
+**Important**: the Repair step migrates settings *inside Nextcloud* under the new app id, but it cannot reach into your SuiteCRM installation. The OAuth2 Client you created for 1.9.x still points its Redirect URL at `.../apps/integration_suitecrm/oauth-callback`, which no longer resolves after the rename. Existing per-user tokens keep working (they were already issued), but any user who needs to reconnect (or a fresh admin who tries **Connect via SuiteCRM OAuth**) will hit a blank authorize page or a callback 404.
+
+In SuiteCRM, go to **Admin → Users & Authentication → OAuth2 Clients and Tokens**, open the client used for the Nextcloud integration, and change its **Redirect URL** from:
+
+```
+https://cloud.example.com/apps/integration_suitecrm/oauth-callback
+```
+
+to:
+
+```
+https://cloud.example.com/apps/njordium_suitecrm/oauth-callback
+```
+
+Save. No restart required on the SuiteCRM side.
+
+### 6. Verify
+
+- `occ app:list | grep -E 'integration_suitecrm|njordium_suitecrm'`, old app should be disabled, new app enabled at 2.0.0.
+- **Settings → Administration → Connected accounts → SuiteCRM integration** shows your existing instance URL, application id, and authorize path pre-filled. The client secret shows as "A secret is stored, type to replace".
 - **Dashboard** widgets render.
-- One user runs their normal SuiteCRM search or opens the calendar widget — no OAuth prompt appears; the copied per-user tokens work.
+- One user runs their normal SuiteCRM search or opens the calendar widget, no OAuth prompt appears; the copied per-user tokens work.
+- One user goes through **Disconnect** then **Connect via SuiteCRM OAuth** to prove the updated Redirect URL round-trips cleanly.
 
-### 6. Optional — clean up the old folder
+### 7. Optional, clean up the old folder
 
 Once you have verified 2.0.0 is stable in your environment:
 
@@ -83,7 +102,7 @@ docker exec -u www-data nextcloud-nextcloud-1 php occ app:enable integration_sui
 
 The 1.9.x rows were never touched by the Migration step, so re-enabling the old app returns everything to the exact state it was in before the upgrade. If you also removed the old `custom_apps/integration_suitecrm/` folder in step 6, re-extract a 1.9.1 release zip first.
 
-Note that any change made in 2.0.0 (a user reconnecting under the new id, an admin changing the instance URL under the new id) will not automatically flow back to the legacy rows — after a rollback the app runs against the pre-upgrade snapshot.
+Note that any change made in 2.0.0 (a user reconnecting under the new id, an admin changing the instance URL under the new id) will not automatically flow back to the legacy rows, after a rollback the app runs against the pre-upgrade snapshot.
 
 ## Verifying the Repair step directly
 

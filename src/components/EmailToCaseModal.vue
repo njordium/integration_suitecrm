@@ -10,7 +10,7 @@
 				{{ t('njordium_suitecrm', 'Subject') }}
 				<NcTextField
 					v-model="subject"
-					:placeholder="t('njordium_suitecrm', 'Case name — usually the email subject')"
+					:placeholder="t('njordium_suitecrm', 'Case name, usually the email subject')"
 					:disabled="submitting"
 					required />
 			</label>
@@ -89,7 +89,7 @@
 
 <script>
 /**
- * EmailToCaseModal — iter 72b.
+ * EmailToCaseModal.
  *
  * Paste-form flow for the fourth planned write feature: convert an
  * email into a SuiteCRM Case. Because NC Mail's third-party action-
@@ -101,7 +101,7 @@
  * chosen priority.
  *
  * Contact / Account linking (match sender email to a SuiteCRM
- * Contact) is intentionally omitted from the MVP — the frontend
+ * Contact) is intentionally omitted from the MVP, the frontend
  * would need its own record-picker + search API round-trip, and
  * the value is limited until we prove the base flow in production.
  * Can be added later without breaking the endpoint contract.

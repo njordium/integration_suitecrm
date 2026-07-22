@@ -20,11 +20,11 @@
 
 <script>
 /**
- * SuiteCRMCases — iter 75.
+ * SuiteCRMCases.
  *
  * "My open Cases" dashboard widget. Mirrors the shape of
  * ./Calendar.vue so a rep familiar with the schedule widget finds
- * the same interaction model here — click a row to open the record
+ * the same interaction model here, click a row to open the record
  * in SuiteCRM, connect-button empty-state, 120s polling loop paused
  * when the tab is hidden.
  *

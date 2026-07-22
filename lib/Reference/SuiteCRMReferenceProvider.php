@@ -125,10 +125,10 @@ class SuiteCRMReferenceProvider extends ADiscoverableReferenceProvider implement
 		return match ($module) {
 			'Contacts', 'Leads' => trim(($attrs['title'] ?? '') . ' ' . ($attrs['account_name'] ?? '')),
 			'Accounts' => $attrs['industry'] ?? '',
-			'Opportunities' => trim(($attrs['sales_stage'] ?? '') . ' — ' . ($attrs['amount'] ?? '')),
+			'Opportunities' => trim(($attrs['sales_stage'] ?? '') . ', ' . ($attrs['amount'] ?? '')),
 			'Cases' => $attrs['status'] ?? '',
-			'Meetings', 'Calls' => trim(($attrs['status'] ?? '') . ' — ' . ($attrs['date_start'] ?? '')),
-			'Tasks' => trim(($attrs['status'] ?? '') . ' — ' . ($attrs['date_due'] ?? '')),
+			'Meetings', 'Calls' => trim(($attrs['status'] ?? '') . ', ' . ($attrs['date_start'] ?? '')),
+			'Tasks' => trim(($attrs['status'] ?? '') . ', ' . ($attrs['date_due'] ?? '')),
 			default => '',
 		};
 	}

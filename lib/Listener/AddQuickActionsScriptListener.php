@@ -19,7 +19,7 @@ use OCP\Util;
 use OCA\SuiteCRM\AppInfo\Application;
 
 /**
- * Iter 79 — inject the global Quick Actions floating action button on every
+ * Injects the global Quick Actions floating action button on every
  * Nextcloud page render.
  *
  * Runs on `BeforeTemplateRenderedEvent`, which fires whenever Nextcloud is
@@ -27,9 +27,9 @@ use OCA\SuiteCRM\AppInfo\Application;
  * scopes the script inclusion to actual page loads and keeps API traffic
  * lean.
  *
- * The listener is a no-op for unauthenticated visitors — the FAB has nothing
- * useful to offer them. The frontend script does its own connection check
- * before rendering the button, so a signed-in user without SuiteCRM
+ * The listener is a no-op for unauthenticated visitors, since the FAB has
+ * nothing useful to offer them. The frontend script does its own connection
+ * check before rendering the button, so a signed-in user without SuiteCRM
  * credentials also sees nothing (avoiding a dead-end button that opens a
  * modal to "please connect first").
  *

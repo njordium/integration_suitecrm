@@ -70,7 +70,7 @@
 
 <script>
 /**
- * TaskFollowupModal — iter 69.
+ * TaskFollowupModal.
  *
  * Prompts the user for a follow-up SuiteCRM Task's name, optional due
  * date, priority, and notes; POSTs to `/apps/njordium_suitecrm/task-followup`;
@@ -78,13 +78,13 @@
  * events + calendar), each of which passes its own {sourceModule,
  * sourceId, sourceLabel} to prefill the link.
  *
- * Design deliberately minimal — this is the first user-facing write
+ * Design deliberately minimal, this is the first user-facing write
  * feature; keeping the modal simple makes the "did this work end-to-end
  * against SuiteCRM 8.10.x" verification cheap. Extra fields (assigned
  * user, contact link, follow-up date reminder) can land in later iters
  * once the base flow is proven in production.
  *
- * Introduced in iter 69a (v2.0.2). See CHANGELOG for context.
+ * Introduced in v2.0.2. See CHANGELOG for context.
  *
  * @author Kim Haverblad
  */
@@ -162,7 +162,7 @@ export default {
 	watch: {
 		open(isOpen) {
 			if (isOpen) {
-				// Reset each time the modal is opened — avoids the prior
+				// Reset each time the modal is opened, avoids the prior
 				// user's stale data leaking into the next follow-up.
 				this.name = ''
 				this.description = ''

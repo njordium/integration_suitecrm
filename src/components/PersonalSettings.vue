@@ -42,7 +42,7 @@
 						{{ t('njordium_suitecrm', 'Advanced: username + password fallback (SuiteCRM legacy grant)') }}
 					</summary>
 					<NcNoteCard type="info">
-						{{ t('njordium_suitecrm', 'Only use this if your SuiteCRM instance cannot complete a browser redirect back to Nextcloud. Your login and password are not stored — they are only used once to obtain an access token.') }}
+						{{ t('njordium_suitecrm', 'Only use this if your SuiteCRM instance cannot complete a browser redirect back to Nextcloud. Your login and password are not stored, they are only used once to obtain an access token.') }}
 					</NcNoteCard>
 					<div class="fields">
 						<NcTextField
@@ -279,12 +279,12 @@ export default {
 			// Not a set of individual flags because the modals are
 			// mutually exclusive (only one dialog can be open at once).
 			quickAction: null,
-			// Iter 77: pipeline widget framing preference. Kept in
-			// component state (rather than reading state.pipeline_mode
-			// directly on each render) so NcSelect's v-model works
-			// without a two-way computed. Backend validates the value
-			// against SuiteCRMAPIService::PIPELINE_MODES on read; an
-			// unknown string here falls back silently to the default.
+			// Pipeline widget framing preference. Kept in component state
+			// (rather than reading state.pipeline_mode directly on each
+			// render) so NcSelect's v-model works without a two-way
+			// computed. Backend validates the value against
+			// SuiteCRMAPIService::PIPELINE_MODES on read; an unknown
+			// string here falls back silently to the default.
 			pipelineMode: loadState('njordium_suitecrm', 'user-config').pipeline_mode || 'closing_quarter',
 		}
 	},
@@ -407,9 +407,9 @@ export default {
 				})
 		},
 
-		// Iteration 20 (Finding 33): primary connect path. Ask the server for a
-		// state-bound authorize URL, then hand the browser off to SuiteCRM. The
-		// callback controller finishes the flow and redirects the user back here.
+		// Primary connect path. Ask the server for a state-bound authorize
+		// URL, then hand the browser off to SuiteCRM. The callback controller
+		// finishes the flow and redirects the user back here.
 		async onOAuthConnect() {
 			this.authorizing = true
 			try {
@@ -417,7 +417,7 @@ export default {
 				const response = await axios.get(url)
 				if (response.data && response.data.authorize_url) {
 					window.location = response.data.authorize_url
-					// leave `authorizing = true` — the whole page is about to unload.
+					// leave `authorizing = true`, the whole page is about to unload.
 					return
 				}
 				showError(t('njordium_suitecrm', 'OAuth is not configured on the server.'))
@@ -516,8 +516,8 @@ export default {
 		max-width: 500px;
 	}
 
-	// Iter 79 hotfix: scoped h3 layout so the icon aligns inline with the
-	// section heading text instead of floating far to the right.
+	// Scoped h3 layout so the icon aligns inline with the section heading
+	// text instead of floating far to the right.
 	.suitecrm-widget-prefs__heading,
 	.suitecrm-quick-actions__heading {
 		display: flex;

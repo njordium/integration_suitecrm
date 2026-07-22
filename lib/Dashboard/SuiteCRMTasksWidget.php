@@ -26,17 +26,17 @@ use OCA\SuiteCRM\Service\SuiteCRMAPIService;
 use OCA\SuiteCRM\Service\TokenStorage;
 
 /**
- * "My open Tasks" dashboard widget — iter 76.
+ * "My open Tasks" dashboard widget.
  *
  * Fourth dashboard widget. Distinct from the calendar widget's Tasks
  * section: the calendar widget is date-oriented and drops both
  * undated Tasks and Tasks whose due date is outside the horizon
  * window. This widget is workload-oriented and surfaces every
- * actionable Task assigned to the user, including undated ones — a
+ * actionable Task assigned to the user, including undated ones, a
  * common miss in SuiteCRM 8 where reps create Tasks without setting
  * a due date and then never see them again.
  *
- * Order 40 — below the "My open Cases" widget (order 30) so a rep
+ * Order 40, below the "My open Cases" widget (order 30) so a rep
  * scanning down sees Cases (external escalations) before Tasks
  * (internal workload).
  */

@@ -160,7 +160,7 @@ class SuiteCRMSearchProvider implements IProvider {
 				. (isset($attrs['priority']) ? ' [' . $attrs['priority'] . ']' : ''),
 			'email' => '✉ ' . $this->l10n->t('Email')
 				. (isset($attrs['from_addr_name']) && $attrs['from_addr_name'] !== ''
-					? ' — ' . $attrs['from_addr_name'] : ''),
+					? ', ' . $attrs['from_addr_name'] : ''),
 			default => '',
 		};
 	}
@@ -179,7 +179,7 @@ class SuiteCRMSearchProvider implements IProvider {
 		}
 		try {
 			$date = new \DateTimeImmutable($iso);
-			return ' — ' . $date->format('Y-m-d H:i');
+			return ', ' . $date->format('Y-m-d H:i');
 		} catch (\Exception) {
 			return '';
 		}

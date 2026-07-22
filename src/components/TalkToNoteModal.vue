@@ -37,7 +37,7 @@
 			</label>
 
 			<p class="talk-to-note-modal__hint">
-				{{ t('njordium_suitecrm', 'The selected messages become the body of a SuiteCRM Note attached to the record above. System messages (joins, leaves, permission changes) are excluded — only user messages are included.') }}
+				{{ t('njordium_suitecrm', 'The selected messages become the body of a SuiteCRM Note attached to the record above. System messages (joins, leaves, permission changes) are excluded, only user messages are included.') }}
 			</p>
 		</div>
 
@@ -63,19 +63,19 @@
 
 <script>
 /**
- * TalkToNoteModal — iter 70b.
+ * TalkToNoteModal.
  *
  * Two-step user flow:
  *   1. Pick a Nextcloud Talk conversation (from the user's list, via
  *      the standard Talk OCS API).
  *   2. Pick a SuiteCRM record to attach the resulting Note to (via
- *      SuiteCRMRecordPicker — URL paste, client-side parse).
+ *      SuiteCRMRecordPicker, URL paste, client-side parse).
  *
  * On submit, fetches the last N messages from the picked conversation,
  * formats them as a simple markdown transcript, and POSTs to the
- * generic /log-note endpoint from iter 70a. System messages (joins,
+ * generic /log-note endpoint. System messages (joins,
  * leaves, permission changes, poll voting notifications, etc.) are
- * filtered out — only real user messages land in SuiteCRM. Long
+ * filtered out, only real user messages land in SuiteCRM. Long
  * conversations get truncated at the picked limit rather than paged
  * because a single SuiteCRM Note has no scroll UI to speak of and a
  * 500-message dump would be unusable.
@@ -217,7 +217,7 @@ export default {
 			const body = messages.map((m) => {
 				const when = new Date(m.timestamp * 1000).toISOString().replace('T', ' ').slice(0, 16)
 				const who = m.actorDisplayName || m.actorId || t('njordium_suitecrm', 'Unknown speaker')
-				return '**' + who + '** — ' + when + '\n> ' + (m.message || '').replace(/\n/g, '\n> ')
+				return '**' + who + '**, ' + when + '\n> ' + (m.message || '').replace(/\n/g, '\n> ')
 			}).join('\n\n')
 			return header + '\n\n' + body
 		},

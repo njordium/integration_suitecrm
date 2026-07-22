@@ -1,12 +1,12 @@
 # Running the integration behind a reverse proxy
 
-Public-facing Nextcloud deployments almost always live behind nginx, Apache, or a Cloudflare Tunnel. The OAuth flow this app implements only works if Nextcloud generates URLs that match what the browser is really hitting — one wrong header and SuiteCRM rejects the callback with `invalid_client`.
+Public-facing Nextcloud deployments almost always live behind nginx, Apache, or a Cloudflare Tunnel. The OAuth flow this app implements only works if Nextcloud generates URLs that match what the browser is really hitting, one wrong header and SuiteCRM rejects the callback with `invalid_client`.
 
-This document captures the tested config for those three setups. HAProxy and Traefik front-ends work fine in principle (the underlying constraint is the same overwrite trio below), but we don't ship tested samples for them yet — if you run one of those and want to contribute a working config, PRs welcome.
+This document captures the tested config for those three setups. HAProxy and Traefik front-ends work fine in principle (the underlying constraint is the same overwrite trio below), but we don't ship tested samples for them yet, if you run one of those and want to contribute a working config, PRs welcome.
 
 ## The failure mode you're trying to avoid
 
-The OAuth authorization-code flow encodes a `redirect_uri` when it sends the user to SuiteCRM's consent screen. Nextcloud generates that URI from its own base URL. If the base URL is wrong — say Nextcloud thinks it's `http://internal-vm:8080` but the browser is on `https://cloud.example.com` — then:
+The OAuth authorization-code flow encodes a `redirect_uri` when it sends the user to SuiteCRM's consent screen. Nextcloud generates that URI from its own base URL. If the base URL is wrong, say Nextcloud thinks it's `http://internal-vm:8080` but the browser is on `https://cloud.example.com`, then:
 
 1. The `redirect_uri` sent to SuiteCRM says `http://internal-vm:8080/apps/njordium_suitecrm/oauth-callback`
 2. SuiteCRM tries to match it against the whitelisted redirect URI on the OAuth2 client
@@ -29,7 +29,7 @@ $CONFIG = [
     'overwritehost' => 'cloud.example.com',
     'overwrite.cli.url' => 'https://cloud.example.com',
 
-    // Only apply the overwrites when the request comes from the proxy —
+    // Only apply the overwrites when the request comes from the proxy,
     // this preserves direct-access URLs (e.g. from the container internal
     // network for occ). Set to your proxy's source IP or CIDR as a PHP
     // regex; the `^...$` and escaped dots below are literal.
@@ -65,7 +65,7 @@ A common assumption is that fronting SuiteCRM with a public reverse proxy makes 
 
 Two ways to keep the SSRF guard on:
 
-1. Configure the SuiteCRM app URL as the **public** hostname (`https://crm.example.com`) and make sure that hostname resolves to a **public** IP from the Nextcloud host — usually via public DNS pointing to the reverse proxy's public IP.
+1. Configure the SuiteCRM app URL as the **public** hostname (`https://crm.example.com`) and make sure that hostname resolves to a **public** IP from the Nextcloud host, usually via public DNS pointing to the reverse proxy's public IP.
 2. If NC and the reverse proxy sit on the same private LAN and DNS still resolves the public name to a private IP (split-horizon DNS), you're back to needing `allow_local_remote_servers=true` even though the browser side is fully public.
 
 To check what NC actually sees, run this from inside the NC container/host:
@@ -98,7 +98,7 @@ server {
     ssl_certificate /etc/letsencrypt/live/cloud.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/cloud.example.com/privkey.pem;
 
-    # HSTS — safe to enable AFTER you've confirmed HTTPS works end-to-end.
+    # HSTS, safe to enable AFTER you've confirmed HTTPS works end-to-end.
     # Once set, browsers refuse plain HTTP to this hostname; hard to undo.
     add_header Strict-Transport-Security "max-age=15768000; includeSubDomains" always;
 
@@ -201,7 +201,7 @@ server {
 }
 ```
 
-Then in Nextcloud's admin config, set `oauth_instance_url = https://crm.example.com` (the public URL, not the private one). Whether you need `allow_local_remote_servers=true` depends on whether `crm.example.com` resolves to a public or private IP from the NC host — see the "About allow_local_remote_servers" section above.
+Then in Nextcloud's admin config, set `oauth_instance_url = https://crm.example.com` (the public URL, not the private one). Whether you need `allow_local_remote_servers=true` depends on whether `crm.example.com` resolves to a public or private IP from the NC host, see the "About allow_local_remote_servers" section above.
 
 ## Apache sample
 
@@ -221,7 +221,7 @@ If you're already using Apache as your web server for Nextcloud, this configurat
     SSLCertificateFile    /etc/letsencrypt/live/cloud.example.com/fullchain.pem
     SSLCertificateKeyFile /etc/letsencrypt/live/cloud.example.com/privkey.pem
 
-    # HSTS — safe to enable AFTER you've confirmed HTTPS works end-to-end.
+    # HSTS, safe to enable AFTER you've confirmed HTTPS works end-to-end.
     Header always set Strict-Transport-Security "max-age=15768000; includeSubDomains"
 
     DocumentRoot /var/www/nextcloud
@@ -236,7 +236,7 @@ If you're already using Apache as your web server for Nextcloud, this configurat
         </IfModule>
     </Directory>
 
-    # PHP-FPM handler — hands .php requests off to the PHP-FPM pool over its
+    # PHP-FPM handler, hands .php requests off to the PHP-FPM pool over its
     # Unix socket. Without this block, Apache serves .php files as text
     # (very sharp footgun). Path here matches Debian/Ubuntu default; adjust
     # for your distribution's socket location (RHEL/Fedora usually
@@ -263,7 +263,7 @@ systemctl reload apache2
 
 If you're running mod_php instead of PHP-FPM (older distros), replace the `<FilesMatch \.php$>` block with `SetHandler application/x-httpd-php` and skip `a2enmod proxy_fcgi`. mod_php is not recommended by upstream Nextcloud on 30+ because it forces `mpm_prefork` and hurts throughput.
 
-The overwrite config in `config.php` still applies — Apache alone doesn't tell PHP the correct scheme unless you set `overwriteprotocol=https`.
+The overwrite config in `config.php` still applies, Apache alone doesn't tell PHP the correct scheme unless you set `overwriteprotocol=https`.
 
 ## Cloudflare Tunnel
 
@@ -280,7 +280,7 @@ ingress:
   - service: http_status:404
 ```
 
-`noTLSVerify: false` is the safe default (do verify TLS on the backend). Only set to `true` if your backend uses a self-signed cert you can't replace — which is unusual because the tunnel-to-backend leg is typically plain HTTP inside the same host anyway.
+`noTLSVerify: false` is the safe default (do verify TLS on the backend). Only set to `true` if your backend uses a self-signed cert you can't replace, which is unusual because the tunnel-to-backend leg is typically plain HTTP inside the same host anyway.
 
 `config.php` needs:
 ```php
@@ -317,4 +317,4 @@ If step 2 prints anything other than `https://cloud.example.com/...`, the overwr
 - `overwritecondaddr` regex doesn't match the proxy's source IP (test with `journalctl -u nginx` or Apache access logs to find the real source IP the CLI sees)
 - Config typo in `config.php` (run `php -l /var/www/nextcloud/config/config.php` to check syntax)
 
-If step 2 is right but the OAuth flow still fails with `invalid_client`, the whitelisted redirect URL in the SuiteCRM OAuth2 Client is stale from a previous config — recreate it via the SuiteCRM admin UI with the URL from step 2.
+If step 2 is right but the OAuth flow still fails with `invalid_client`, the whitelisted redirect URL in the SuiteCRM OAuth2 Client is stale from a previous config, recreate it via the SuiteCRM admin UI with the URL from step 2.

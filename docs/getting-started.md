@@ -1,4 +1,4 @@
-# Getting started — SuiteCRM integration for Nextcloud
+# Getting started, SuiteCRM integration for Nextcloud
 
 Zero-to-connected in about 15 minutes. This walkthrough assumes you already have:
 
@@ -48,15 +48,15 @@ If those files already exist and the API responds, you can skip this step.
 In SuiteCRM's admin UI:
 
 1. Admin → **OAuth2 Clients and Tokens** → **New OAuth2 Client**.
-2. **Name:** anything — "Nextcloud integration" is fine.
-3. **Client ID:** anything — this is what Nextcloud will send. Something like `nc-suitecrm-client` works.
-4. **Secret:** click Generate, or type a strong random string. Note this value — you cannot recover it later; you'd have to reset and create a new client.
-5. **Grant Type:** **Authorization Code** is the recommended choice. If your setup absolutely cannot complete a browser redirect back to Nextcloud (air-gapped or redirect-blocking proxy), pick **Password** instead — Nextcloud's fallback "Advanced" panel supports it.
-6. **Redirect URL:** exactly `<your-nextcloud-public-url>/apps/njordium_suitecrm/oauth-callback`. **Byte-for-byte match matters** — `http` vs `https`, port number, trailing slash, all count. If your Nextcloud is `https://cloud.example.com`, this is `https://cloud.example.com/apps/njordium_suitecrm/oauth-callback`.
+2. **Name:** anything, "Nextcloud integration" is fine.
+3. **Client ID:** anything, this is what Nextcloud will send. Something like `nc-suitecrm-client` works.
+4. **Secret:** click Generate, or type a strong random string. Note this value, you cannot recover it later; you'd have to reset and create a new client.
+5. **Grant Type:** **Authorization Code** is the recommended choice. If your setup absolutely cannot complete a browser redirect back to Nextcloud (air-gapped or redirect-blocking proxy), pick **Password** instead, Nextcloud's fallback "Advanced" panel supports it.
+6. **Redirect URL:** exactly `<your-nextcloud-public-url>/apps/njordium_suitecrm/oauth-callback`. **Byte-for-byte match matters**, `http` vs `https`, port number, trailing slash, all count. If your Nextcloud is `https://cloud.example.com`, this is `https://cloud.example.com/apps/njordium_suitecrm/oauth-callback`.
 
 Save. Note the Client ID + Secret; you'll paste them into Nextcloud next.
 
-> **The bcrypt vs SHA-256 trap.** SuiteCRM 8.10.x stores the OAuth2 client secret as raw `hash('sha256', $secret)` — **not** bcrypt. If you seeded via SQL with `password_hash()`, the client will 401 with `invalid_client` no matter what secret you send. Always create the client via the admin UI (which hashes correctly), not via direct SQL insert.
+> **The bcrypt vs SHA-256 trap.** SuiteCRM 8.10.x stores the OAuth2 client secret as raw `hash('sha256', $secret)`, **not** bcrypt. If you seeded via SQL with `password_hash()`, the client will 401 with `invalid_client` no matter what secret you send. Always create the client via the admin UI (which hashes correctly), not via direct SQL insert.
 
 ## 4. Configure Nextcloud
 
@@ -66,11 +66,11 @@ Open **Settings → Administration → Connected accounts → SuiteCRM integrati
 - **Client ID:** what you set in step 3.
 - **Client Secret:** what you set in step 3. (The field is masked after save.)
 
-The authorize endpoint path defaults to `/Api/authorize`, which is what stock SuiteCRM 8.10.x exposes. If your install is upgraded from 7.x, it may expose the legacy `/legacy/oauth2/authorize` path instead — same field, editable in the admin UI.
+The authorize endpoint path defaults to `/Api/authorize`, which is what stock SuiteCRM 8.10.x exposes. If your install is upgraded from 7.x, it may expose the legacy `/legacy/oauth2/authorize` path instead, same field, editable in the admin UI.
 
 Save.
 
-## 5. Diagnostics — verify the wiring before any user tries to connect
+## 5. Diagnostics, verify the wiring before any user tries to connect
 
 The fork ships an `occ` command that walks every layer that has bitten users during setup:
 
@@ -81,14 +81,14 @@ sudo -u www-data php /var/www/nextcloud/occ njordium_suitecrm:test-connection
 Expected output when the wiring is correct:
 
 ```
-SuiteCRM integration — connection diagnostic
+SuiteCRM integration, connection diagnostic
 
   ✓ Admin config: oauth_instance_url = https://crm.example.com
   ✓ Admin config: client_id = nc-suitecrm-client
   ✓ Admin config: client_secret is set (hidden)
   ✓ Admin config: oauth_authorize_path = /Api/authorize
   ✓ Derived token endpoint path: /Api/access_token
-  ✓ SSRF guard: host "crm.example.com" is public — no whitelist needed
+  ✓ SSRF guard: host "crm.example.com" is public, no whitelist needed
   ✓ HTTP reachability: https://crm.example.com → HTTP 200
   ✓ Authorize endpoint (/Api/authorize): HTTP 307 (OK)
   ✓ Token endpoint (/Api/access_token): HTTP 400 with error="unsupported_grant_type" (OK)
@@ -103,10 +103,10 @@ Common non-OK signals and what they mean:
 | `Admin config: oauth_instance_url is empty` | Nothing set in step 4. |
 | `SSRF guard: host "..." looks like an RFC-1918 / loopback address but allow_local_remote_servers is FALSE` | Nextcloud's SSRF guard refuses outbound to private-range IPs. If your SuiteCRM is on the LAN or same Docker host, run `sudo -u www-data php occ config:system:set allow_local_remote_servers --value=true --type=boolean` and retry. |
 | `HTTP reachability: cannot connect to <url>` | DNS, firewall, or SuiteCRM container not running. Confirm with `curl -v <url>` from the Nextcloud host. |
-| `Authorize endpoint (...): HTTP 404` | Wrong path. Try `/legacy/oauth2/authorize` — see step 4. |
+| `Authorize endpoint (...): HTTP 404` | Wrong path. Try `/legacy/oauth2/authorize`, see step 4. |
 | `Token endpoint (...): HTTP 404` | SuiteCRM's OAuth2 keypair isn't generated. Redo step 2. |
 
-The command is safe to run — it doesn't touch stored user tokens.
+The command is safe to run, it doesn't touch stored user tokens.
 
 ## 6. Per-user connect
 
@@ -121,9 +121,9 @@ For each user who wants to use the integration:
 
 Optionally toggle **Enable search integration** (adds SuiteCRM as a source in Nextcloud's unified search) and **Enable notifications** (SuiteCRM reminder pop-ups land in Nextcloud's notification tray).
 
-If your SuiteCRM install truly cannot complete a browser redirect back — some air-gapped or redirect-blocking-proxy setups — expand **"Advanced: username + password fallback"** and enter your SuiteCRM login + password. Nextcloud uses them once to obtain an OAuth token and does not store them.
+If your SuiteCRM install truly cannot complete a browser redirect back, some air-gapped or redirect-blocking-proxy setups, expand **"Advanced: username + password fallback"** and enter your SuiteCRM login + password. Nextcloud uses them once to obtain an OAuth token and does not store them.
 
-> **LDAP / Active Directory users must use the authcode flow.** The Advanced password fallback issues a `grant_type=password` request against SuiteCRM's OAuth2 layer, and SuiteCRM's password grant does not consult the LDAP module — you'll get "The password is invalid" no matter what credentials you paste in. Use the primary "Connect via SuiteCRM OAuth" button and let SuiteCRM's own login screen route the credentials through LDAP as normal. (This is what upstream [issue #9](https://github.com/julien-nc/integration_suitecrm/issues/9) surfaced; iter 37's move to authcode-first is the fix.)
+> **LDAP / Active Directory users must use the authcode flow.** The Advanced password fallback issues a `grant_type=password` request against SuiteCRM's OAuth2 layer, and SuiteCRM's password grant does not consult the LDAP module: you'll get "The password is invalid" no matter what credentials you paste in. Use the primary "Connect via SuiteCRM OAuth" button and let SuiteCRM's own login screen route the credentials through LDAP as normal. (This is what upstream [issue #9](https://github.com/julien-nc/integration_suitecrm/issues/9) surfaced; the move to authcode-first is the fix.)
 
 ## 7. Smoke tests
 
@@ -133,19 +133,19 @@ Confirm each of the four surfaces works end-to-end.
 
 **Dashboard widgets:** open the Nextcloud dashboard (top-left grid icon → Dashboard). "SuiteCRM events" and "SuiteCRM calendar" widgets appear. If the connected user has upcoming Meetings, Calls, or Tasks assigned to them in SuiteCRM, they show up here.
 
-**Reference cards:** paste a link to any SuiteCRM record into a Talk chat or a Note — for instance `https://crm.example.com/index.php?module=Contacts&action=DetailView&record=abc-123-def`. The link should render as a rich preview card with the record's name.
+**Reference cards:** paste a link to any SuiteCRM record into a Talk chat or a Note, for instance `https://crm.example.com/index.php?module=Contacts&action=DetailView&record=abc-123-def`. The link should render as a rich preview card with the record's name.
 
-**Notifications:** if the user has a SuiteCRM reminder scheduled to fire within the next few minutes, wait for it — a Nextcloud notification should appear.
+**Notifications:** if the user has a SuiteCRM reminder scheduled to fire within the next few minutes, wait for it, a Nextcloud notification should appear.
 
 ## 8. When something goes wrong
 
-The [README's Troubleshooting section](../README.md#troubleshooting) is keyed by symptom for every failure mode we've encountered in the wild — `invalid_client` from SuiteCRM, empty settings section (missing JS bundles), SSRF-guard blocks, reverse-proxy scheme mismatches, and HSTS-cache surprises.
+The [README's Troubleshooting section](../README.md#troubleshooting) is keyed by symptom for every failure mode we've encountered in the wild, `invalid_client` from SuiteCRM, empty settings section (missing JS bundles), SSRF-guard blocks, reverse-proxy scheme mismatches, and HSTS-cache surprises.
 
 If you hit something not covered there, `occ njordium_suitecrm:test-connection` from step 5 is the fastest first-line diagnostic. Its output tells you which layer is broken.
 
-Filed issues welcome at [https://github.com/njordium/integration_suitecrm/issues](https://github.com/njordium/integration_suitecrm/issues) — please include the `occ test-connection` output.
+Filed issues welcome at [https://github.com/njordium/integration_suitecrm/issues](https://github.com/njordium/integration_suitecrm/issues), please include the `occ test-connection` output.
 
 ## Related documents
 
-- [`docs/reverse-proxy.md`](reverse-proxy.md) — nginx / Apache / Cloudflare Tunnel front-end configuration when Nextcloud lives behind a public reverse proxy.
-- [`docs/proxmox-lxc.md`](proxmox-lxc.md) — full production reference deploying Nextcloud + SuiteCRM 8 as two Ubuntu 24.04 LXCs on a Proxmox host, verified against a live Nextcloud 33 install.
+- [`docs/reverse-proxy.md`](reverse-proxy.md), nginx / Apache / Cloudflare Tunnel front-end configuration when Nextcloud lives behind a public reverse proxy.
+- [`docs/proxmox-lxc.md`](proxmox-lxc.md), full production reference deploying Nextcloud + SuiteCRM 8 as two Ubuntu 24.04 LXCs on a Proxmox host, verified against a live Nextcloud 33 install.

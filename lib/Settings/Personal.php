@@ -34,11 +34,10 @@ class Personal implements ISettings {
 		$userName = $this->config->getUserValue($userId, Application::APP_ID, 'user_name');
 		$searchEnabled = $this->config->getUserValue($userId, Application::APP_ID, 'search_enabled', '0');
 		$notificationEnabled = $this->config->getUserValue($userId, Application::APP_ID, 'notification_enabled', '0');
-		// Iter 77: pipeline widget framing preference. Default falls
-		// back to closing_quarter for fresh installs; an unknown value
-		// on disk (Studio-customised install, hand-edited row) also
-		// snaps to the default so the widget never crashes on a bad
-		// preference string.
+		// Pipeline widget framing preference. Default falls back to
+		// closing_quarter for fresh installs; an unknown value on disk
+		// (Studio-customised install, hand-edited row) also snaps to the
+		// default so the widget never crashes on a bad preference string.
 		$pipelineMode = $this->config->getUserValue($userId, Application::APP_ID, 'pipeline_mode', SuiteCRMAPIService::DEFAULT_PIPELINE_MODE);
 		if (!in_array($pipelineMode, SuiteCRMAPIService::PIPELINE_MODES, true)) {
 			$pipelineMode = SuiteCRMAPIService::DEFAULT_PIPELINE_MODE;

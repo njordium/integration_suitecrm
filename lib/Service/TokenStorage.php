@@ -53,7 +53,7 @@ class TokenStorage {
 		try {
 			return $this->crypto->decrypt($stored);
 		} catch (Exception $e) {
-			// Legacy plaintext from < 1.2.0 — migrate on first read so subsequent
+			// Legacy plaintext from < 1.2.0, migrate on first read so subsequent
 			// reads take the encrypted path.
 			$this->logger->warning('SuiteCRM TokenStorage: decrypt failed, treating value as legacy plaintext and re-encrypting', [
 				'app' => Application::APP_ID,

@@ -144,26 +144,26 @@ class SuiteCRMAPIService {
 	 * - not already read
 	 * - reminder set after $since (if defined)
 	 *
-	 * Iteration 21 (Finding 6): the Reminders query now pushes
+	 * The Reminders query pushes
 	 * `filter[assigned_user_id][eq]=<scrmUserId>` to the server so we don't
 	 * pull every reminder in the tenant just to discard 99% of them. The
-	 * per-event assigned_user_id check below still runs — the two IDs can
-	 * diverge (e.g. a reminder created by an admin on behalf of another
-	 * user), so the server filter narrows the input set and the client-side
-	 * check remains authoritative for the "this reminder's event is mine"
-	 * decision.
+	 * per-event assigned_user_id check below still runs (the two IDs can
+	 * diverge, for instance a reminder created by an admin on behalf of
+	 * another user), so the server filter narrows the input set and the
+	 * client-side check remains authoritative for the "this reminder's
+	 * event is mine" decision.
 	 *
-	 * Iteration 21 (Finding 5): the sprayed
+	 * The `filter[operator]=and` is appended once, only when there is more
+	 * than one filter. An earlier sprayed
 	 * `implode('&filter[operator]=and&', ...)` produced a URL with an
 	 * `operator=and` between every pair of filters, which SuiteCRM parses
-	 * as one final operator anyway but which trips some WAFs. The operator
-	 * is now appended once, only when there is more than one filter.
+	 * as one final operator anyway but which trips some WAFs.
 	 *
-	 * Iteration 21 (Finding 9): defensive parse of `date_willexecute` and
-	 * `timer_popup`. Some SuiteCRM installs return NULL for these fields
-	 * on orphaned reminders (a reminder whose event was deleted before the
-	 * reminder was cleaned up), which used to arithmetic to a large
-	 * negative timestamp and flood the tray with garbage rows from ~1970.
+	 * Defensive parse of `date_willexecute` and `timer_popup`: some
+	 * SuiteCRM installs return NULL for these fields on orphaned reminders
+	 * (a reminder whose event was deleted before the reminder was cleaned
+	 * up), which used to arithmetic to a large negative timestamp and
+	 * flood the tray with garbage rows from ~1970.
 	 *
 	 * @param string $url
 	 * @param string $accessToken
@@ -211,8 +211,8 @@ class SuiteCRMAPIService {
 		$finalResults = [];
 		foreach (($result['data'] ?? []) as $reminder) {
 			// Defensive: orphan reminders can have NULL date_willexecute /
-			// timer_popup on some installs — skip those rather than emit a
-			// bogus 1970 timestamp downstream.
+			// timer_popup on some installs, so skip those rather than emit
+			// a bogus 1970 timestamp downstream.
 			$dateWillExecute = $reminder['attributes']['date_willexecute'] ?? null;
 			$timerPopup = $reminder['attributes']['timer_popup'] ?? null;
 			if (!is_numeric($dateWillExecute) || !is_numeric($timerPopup)) {
@@ -337,17 +337,17 @@ class SuiteCRMAPIService {
 	 * `date_attr` = attribute used as the primary sort/date key ("when it happens")
 	 */
 	/**
-	 * Iteration 50 (upstream issue #8 follow-through): `overdue_statuses` lists
-	 * the SuiteCRM status values that mean "the user hasn't yet dispositioned
-	 * this record". A past-due Meeting or Call with status = 'Planned' still
-	 * needs the rep's attention — same for a Task whose date_due is in the past
-	 * but that hasn't been marked Completed. Before iter 50 the widget's
-	 * `date_start > now()` filter silently dropped every such row and the rep
-	 * only found out about missed activity from SuiteCRM itself, defeating the
-	 * point of a dashboard reminder.
+	 * The `overdue_statuses` key lists the SuiteCRM status values that mean
+	 * "the user hasn't yet dispositioned this record". A past-due Meeting or
+	 * Call with status = 'Planned' still needs the rep's attention, and the
+	 * same holds for a Task whose date_due is in the past but that hasn't
+	 * been marked Completed. Earlier revisions of this widget used a strict
+	 * `date_start > now()` filter that silently dropped every such row and
+	 * the rep only found out about missed activity from SuiteCRM itself,
+	 * defeating the point of a dashboard reminder.
 	 *
 	 * `Held`, `Not Held`, `Completed`, `Deferred` are the disposition-terminal
-	 * statuses and are NOT in this list — a Held meeting is done, and the
+	 * statuses and are NOT in this list. A Held meeting is done, and the
 	 * calendar widget stops nagging about it.
 	 */
 	private const UPCOMING_MODULES = [
@@ -366,24 +366,22 @@ class SuiteCRMAPIService {
 	 * `fields`     = comma-separated attribute list for the JSON:API fields[] filter
 	 * `name_attrs` = ordered list of attributes to match the search substring
 	 *                against. One request is fired per attribute and results are
-	 *                merged and de-duplicated by record id — see the block
+	 *                merged and de-duplicated by record id. See the block
 	 *                comment on {@see search()} for why a client-side merge is
 	 *                preferred over `filter[operator]=or` on SuiteCRM 8.x.
 	 *
-	 * Iteration 21 (Finding 4): Contacts and Leads used to filter by
-	 * `full_name`, which is a non-db computed field on both modules — the
-	 * filter silently matched nothing on every install, so cross-module
-	 * search returned no Contacts/Leads at all. Switched to `last_name`,
-	 * which is a real column and the standard SuiteCRM "search person by
-	 * name" surface.
+	 * Contacts and Leads used to filter by `full_name`, which is a non-db
+	 * computed field on both modules. The filter silently matched nothing
+	 * on every install, so cross-module search returned no Contacts/Leads
+	 * at all. We switched to `last_name`, which is a real column and the
+	 * standard SuiteCRM "search person by name" surface.
 	 *
-	 * Iteration 35 (Finding 25 follow-up): matching only on `last_name`
-	 * meant a user typing a first name ("Serena") got zero hits even when
-	 * "Serena Arent" exists as a Contact. The person modules now list
-	 * both `last_name` and `first_name` in `name_attrs`; {@see search()}
-	 * fires one request per attribute, unions the rows, and dedupes by
-	 * record id. All other modules stay single-attribute — their only
-	 * user-facing display field is `name`.
+	 * Matching only on `last_name` meant a user typing a first name
+	 * ("Serena") got zero hits even when "Serena Arent" exists as a Contact.
+	 * The person modules now list both `last_name` and `first_name` in
+	 * `name_attrs`; {@see search()} fires one request per attribute, unions
+	 * the rows, and dedupes by record id. All other modules stay
+	 * single-attribute since their only user-facing display field is `name`.
 	 */
 	private const SEARCH_MODULES = [
 		['module' => 'Contacts',      'type' => 'contact',     'fields' => 'name,first_name,last_name,full_name',           'name_attrs' => ['last_name', 'first_name']],
@@ -393,14 +391,13 @@ class SuiteCRMAPIService {
 		['module' => 'Cases',         'type' => 'case',        'fields' => 'name,case_number,status',                       'name_attrs' => ['name']],
 		['module' => 'Meetings',      'type' => 'meeting',     'fields' => 'name,date_start,status,location',               'name_attrs' => ['name']],
 		['module' => 'Tasks',         'type' => 'task',        'fields' => 'name,date_due,priority,status',                 'name_attrs' => ['name']],
-		// Iteration 36 (Finding 25 tail): `date_sent` is not a real column on
-		// SuiteCRM 8.10.x's Email bean — the API responded 400
-		// "The following field in Email module is not found: date_sent" on every
-		// search since Iteration 24. Iteration 35's per-attribute error handling
-		// stopped it crashing the endpoint, but Emails still contributed zero
-		// hits. `SuiteCRMSearchProvider::getSubline()` only reads `name` and
-		// `from_addr_name` for the email type, so the offending field is dropped
-		// rather than substituted — one fewer over-the-wire attribute per search.
+		// `date_sent` is not a real column on SuiteCRM 8.10.x's Email bean.
+		// The API responded 400 "The following field in Email module is not
+		// found: date_sent" on every search until the field was dropped from
+		// this fields list. `SuiteCRMSearchProvider::getSubline()` only reads
+		// `name` and `from_addr_name` for the email type, so the offending
+		// field is dropped rather than substituted (one fewer over-the-wire
+		// attribute per search).
 		['module' => 'Emails',        'type' => 'email',       'fields' => 'name,from_addr_name,status',                    'name_attrs' => ['name']],
 	];
 
@@ -409,22 +406,22 @@ class SuiteCRMAPIService {
 	 * calendar widget. Includes both:
 	 *
 	 *   - Upcoming items (now .. now + $horizonDays)
-	 *   - Past-due-but-not-dispositioned items (now - $overdueLookbackDays .. now)
-	 *     — Meetings/Calls whose status is still `Planned`, Tasks whose status
+	 *   - Past-due-but-not-dispositioned items (now - $overdueLookbackDays .. now):
+	 *     Meetings/Calls whose status is still `Planned`, Tasks whose status
 	 *     is not one of `Held / Not Held / Completed / Deferred`.
 	 *
 	 * Sorted chronologically (oldest first) so overdue rows surface at the top
 	 * of the widget. Each row is tagged with a boolean `is_overdue` for the
 	 * frontend to badge/highlight.
 	 *
-	 * Iteration 50 (upstream issue #8): before this iteration the filter was
-	 * `date > now AND date < horizon`, which silently dropped past-due
-	 * Meetings/Calls the rep hadn't dispositioned. Widget users had to open
-	 * SuiteCRM directly to notice missed activity, defeating the purpose of a
-	 * dashboard reminder. The single API call is now widened to cover the past
-	 * lookback window as well; the not-actionable rows are filtered client-side
-	 * so we don't have to lean on SuiteCRM 8.x's `filter[operator]=or` (which
-	 * we know from iter 35 misbehaves on 8.4/8.5 DBAL).
+	 * Earlier revisions used a strict `date > now AND date < horizon` filter,
+	 * which silently dropped past-due Meetings/Calls the rep hadn't
+	 * dispositioned. Widget users had to open SuiteCRM directly to notice
+	 * missed activity, defeating the purpose of a dashboard reminder. The
+	 * single API call is now widened to cover the past lookback window as
+	 * well; the not-actionable rows are filtered client-side so we don't
+	 * have to lean on SuiteCRM 8.x's `filter[operator]=or` (which
+	 * misbehaves on 8.4/8.5 DBAL, see the block comment on {@see search()}).
 	 *
 	 * @return array Sorted result rows, each tagged with `type`, `event_ts`
 	 *               (int Unix timestamp), and `is_overdue` (bool).
@@ -470,7 +467,7 @@ class SuiteCRMAPIService {
 				$status = (string) ($row['attributes']['status'] ?? '');
 				$isActionableOverdue = !$isUpcoming && in_array($status, $overdueActionable, true);
 				if (!$isUpcoming && !$isActionableOverdue) {
-					// Past-due but already dispositioned (Held, Completed, etc) — skip.
+					// Past-due but already dispositioned (Held, Completed, etc). Skip.
 					continue;
 				}
 				$row['event_ts'] = $eventTs;
@@ -485,16 +482,15 @@ class SuiteCRMAPIService {
 	}
 
 	/**
-	 * Cases assigned to the current user that are still open — the "My open
-	 * Cases" dashboard widget (iter 75).
+	 * Cases assigned to the current user that are still open (the "My open
+	 * Cases" dashboard widget).
 	 *
 	 * SuiteCRM 8.10.x doesn't expose a reliable `NOT IN` filter operator on
-	 * its JSON:API surface (iter 24 established that `contains` is rejected,
-	 * `like` is the only string-match operator, and boolean-combining
-	 * multiple `[eq]` filters degrades to top-level `OR` on 8.4/8.5 — see
-	 * the block comment on {@see search()}). So the terminal-status
-	 * filtering is done client-side after a single narrow request scoped
-	 * by `assigned_user_id`.
+	 * its JSON:API surface (`contains` is rejected, `like` is the only
+	 * string-match operator, and boolean-combining multiple `[eq]` filters
+	 * degrades to top-level `OR` on 8.4/8.5, see the block comment on
+	 * {@see search()}). So the terminal-status filtering is done client-side
+	 * after a single narrow request scoped by `assigned_user_id`.
 	 *
 	 * `date_entered` is always present on a Case bean, so the "age in days"
 	 * computation is deterministic. Priority ordering follows the standard
@@ -560,7 +556,7 @@ class SuiteCRMAPIService {
 			if ($rankCmp !== 0) {
 				return $rankCmp;
 			}
-			// Older first within the same priority tier — larger age_days first.
+			// Older first within the same priority tier (larger age_days first).
 			return $b['age_days'] <=> $a['age_days'];
 		});
 
@@ -568,22 +564,23 @@ class SuiteCRMAPIService {
 	}
 
 	/**
-	 * Cases assigned to me → see {@see getMyCases()}. Tasks share the same
+	 * Cases assigned to me: see {@see getMyCases()}. Tasks share the same
 	 * pattern but with a due-date subline rather than an aging one, and a
 	 * different terminal-status set.
 	 *
-	 * Iter 76: "My open Tasks" widget. Distinct from the calendar widget's
-	 * Tasks slice — the calendar widget is date-oriented and drops undated
-	 * Tasks (and Tasks whose date_due is outside the horizon window).
-	 * This widget is workload-oriented and surfaces every actionable Task
-	 * assigned to the user, including undated ones (a common miss in
-	 * SuiteCRM 8 where reps create Tasks without setting a due date).
+	 * "My open Tasks" widget. Distinct from the calendar widget's Tasks
+	 * slice: the calendar widget is date-oriented and drops undated Tasks
+	 * (and Tasks whose date_due is outside the horizon window). This widget
+	 * is workload-oriented and surfaces every actionable Task assigned to
+	 * the user, including undated ones (a common miss in SuiteCRM 8 where
+	 * reps create Tasks without setting a due date).
 	 *
-	 * Sort: priority DESC (High > Medium > Low > unknown), then date_due
-	 * ASC with nulls sorted LAST (an undated Task after a dated one at
-	 * the same priority, since dated Tasks carry an explicit urgency
-	 * signal), then date_entered ASC as a stable tiebreaker for undated
-	 * Tasks so an older undated Task surfaces above a fresher undated Task.
+	 * Sort: priority DESC (High, then Medium, then Low, then unknown),
+	 * then date_due ASC with nulls sorted LAST (an undated Task after a
+	 * dated one at the same priority, since dated Tasks carry an explicit
+	 * urgency signal), then date_entered ASC as a stable tiebreaker for
+	 * undated Tasks so an older undated Task surfaces above a fresher
+	 * undated Task.
 	 *
 	 * `date_due` remains a string in the returned row so the frontend can
 	 * format it against the user's locale via `moment`; a parsed
@@ -626,7 +623,7 @@ class SuiteCRMAPIService {
 				try {
 					$dueTs = (new DateTime($dueStr))->getTimestamp();
 				} catch (Exception) {
-					// Malformed date_due — treat as undated rather than crash.
+					// Malformed date_due: treat as undated rather than crash.
 					$dueTs = null;
 				}
 			}
@@ -658,7 +655,7 @@ class SuiteCRMAPIService {
 			$aDue = $a['due_ts'];
 			$bDue = $b['due_ts'];
 			if ($aDue === null && $bDue === null) {
-				// Both undated — fall through to date_entered.
+				// Both undated: fall through to date_entered.
 				return $a['entered_ts'] <=> $b['entered_ts'];
 			}
 			if ($aDue === null) {
@@ -674,7 +671,7 @@ class SuiteCRMAPIService {
 	}
 
 	/**
-	 * Terminal Case statuses — Cases in these states do not appear in the
+	 * Terminal Case statuses. Cases in these states do not appear in the
 	 * "My open Cases" widget. Kept as a class constant so it's a single
 	 * point of update if a customer install adds an extra terminal state
 	 * ("Won't Fix" is a common addition, though not stock).
@@ -682,23 +679,23 @@ class SuiteCRMAPIService {
 	private const CLOSED_CASE_STATUSES = ['Closed', 'Rejected', 'Duplicate'];
 
 	/**
-	 * Terminal Task statuses — Tasks in these states do not appear in the
+	 * Terminal Task statuses. Tasks in these states do not appear in the
 	 * "My open Tasks" widget. The vocabulary follows the same principle as
 	 * {@see UPCOMING_MODULES} overdue_statuses for Tasks: `Not Started`,
 	 * `In Progress`, `Pending Input` are the actionable states; `Completed`
 	 * and `Deferred` are terminal. A `Deferred` Task is a deliberate "not
-	 * now" decision — the rep has already dispositioned it, so the widget
+	 * now" decision (the rep has already dispositioned it), so the widget
 	 * respects that and stops surfacing it.
 	 */
 	private const CLOSED_TASK_STATUSES = ['Completed', 'Deferred'];
 
 	/**
-	 * Terminal Opportunity sales_stages — Opportunities in these states do
+	 * Terminal Opportunity sales_stages. Opportunities in these states do
 	 * not appear in the "My pipeline" widget. Stock SuiteCRM 8 ships
 	 * `Closed Won` and `Closed Lost` as the terminal pair; both mean the
 	 * deal has been dispositioned and no further pipeline action is due
 	 * from the rep. Studio-customised installs sometimes add stages like
-	 * `Cancelled` or `On Hold` — a customer install that needs those
+	 * `Cancelled` or `On Hold`; a customer install that needs those
 	 * filtered would edit this constant.
 	 */
 	private const CLOSED_OPPORTUNITY_STAGES = ['Closed Won', 'Closed Lost'];
@@ -709,13 +706,13 @@ class SuiteCRMAPIService {
 	 * controller endpoint, and the widget itself share a single source of
 	 * truth for what "valid mode" means. An unknown mode string on the
 	 * wire falls through to {@see DEFAULT_PIPELINE_MODE} rather than
-	 * crashing — same defensive posture as {@see PRIORITY_ORDER}.
+	 * crashing (same defensive posture as {@see PRIORITY_ORDER}).
 	 */
 	public const PIPELINE_MODES = ['closing_quarter', 'top_value', 'weighted'];
 	public const DEFAULT_PIPELINE_MODE = 'closing_quarter';
 
 	/**
-	 * Opportunities assigned to me → "My pipeline" widget (iter 77).
+	 * Opportunities assigned to me: the "My pipeline" widget.
 	 *
 	 * Distinct from the Cases and Tasks widgets in that framing is
 	 * user-selectable via a personal preference (see the
@@ -723,35 +720,35 @@ class SuiteCRMAPIService {
 	 * predictable quarterly cadence want `closing_quarter`; reps with
 	 * long-tail deals whose calendar dates are aspirational want
 	 * `top_value`; reps building against a forecast target want
-	 * `weighted` (amount × probability/100).
+	 * `weighted` (amount times probability/100).
 	 *
 	 * All three modes filter out terminal `sales_stage` values
 	 * ({@see CLOSED_OPPORTUNITY_STAGES}) client-side because the JSON:API
 	 * NOT-IN limitation applies to Opportunity queries too.
 	 *
 	 * Mode-specific behaviour:
-	 *   * `closing_quarter` — further filter to `date_closed` within the
+	 *   * `closing_quarter`: further filter to `date_closed` within the
 	 *     current calendar quarter. Sort by `date_closed` ASC so the
 	 *     imminent deals surface first. Deals with empty date_closed are
-	 *     excluded from this mode entirely — the mode's whole point is
-	 *     "which of my deals need to land THIS quarter".
-	 *   * `top_value` — no additional filter beyond terminal-stage.
+	 *     excluded from this mode entirely, since the mode's whole point
+	 *     is "which of my deals need to land THIS quarter".
+	 *   * `top_value`: no additional filter beyond terminal-stage.
 	 *     Sort by `amount` DESC. Deals with empty/zero amount sort last.
-	 *   * `weighted` — no additional filter. Sort by
+	 *   * `weighted`: no additional filter. Sort by
 	 *     `amount * probability / 100` DESC. Deals with a null
 	 *     `probability` are treated as 0 (they carry no forecast signal
 	 *     yet) and sort to the tail.
 	 *
 	 * Each returned row is tagged with `type='opportunity'`,
 	 * `close_ts` (`int|null`), `amount_num` (float), `probability_num`
-	 * (float), and `weighted_num` (float) — the widget's Vue frontend
+	 * (float), and `weighted_num` (float). The widget's Vue frontend
 	 * uses these for display without re-parsing the strings.
 	 *
 	 * @param string $mode One of {@see PIPELINE_MODES}. Unknown strings
 	 *                     fall through to {@see DEFAULT_PIPELINE_MODE}
-	 *                     rather than crashing — an old bookmarked URL or
+	 *                     rather than crashing (an old bookmarked URL or
 	 *                     a typo in personal-settings JSON shouldn't kill
-	 *                     the widget.
+	 *                     the widget).
 	 * @return array Sorted result rows.
 	 *               On upstream API failure, returns the SuiteCRM error payload.
 	 */
@@ -821,7 +818,7 @@ class SuiteCRMAPIService {
 
 	/**
 	 * Start and end Unix timestamps of the current calendar quarter, in
-	 * server-local time. Q1 = Jan 1 – Mar 31, Q2 = Apr 1 – Jun 30, etc.
+	 * server-local time. Q1 = Jan 1 to Mar 31, Q2 = Apr 1 to Jun 30, etc.
 	 * Extracted so the getMyPipeline() `closing_quarter` filter is
 	 * testable without freezing global time.
 	 *
@@ -839,7 +836,7 @@ class SuiteCRMAPIService {
 
 	/**
 	 * Case-priority sort weight. Both label sets are covered because
-	 * SuiteCRM 8 installs are inconsistent — the stock English dropdown
+	 * SuiteCRM 8 installs are inconsistent: the stock English dropdown
 	 * uses `P1/P2/P3` but some ship with `High/Medium/Low` and Studio
 	 * lets tenants relabel freely. Unknown values fall through to 99 in
 	 * {@see getMyCases()} so they sort last but don't crash.
@@ -856,27 +853,24 @@ class SuiteCRMAPIService {
 	/**
 	 * Cross-module free-text search.
 	 *
-	 * Iteration 18 (Finding 16): the filter is pushed to SuiteCRM v8 REST
-	 * instead of fetching every row per module and grepping client-side with
-	 * `preg_match`. The old approach did not scale to real CRM sizes — a
-	 * tenant with 100k Contacts would pull 100k rows over the wire per
-	 * keystroke.
+	 * The filter is pushed to SuiteCRM v8 REST instead of fetching every row
+	 * per module and grepping client-side with `preg_match`. The old
+	 * approach did not scale to real CRM sizes: a tenant with 100k Contacts
+	 * would pull 100k rows over the wire per keystroke.
 	 *
-	 * Iteration 24 (regression fix): the operator briefly moved to
-	 * `contains` in Iteration 21 but SuiteCRM 8.10.1 returns
-	 * `400 Filter operator contains is invalid`. The stable operator is
-	 * `like` with explicit `%wildcard%` bracketing.
+	 * An earlier attempt used `contains` as the filter operator, but
+	 * SuiteCRM 8.10.1 returns `400 Filter operator contains is invalid`.
+	 * The stable operator is `like` with explicit `%wildcard%` bracketing.
 	 *
-	 * Iteration 35 (Finding 25 follow-up): each module declares an ordered
-	 * list of `name_attrs` (see {@see SEARCH_MODULES}). For person modules
-	 * (Contacts, Leads) the list is `['last_name', 'first_name']` so that
-	 * a first-name-only query still hits records that would otherwise be
-	 * invisible.
+	 * Each module declares an ordered list of `name_attrs` (see
+	 * {@see SEARCH_MODULES}). For person modules (Contacts, Leads) the list
+	 * is `['last_name', 'first_name']` so that a first-name-only query still
+	 * hits records that would otherwise be invisible.
 	 *
 	 * A dedicated `filter[operator]=or` request across both fields would
 	 * cut the request count in half, but SuiteCRM 8.x's DBAL layer applies
 	 * the OR at the top of the WHERE clause rather than between the two
-	 * `filter[<field>][like]` clauses — on 8.4 / 8.5 the query ends up as
+	 * `filter[<field>][like]` clauses. On 8.4 / 8.5 the query ends up as
 	 * `WHERE (contacts.deleted = 0) OR (last_name LIKE ...) OR (first_name
 	 * LIKE ...)`, which returns every deleted-flag-0 row in the module.
 	 * The client-side union below is one extra HTTP round trip per person
@@ -897,7 +891,7 @@ class SuiteCRMAPIService {
 		$combinedResults = [];
 		$seenIds = [];
 		// `like` takes a %-wrapped substring; both leading and trailing
-		// wildcards so mid-word matches ("cent" → "Vincent") work.
+		// wildcards so mid-word matches ("cent" matching "Vincent") work.
 		$searchValue = '%' . $query . '%';
 
 		foreach (self::SEARCH_MODULES as $moduleDef) {
@@ -915,7 +909,7 @@ class SuiteCRMAPIService {
 				if (isset($response['error'])) {
 					// A single attribute rejecting the filter (missing
 					// column in a custom schema, non-filterable field,
-					// etc.) shouldn't kill the whole search — record the
+					// etc.) shouldn't kill the whole search. Record the
 					// error and try the next attribute. We only log if
 					// EVERY attribute in this module failed, to avoid
 					// spamming warnings for the normal case of a partially
@@ -998,13 +992,13 @@ class SuiteCRMAPIService {
 			// accepts BOTH `/Api/V8/{path}` and `/Api/index.php/V8/{path}`
 			// for GET (both go through the URL-rewriter to the same
 			// controller), but ONLY the `/Api/V8/` form is accepted
-			// for POST/PUT/DELETE — the `index.php` variant returns
+			// for POST/PUT/DELETE. The `index.php` variant returns
 			// 405 Method Not Allowed for anything but GET. Discovered
 			// while smoke-testing v2.1.0 write features on live
 			// SuiteCRM 8.10.1 (a Case POST returned 405 with the
 			// message "Must be one of: GET" until this URL was flattened).
-			// Iter 67's --push-test happened to use the short form
-			// which is why write feasibility was confirmed then but
+			// The push-test smoke-check happened to use the short form
+			// which is why write feasibility was confirmed early but
 			// the runtime path bit here.
 			$url = $suitecrmUrl . '/Api/V8/' . $endPoint;
 			$options = [
@@ -1029,10 +1023,10 @@ class SuiteCRMAPIService {
 					$paramsContent .= http_build_query($params);
 					$url .= '?' . $paramsContent;
 				} elseif ($jsonBody) {
-					// Iter 68: write requests to SuiteCRM 8.x V8 API require
-					// the JSON:API envelope + `application/vnd.api+json`
+					// Write requests to SuiteCRM 8.x V8 API require the
+					// JSON:API envelope + `application/vnd.api+json`
 					// content type. Enabled only when the caller opts in
-					// via $jsonBody=true — read call sites keep the legacy
+					// via $jsonBody=true; read call sites keep the legacy
 					// form-encoded body they were built against.
 					$options['headers']['Content-Type'] = 'application/vnd.api+json';
 					$options['headers']['Accept'] = 'application/vnd.api+json';
@@ -1098,11 +1092,11 @@ class SuiteCRMAPIService {
 	/**
 	 * Create a record in a SuiteCRM module via the V8 JSON:API.
 	 *
-	 * Iter 68 — foundation for the four planned write features (Task
-	 * from widget, Talk → Note, Email → Case, Deck ↔ Opportunity).
-	 * Wraps the caller-supplied attributes in the required JSON:API
-	 * envelope, then delegates to {@see request()} with $jsonBody=true
-	 * so the token-refresh retry and error handling stay in one place.
+	 * Foundation for the four write features (Task from widget, Talk to
+	 * Note, Email to Case, Deck to Opportunity link). Wraps the
+	 * caller-supplied attributes in the required JSON:API envelope, then
+	 * delegates to {@see request()} with $jsonBody=true so the
+	 * token-refresh retry and error handling stay in one place.
 	 *
 	 * Successful response shape (SuiteCRM 8.10.x):
 	 *   [
@@ -1113,8 +1107,8 @@ class SuiteCRMAPIService {
 	 *     ],
 	 *   ]
 	 *
-	 * Error response is whatever {@see request()} returns for that layer
-	 * — same envelope as read failures so callers can share error paths.
+	 * Error response is whatever {@see request()} returns for that layer,
+	 * same envelope as read failures so callers can share error paths.
 	 *
 	 * @param string $suitecrmUrl  Base SuiteCRM instance URL (no trailing slash needed)
 	 * @param string $accessToken  Valid OAuth2 access token
@@ -1131,15 +1125,15 @@ class SuiteCRMAPIService {
 				'attributes' => $attributes,
 			],
 		];
-		// Endpoint is `/Api/V8/module` — WITHOUT the module suffix.
+		// Endpoint is `/Api/V8/module` (WITHOUT the module suffix).
 		// This is the strict JSON:API creation route; the module name
 		// travels in `data.type`. Discovered while smoke-testing the
 		// email-to-case flow against SuiteCRM 8.10.1: `POST /module/Cases`
 		// returned 405 "Must be one of: GET" even though `POST
-		// /module/Tasks` worked fine in iter 67's --push-test. Some
-		// modules (Tasks) tolerate the suffixed URL as a legacy path;
-		// Cases and probably others reject it. The suffix-less form is
-		// the JSON:API-compliant one and works uniformly.
+		// /module/Tasks` worked fine during the initial push-test.
+		// Some modules (Tasks) tolerate the suffixed URL as a legacy
+		// path; Cases and probably others reject it. The suffix-less
+		// form is the JSON:API-compliant one and works uniformly.
 		return $this->request(
 			$suitecrmUrl, $accessToken, $userId,
 			'module',
@@ -1150,14 +1144,14 @@ class SuiteCRMAPIService {
 	/**
 	 * Attach one SuiteCRM record to another via a named relationship.
 	 *
-	 * Iter 68. Used for the parent_type/parent_id linkages that the four
-	 * write features need — a follow-up Task linked back to the source
-	 * Meeting, a Note attached to a Contact, a Case attached to an
-	 * Account, and so on. SuiteCRM's V8 JSON:API exposes relationship
-	 * management at `/module/{module}/{id}/relationships/{relationship}`.
+	 * Used for the parent_type/parent_id linkages that the four write
+	 * features need: a follow-up Task linked back to the source Meeting,
+	 * a Note attached to a Contact, a Case attached to an Account, and so
+	 * on. SuiteCRM's V8 JSON:API exposes relationship management at
+	 * `/module/{module}/{id}/relationships/{relationship}`.
 	 *
 	 * For the common case of parent_type/parent_id, prefer setting those
-	 * two fields directly in the {@see createRecord()} attributes map —
+	 * two fields directly in the {@see createRecord()} attributes map:
 	 * it's one round trip instead of two. Use `linkRecord()` when you
 	 * need a many-to-many link that isn't reachable through the flat
 	 * attribute set (e.g. Contacts attached to a Meeting as attendees).
@@ -1209,14 +1203,13 @@ class SuiteCRMAPIService {
 	 *     'body'              => string   // raw response body (only when present)
 	 *   ]
 	 *
-	 * Iteration 37 (audit fix): this method used to return `['error' => msg]`
-	 * only, losing every dimension of failure (blocked by SSRF guard vs
+	 * An earlier revision of this method returned `['error' => msg]` only,
+	 * losing every dimension of failure (blocked by SSRF guard vs
 	 * 401/invalid_client vs cURL 6 name-resolution). ConfigController's
 	 * try/catch around the call could never fire because this outer
-	 * `catch (\Throwable)` swallowed everything first — so all
-	 * admin-friendly diagnostic messages that ConfigController set up in
-	 * Iteration 26 were unreachable. Preserving the raw dimensions here
-	 * unblocks that.
+	 * `catch (\Throwable)` swallowed everything first, so all
+	 * admin-friendly diagnostic messages ConfigController had prepared
+	 * were unreachable. Preserving the raw dimensions here unblocks that.
 	 *
 	 * @param string $url
 	 * @param array $params
@@ -1234,7 +1227,7 @@ class SuiteCRMAPIService {
 			// Deliberately no `nextcloud => allow_local_address => true` here.
 			// If the admin turns off allow_local_remote_servers system-wide,
 			// Nextcloud's SSRF guard is expected to raise
-			// LocalServerException for a private/loopback SuiteCRM URL —
+			// LocalServerException for a private/loopback SuiteCRM URL,
 			// which the catch below converts into the actionable
 			// error_kind='local_server_blocked' envelope so
 			// ConfigController::oauthCallback() can show the admin the
@@ -1273,7 +1266,7 @@ class SuiteCRMAPIService {
 				// by default, so 4xx normally throws a ClientException before
 				// we get here. This branch is defensive for the case where a
 				// future refactor sets `http_errors => false` or a subclass
-				// returns a 4xx synchronously — we still preserve the
+				// returns a 4xx synchronously; we still preserve the
 				// diagnostic dimensions instead of collapsing to a
 				// single-string error.
 				$decoded = json_decode($body, true);

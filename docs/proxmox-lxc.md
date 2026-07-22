@@ -2,7 +2,7 @@
 
 Working reference for running Nextcloud + SuiteCRM 8.x on a single Proxmox host using two Ubuntu 24.04 LXCs and nginx on the PVE host as the public entry point. This is the deployment pattern the fork is being maintained against in production.
 
-Verified against a live Ubuntu 24.04 LTS LXC running Nextcloud 33.0.6 as of the iteration-41 audit. Nothing here is Nextcloud-specific — an identical layout on bare metal Ubuntu or in a VM (single host or split) works the same, minus the `pct` commands. Debian 12 and Ubuntu 22.04 hosts work with small package-name adjustments called out inline.
+Verified against a live Ubuntu 24.04 LTS LXC running Nextcloud 33.0.6. Nothing here is Nextcloud-specific, an identical layout on bare metal Ubuntu or in a VM (single host or split) works the same, minus the `pct` commands. Debian 12 and Ubuntu 22.04 hosts work with small package-name adjustments called out inline.
 
 ## Layout
 
@@ -31,7 +31,7 @@ Internet ─443─▶ │ nginx (PVE host)       │
 
 Two LXCs share the PVE bridge so they can talk to each other on RFC-1918 addresses. The Nextcloud LXC needs `allow_local_remote_servers=true` to reach SuiteCRM's internal IP for the OAuth flow. The public reverse proxy is on the PVE host itself, terminating TLS and forwarding to whichever LXC based on Host header.
 
-The install below uses **Apache + mod_php** — the simplest working stack and what the popular Proxmox helper-script installers produce. Upstream Nextcloud recommends PHP-FPM for NC 25+ because mod_php forces `mpm_prefork` and hurts throughput. If you want the PHP-FPM version of the Apache vhost, see the [Apache section of docs/reverse-proxy.md](reverse-proxy.md#apache-sample) for a drop-in `<FilesMatch \.php$>` block plus the extra `a2enmod proxy_fcgi setenvif` calls. Everything else in this document stays identical.
+The install below uses **Apache + mod_php**, the simplest working stack and what the popular Proxmox helper-script installers produce. Upstream Nextcloud recommends PHP-FPM for NC 25+ because mod_php forces `mpm_prefork` and hurts throughput. If you want the PHP-FPM version of the Apache vhost, see the [Apache section of docs/reverse-proxy.md](reverse-proxy.md#apache-sample) for a drop-in `<FilesMatch \.php$>` block plus the extra `a2enmod proxy_fcgi setenvif` calls. Everything else in this document stays identical.
 
 ## PHP version by distro
 
@@ -173,7 +173,7 @@ Then flip NC's own cron mechanism to "cron" so it stops complaining in the admin
 sudo -u www-data php /var/www/nextcloud/occ background:cron
 ```
 
-If you'd rather run cron via a systemd timer (cleaner logging via journalctl, easier to disable in a bind-mount recovery), see the [systemd timer alternative](#appendix-systemd-timer-for-nc-cron) at the bottom of this document. Either approach works — pick one, not both.
+If you'd rather run cron via a systemd timer (cleaner logging via journalctl, easier to disable in a bind-mount recovery), see the [systemd timer alternative](#appendix-systemd-timer-for-nc-cron) at the bottom of this document. Either approach works, pick one, not both.
 
 ## SuiteCRM LXC (102)
 
@@ -271,28 +271,28 @@ Then in SuiteCRM's admin UI, create the OAuth2 Client (Admin → OAuth2 Clients 
 
 ## PVE host: reverse proxy
 
-Install nginx on the PVE host itself, then follow [reverse-proxy.md](reverse-proxy.md). Two `server` blocks — one for `cloud.example.com` proxying to `http://10.10.10.101:80`, one for `crm.example.com` proxying to `http://10.10.10.102:80`. Both with LetsEncrypt certs via certbot.
+Install nginx on the PVE host itself, then follow [reverse-proxy.md](reverse-proxy.md). Two `server` blocks, one for `cloud.example.com` proxying to `http://10.10.10.101:80`, one for `crm.example.com` proxying to `http://10.10.10.102:80`. Both with LetsEncrypt certs via certbot.
 
 ## Verification
 
 From the NC LXC:
 
 ```bash
-# The app's built-in diagnostic — hits every layer that has failed for anyone
+# The app's built-in diagnostic, hits every layer that has failed for anyone
 sudo -u www-data php /var/www/nextcloud/occ njordium_suitecrm:test-connection
 ```
 
 Expected output (with all checks passing):
 
 ```
-SuiteCRM integration — connection diagnostic
+SuiteCRM integration, connection diagnostic
 
   ✓ Admin config: oauth_instance_url = https://crm.example.com
   ✓ Admin config: client_id = <your-id>
   ✓ Admin config: client_secret is set (hidden)
   ✓ Admin config: oauth_authorize_path = /Api/authorize
   ✓ Derived token endpoint path: /Api/access_token
-  ✓ SSRF guard: host "crm.example.com" is public — no whitelist needed
+  ✓ SSRF guard: host "crm.example.com" is public, no whitelist needed
   ✓ HTTP reachability: https://crm.example.com → HTTP 200
   ✓ Authorize endpoint (/Api/authorize): HTTP 307 (OK)
   ✓ Token endpoint (/Api/access_token): HTTP 400 with error="unsupported_grant_type" (OK)
@@ -300,7 +300,7 @@ SuiteCRM integration — connection diagnostic
 All checks passed. Users should be able to complete the OAuth flow.
 ```
 
-The authorize endpoint returns HTTP 307 on SuiteCRM 8.10.x; older 8.x builds return 302 and the SPA-mounted variant sometimes returns 200 — all three are treated as OK. See [Iteration 31 in git history](https://github.com/njordium/integration_suitecrm/commits/master?q=Iteration+31) for the case that caught the 307 regression.
+The authorize endpoint returns HTTP 307 on SuiteCRM 8.10.x; older 8.x builds return 302 and the SPA-mounted variant sometimes returns 200. All three are treated as OK.
 
 ## Backup
 
@@ -392,7 +392,7 @@ sudo -u www-data php /var/www/nextcloud/occ upgrade
 
 **Nextcloud major version (33 → 34):** check the njordium_suitecrm `info.xml` `<nextcloud max-version="X">` first. The fork is currently pinned to `max-version="34"`. If NC ships version > 34, wait for a fork release that bumps this.
 
-**SuiteCRM minor version:** SuiteCRM 8's [update process](https://docs.suitecrm.com/admin/administration-panel/upgrade-wizard/) via the Admin → Upgrade Wizard. Don't touch the `Api/V8/OAuth2/*.key` files during upgrade — they must survive.
+**SuiteCRM minor version:** SuiteCRM 8's [update process](https://docs.suitecrm.com/admin/administration-panel/upgrade-wizard/) via the Admin → Upgrade Wizard. Don't touch the `Api/V8/OAuth2/*.key` files during upgrade, they must survive.
 
 **njordium_suitecrm fork:** replace the `/var/www/nextcloud/apps/njordium_suitecrm` directory with a fresh extract of the latest release zip from GitHub, then:
 ```bash
@@ -406,7 +406,7 @@ Existing users' OAuth tokens survive because they're re-encrypted with the same 
 If you're using Proxmox's built-in firewall or ufw on the PVE host:
 
 ```bash
-# On PVE host — allow only HTTPS from internet, SSH from admin IPs
+# On PVE host, allow only HTTPS from internet, SSH from admin IPs
 ufw default deny incoming
 ufw allow from <your-admin-cidr> to any port 22 proto tcp
 ufw allow 80/tcp                        # http → https redirect only
@@ -414,7 +414,7 @@ ufw allow 443/tcp
 ufw enable
 ```
 
-The LXCs themselves don't need incoming rules from the internet — they only talk to the PVE-host nginx and to each other over the bridge.
+The LXCs themselves don't need incoming rules from the internet, they only talk to the PVE-host nginx and to each other over the bridge.
 
 ## Monitoring
 

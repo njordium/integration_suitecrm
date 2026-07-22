@@ -13,12 +13,11 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Iteration 17 — Finding 49
- *
  * Regression coverage for {@see SuiteCRMReferenceProvider::getCacheKey()}.
- * The Iteration 13 fix returns null for unauthenticated calls; without that
- * guard the reference cache would key on the empty string and leak resolved
- * cards between users on the public share endpoint.
+ *
+ * The provider returns null for unauthenticated calls; without that guard
+ * the reference cache would key on the empty string and leak resolved cards
+ * between users on the public share endpoint.
  */
 class SuiteCRMReferenceProviderTest extends TestCase {
 
@@ -49,8 +48,8 @@ class SuiteCRMReferenceProviderTest extends TestCase {
 	}
 
 	/**
-	 * Iteration 13 regression: no session → no cache key. Prevents cross-
-	 * user leakage of resolved reference cards via the shared cache.
+	 * No session means no cache key. Prevents cross-user leakage of resolved
+	 * reference cards via the shared cache.
 	 */
 	public function testCacheKeyIsNullWhenUserIsNull(): void {
 		$provider = $this->makeProvider(null);
@@ -60,7 +59,7 @@ class SuiteCRMReferenceProviderTest extends TestCase {
 	}
 
 	/**
-	 * With a session the cache key is the uid — every user gets their own
+	 * With a session the cache key is the uid, so every user gets their own
 	 * bucket regardless of the reference text.
 	 */
 	public function testCacheKeyReturnsUserIdWhenAuthenticated(): void {

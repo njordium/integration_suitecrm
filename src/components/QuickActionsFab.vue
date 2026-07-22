@@ -43,20 +43,20 @@
 
 <script>
 /**
- * QuickActionsFab — iter 79.
+ * QuickActionsFab.
  *
  * Floating action button anchored to the bottom-right of every
  * Nextcloud page. Clicking the button opens a menu of the three
  * write-side Quick Actions; each menu item opens its dedicated modal.
  * The modals themselves are the same components used in Personal
- * Settings — no duplication of the fetch/format/submit logic.
+ * Settings, no duplication of the fetch/format/submit logic.
  *
  * Visibility gate:
- *   1. `connected` — from the /connection-state endpoint. False for
+ *   1. `connected`, from the /connection-state endpoint. False for
  *      signed-in users who haven't linked SuiteCRM yet. The FAB stays
- *      hidden rather than opening a modal to "connect first" — that
+ *      hidden rather than opening a modal to "connect first", that
  *      would be an annoying dead end.
- *   2. `dismissed` (session-scoped) — a user can press Escape to close
+ *   2. `dismissed` (session-scoped), a user can press Escape to close
  *      the menu; the button itself stays put, matching the Nextcloud
  *      Talk floating chat button behaviour.
  *

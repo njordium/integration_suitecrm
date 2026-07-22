@@ -24,7 +24,7 @@
 
 <script>
 /**
- * SuiteCRMRecordPicker — iter 70b infra.
+ * SuiteCRMRecordPicker: shared record-selector infrastructure.
  *
  * Lightweight picker for a SuiteCRM record. Instead of a live-search
  * against the SuiteCRM API (which would need a new backend endpoint,
@@ -42,8 +42,8 @@
  * backend so the reference-provider preview cards and the write-side
  * picker accept the exact same URL shapes.
  *
- * Consumed by TalkToNoteModal (iter 70b), LinkDeckCardModal (iter 71b),
- * EmailToCaseModal (iter 72b) - each modal binds v-model to a `record`
+ * Consumed by TalkToNoteModal, LinkDeckCardModal,
+ * and EmailToCaseModal. Each modal binds v-model to a `record`
  * data property and renders the picker inside its form.
  *
  * @author Kim Haverblad
@@ -107,7 +107,7 @@ export default {
 
 	watch: {
 		urlInput() {
-			// Emit only when the parse result actually changes value —
+			// Emit only when the parse result actually changes value,
 			// avoids emit spam on every keystroke that doesn't move the
 			// {module, id} tuple.
 			const next = this.parsed

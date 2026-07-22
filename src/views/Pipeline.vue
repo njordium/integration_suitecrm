@@ -20,10 +20,10 @@
 
 <script>
 /**
- * SuiteCRMPipeline — iter 77.
+ * SuiteCRMPipeline.
  *
  * "My pipeline" dashboard widget. Framing is settings-driven via
- * the `pipeline_mode` personal preference — see PersonalSettings.vue
+ * the `pipeline_mode` personal preference, see PersonalSettings.vue
  * for the selector. All three modes are handled here through the
  * initial-state loadState call so the widget doesn't need to
  * re-fetch preferences on every polling cycle.
@@ -70,7 +70,7 @@ export default {
 				mode = config.pipeline_mode
 			}
 		} catch {
-			// no-op — settings not present, use default
+			// no-op, settings not present, use default
 		}
 		return {
 			suitecrmUrl: null,

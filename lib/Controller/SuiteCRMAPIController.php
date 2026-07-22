@@ -120,12 +120,12 @@ class SuiteCRMAPIController extends Controller {
 	}
 
 	/**
-	 * Iter 77 — "My pipeline" widget backing endpoint.
+	 * "My pipeline" widget backing endpoint.
 	 *
 	 * Returns Opportunities assigned to the current user, framed by
 	 * the requested `mode` (closing_quarter | top_value | weighted).
 	 * An unknown mode falls back silently to the default rather than
-	 * 400ing — the widget's Vue frontend or the personal-settings
+	 * 400ing. The widget's Vue frontend or the personal-settings
 	 * NcSelect might send an outdated value during rollout, and the
 	 * widget should still render.
 	 *
@@ -148,13 +148,13 @@ class SuiteCRMAPIController extends Controller {
 	}
 
 	/**
-	 * Iter 76 — "My open Tasks" widget backing endpoint.
+	 * "My open Tasks" widget backing endpoint.
 	 *
 	 * Returns Tasks assigned to the current user whose status is not
 	 * terminal (Completed / Deferred), priority-sorted with due date
 	 * as tiebreaker and undated Tasks sorted last within a priority
-	 * tier. Distinct from `/upcoming` — that endpoint drops Tasks
-	 * outside the schedule window and undated Tasks entirely.
+	 * tier. Distinct from `/upcoming`, which drops Tasks outside the
+	 * schedule window and undated Tasks entirely.
 	 *
 	 * @param int $limit Cap on total results.
 	 */
@@ -174,7 +174,7 @@ class SuiteCRMAPIController extends Controller {
 	}
 
 	/**
-	 * Iter 75 — "My open Cases" widget backing endpoint.
+	 * "My open Cases" widget backing endpoint.
 	 *
 	 * Returns Cases assigned to the current user where status is not
 	 * in the terminal set (Closed / Rejected / Duplicate), priority-
@@ -199,7 +199,7 @@ class SuiteCRMAPIController extends Controller {
 	}
 
 	/**
-	 * Iter 69 — first user-facing write feature.
+	 * Follow-up Task creation endpoint.
 	 *
 	 * Create a follow-up SuiteCRM Task linked back to a source record
 	 * (a Meeting, Call, existing Task, Contact, Account, Lead,
@@ -209,7 +209,7 @@ class SuiteCRMAPIController extends Controller {
 	 * do this by Friday" without leaving Nextcloud.
 	 *
 	 * The link is stored via SuiteCRM's flat `parent_type` / `parent_id`
-	 * pair on the Task record — one round trip, no separate relationship
+	 * pair on the Task record: one round trip, no separate relationship
 	 * call needed. This is the same pattern the SuiteCRM UI uses when
 	 * you click "Create Task" from a Meeting DetailView.
 	 *
@@ -221,7 +221,7 @@ class SuiteCRMAPIController extends Controller {
 	 *
 	 * @param string $sourceModule  SuiteCRM module name of the source record
 	 * @param string $sourceId      SuiteCRM record id (UUID) of the source
-	 * @param string $name          Required — new Task's name
+	 * @param string $name          Required. New Task's name
 	 * @param string $description   Free-text body (may be empty)
 	 * @param string|null $dateDue  ISO-8601 date/datetime, or null for no due date
 	 * @param string $priority      'High' | 'Medium' | 'Low'
@@ -262,7 +262,7 @@ class SuiteCRMAPIController extends Controller {
 		}
 
 		// SuiteCRM's Task priority enum in 8.10.x is exactly {High, Medium, Low}.
-		// Anything else silently degrades to Medium on the SuiteCRM side —
+		// Anything else silently degrades to Medium on the SuiteCRM side;
 		// catch it here so the user sees a clear message instead.
 		if (!in_array($priority, ['High', 'Medium', 'Low'], true)) {
 			return new DataResponse(['error' => 'priority must be one of High / Medium / Low'], 400);
@@ -292,20 +292,20 @@ class SuiteCRMAPIController extends Controller {
 	}
 
 	/**
-	 * Iter 70a — generic Note-creation endpoint.
+	 * Generic Note-creation endpoint.
 	 *
 	 * Creates a SuiteCRM Note record attached to any allowed parent
 	 * (Contacts, Accounts, Leads, Opportunities, Cases, Meetings,
 	 * Calls, Tasks). Intended as the primitive that later features
 	 * compose:
 	 *
-	 *  - iter 70b (Talk conversation → Note): frontend fetches Talk
-	 *    convo, formats transcript as markdown, POSTs here.
-	 *  - iter 71 (Deck card ↔ Opportunity): both sides get a Note
-	 *    referring to each other; the SuiteCRM side goes through here.
-	 *  - iter 72 (Email → Case): Case creation goes through a separate
-	 *    endpoint but the "log source email as Note on the Case" step
-	 *    could reuse this endpoint.
+	 *  - Talk conversation to Note: the frontend fetches the Talk convo,
+	 *    formats the transcript as markdown, and POSTs here.
+	 *  - Deck card linked to Opportunity: both sides get a Note referring
+	 *    to each other; the SuiteCRM side goes through here.
+	 *  - Email to Case: Case creation goes through a separate endpoint,
+	 *    but the "log source email as Note on the Case" step could reuse
+	 *    this endpoint.
 	 *
 	 * Keeping the endpoint generic avoids duplicating the auth guard,
 	 * whitelist, and error propagation across three near-identical
@@ -313,7 +313,7 @@ class SuiteCRMAPIController extends Controller {
 	 *
 	 * @param string $targetModule  SuiteCRM module the Note attaches to
 	 * @param string $targetId      Parent record id (UUID)
-	 * @param string $name          Required — Note title
+	 * @param string $name          Required. Note title
 	 * @param string $description   Free-text body, may be markdown
 	 */
 	#[NoAdminRequired]
@@ -370,15 +370,15 @@ class SuiteCRMAPIController extends Controller {
 	}
 
 	/**
-	 * Iter 71a — Deck card → SuiteCRM record link (SuiteCRM side).
+	 * Deck card to SuiteCRM record link (SuiteCRM side).
 	 *
 	 * Creates a Note on the target SuiteCRM record that points back at
 	 * a Nextcloud Deck card. The Deck side (a comment on the card
 	 * pointing at the SuiteCRM record) is handled by the frontend
 	 * because it can hit NC Deck's OCS API directly with the user's
-	 * session — no server-side cross-app coupling needed.
+	 * session, so no server-side cross-app coupling is needed.
 	 *
-	 * Architecturally close to {@see logNote()} — both endpoints
+	 * Architecturally close to {@see logNote()}: both endpoints
 	 * ultimately call {@see SuiteCRMAPIService::createRecord()} with a
 	 * Notes payload. The reason for a dedicated endpoint:
 	 *
@@ -390,7 +390,7 @@ class SuiteCRMAPIController extends Controller {
 	 *     A Deck card URL that isn't at least a plausible URL means
 	 *     the caller's UI is buggy and we should refuse instead of
 	 *     dropping garbage into SuiteCRM.
-	 *  3. Testable domain logic — the body-format contract has its
+	 *  3. Testable domain logic: the body-format contract has its
 	 *     own tests.
 	 *
 	 * @param string $deckCardUrl    Fully-qualified URL of the Deck card
@@ -417,7 +417,7 @@ class SuiteCRMAPIController extends Controller {
 		if (trim($deckCardUrl) === '') {
 			return new DataResponse(['error' => 'deckCardUrl is required'], 400);
 		}
-		// Cheap URL sanity — filter_var catches the common mistakes
+		// Cheap URL sanity: filter_var catches the common mistakes
 		// (leading whitespace, missing scheme, `//host/path` shortcuts)
 		// without pulling in a full URL parser. We're not trying to
 		// verify the Deck card actually exists; that's the frontend's
@@ -427,7 +427,7 @@ class SuiteCRMAPIController extends Controller {
 			return new DataResponse(['error' => 'deckCardUrl is not a valid URL'], 400);
 		}
 
-		// Same whitelist as logNote — any of the eight modules the fork
+		// Same whitelist as logNote: any of the eight modules the fork
 		// integrates with can be the SuiteCRM side of a Deck link.
 		$allowedTargets = [
 			'Contacts', 'Accounts', 'Leads',
@@ -472,10 +472,10 @@ class SuiteCRMAPIController extends Controller {
 	}
 
 	/**
-	 * Iter 72a — Email → SuiteCRM Case.
+	 * Email to SuiteCRM Case.
 	 *
 	 * Turns an inbound (or otherwise selected) email into a SuiteCRM
-	 * Case. Frontend responsibility (iter 72b) is either the NC Mail
+	 * Case. The frontend responsibility is either the NC Mail
 	 * integration hook or a plain paste-form; either way the backend
 	 * receives the same shape: subject + body + optional sender
 	 * metadata + priority. This endpoint composes them into a Case.
@@ -487,26 +487,25 @@ class SuiteCRMAPIController extends Controller {
 	 *
 	 *   <email body>
 	 *
-	 * Only the lines the caller supplied appear — no empty "From:"
-	 * header if senderEmail was omitted. That keeps the composed body
+	 * Only the lines the caller supplied appear (no empty "From:"
+	 * header if senderEmail was omitted). That keeps the composed body
 	 * clean when the frontend can only extract partial metadata (e.g.
 	 * paste-form fallback where the user only copies the message
 	 * text).
 	 *
 	 * Contact / Account linking (matching sender email to an existing
-	 * SuiteCRM Contact) is deferred to iter 72b because the lookup
-	 * belongs in the frontend, which already has the SuiteCRMRecordPicker
-	 * infrastructure planned for iter 70b/71b. The frontend can call
-	 * this endpoint to create the Case, then call
+	 * SuiteCRM Contact) is deferred because the lookup belongs in the
+	 * frontend, which already has the SuiteCRMRecordPicker infrastructure.
+	 * The frontend can call this endpoint to create the Case, then call
 	 * SuiteCRMAPIService::linkRecord() (exposed by a future endpoint)
 	 * to attach the Contact. Keeping the two operations separate keeps
 	 * the endpoint composable and the tests focused.
 	 *
-	 * @param string $subject      Required — becomes Case.name
-	 * @param string $body         Required — becomes the Case.description body
-	 * @param string $senderEmail  Optional — displayed in the "From:" header
-	 * @param string $senderName   Optional — displayed alongside senderEmail
-	 * @param string $emailDate    Optional — displayed in the "Date:" header
+	 * @param string $subject      Required. Becomes Case.name
+	 * @param string $body         Required. Becomes the Case.description body
+	 * @param string $senderEmail  Optional. Displayed in the "From:" header
+	 * @param string $senderName   Optional. Displayed alongside senderEmail
+	 * @param string $emailDate    Optional. Displayed in the "Date:" header
 	 * @param string $priority     'High' | 'Medium' | 'Low'
 	 */
 	#[NoAdminRequired]
@@ -532,7 +531,7 @@ class SuiteCRMAPIController extends Controller {
 			return new DataResponse(['error' => 'priority must be one of High / Medium / Low'], 400);
 		}
 
-		// Compose stable body — only include headers the caller
+		// Compose a stable body; only include headers the caller
 		// actually filled in.
 		$headerLines = [];
 		if (trim($senderEmail) !== '' || trim($senderName) !== '') {

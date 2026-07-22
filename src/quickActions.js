@@ -1,5 +1,5 @@
 /**
- * Global Quick Actions entry — iter 79.
+ * Global Quick Actions entry.
  *
  * Mounts a Vue app onto a self-injected DOM node so the floating action
  * button appears on every Nextcloud page. The mount is guarded by a
@@ -14,7 +14,7 @@ import { applyGlobals } from './bootstrap.js'
 
 document.addEventListener('DOMContentLoaded', () => {
 	// Avoid double-mount if the script somehow gets injected twice
-	// (defensive — Nextcloud's addScript is normally idempotent, but a
+	// (defensive, Nextcloud's addScript is normally idempotent, but a
 	// misconfigured reverse proxy or cache can duplicate the tag).
 	if (document.getElementById('suitecrm-quick-actions-fab')) {
 		return

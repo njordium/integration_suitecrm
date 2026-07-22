@@ -20,10 +20,10 @@
 
 <script>
 /**
- * SuiteCRMTasks — iter 76.
+ * SuiteCRMTasks.
  *
  * "My open Tasks" dashboard widget. Workload-oriented, not
- * schedule-oriented — includes undated Tasks the calendar widget
+ * schedule-oriented, includes undated Tasks the calendar widget
  * drops. Subline shows priority · due-date-relative-label, or
  * "no due date" when date_due is empty. Moment renders the
  * relative label so the user sees "due yesterday" / "due in 3 days"

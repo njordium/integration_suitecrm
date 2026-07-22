@@ -32,16 +32,16 @@ use OCA\SuiteCRM\Service\TokenStorage;
  * Separate from {@see SuiteCRMWidget} (reminders); this one is
  * schedule-oriented rather than reminder/notification-oriented.
  *
- * Iteration 19 (Finding 26): migrated to IAPIWidget + IIconWidget so the
- * NC 30+ dashboard app can render items server-side as JSON. The legacy Vue
- * mount path (via {@see load()} and `OCA.Dashboard.register`) is preserved
- * so the classic dashboard continues to work — dual-mode migration.
+ * Implements IAPIWidget + IIconWidget so the NC 30+ dashboard app can render
+ * items server-side as JSON. The legacy Vue mount path (via {@see load()}
+ * and `OCA.Dashboard.register`) is preserved so the classic dashboard
+ * continues to work (dual-mode migration).
  *
- * Iteration 43 (compat forward-look): added IAPIWidgetV2 so the NC 27+
- * dashboard app can render a SuiteCRM-specific empty-state message
- * ("No upcoming SuiteCRM events") when the token or the schedule is
- * empty, instead of the generic "No entries" placeholder. See the
- * companion note on {@see SuiteCRMWidget} for the fallback reasoning.
+ * IAPIWidgetV2 is implemented so the NC 27+ dashboard app can render a
+ * SuiteCRM-specific empty-state message ("No upcoming SuiteCRM events") when
+ * the token or the schedule is empty, instead of the generic "No entries"
+ * placeholder. See the companion note on {@see SuiteCRMWidget} for the
+ * fallback reasoning.
  */
 class SuiteCRMCalendarWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWidget {
 
@@ -100,7 +100,7 @@ class SuiteCRMCalendarWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIcon
 	/**
 	 * IAPIWidget: return upcoming SuiteCRM events as structured data.
 	 *
-	 * `$since` is not currently used for filtering — {@see SuiteCRMAPIService::getUpcoming()}
+	 * `$since` is not currently used for filtering; {@see SuiteCRMAPIService::getUpcoming()}
 	 * already scopes results to "from now until horizonDays ahead", which is the
 	 * same behaviour the Vue frontend relies on. It is accepted (and threaded
 	 * into `sinceId` on each item) so the dashboard app can still page through
@@ -151,8 +151,6 @@ class SuiteCRMCalendarWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIcon
 	 * so the dashboard app renders "No upcoming SuiteCRM events" instead of
 	 * the generic "No entries" placeholder. See the companion note on
 	 * {@see SuiteCRMWidget::getItemsV2()} for the fallback reasoning.
-	 *
-	 * Iteration 43.
 	 */
 	public function getItemsV2(string $userId, ?string $since = null, int $limit = 7): WidgetItems {
 		$items = $this->getItems($userId, $since, $limit);

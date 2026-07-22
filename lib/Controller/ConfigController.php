@@ -43,10 +43,10 @@ class ConfigController extends Controller {
                 'user_name',
                 'search_enabled',
                 'notification_enabled',
-                // Iter 77: framing mode for the "My pipeline" widget.
-                // Validated against SuiteCRMAPIService::PIPELINE_MODES on
-                // read; an unknown value stored here silently falls back
-                // to the default rather than crashing the widget.
+                // Framing mode for the "My pipeline" widget. Validated
+                // against SuiteCRMAPIService::PIPELINE_MODES on read; an
+                // unknown value stored here silently falls back to the
+                // default rather than crashing the widget.
                 'pipeline_mode',
         ];
 
@@ -131,13 +131,13 @@ class ConfigController extends Controller {
          * re-enter the SuiteCRM instance URL, client ID, and client secret
          * before any user can connect.
          *
-         * Iteration 51 (upstream issue #14): before this iteration, an admin
-         * who picked the wrong OAuth2 client type (password vs authorization
-         * code) or seeded a bad client_secret had no visible affordance to
-         * start over — they had to reach for `occ config:app:delete` on the
-         * shell. Now the button is right in the admin settings.
+         * Addresses upstream issue #14. Previously, an admin who picked the
+         * wrong OAuth2 client type (password vs authorization code) or seeded
+         * a bad client_secret had no visible affordance to start over. They
+         * had to reach for `occ config:app:delete` on the shell. Now the
+         * button is right in the admin settings.
          *
-         * Individual user tokens are deliberately NOT cleared here — each
+         * Individual user tokens are deliberately NOT cleared here. Each
          * user's next SuiteCRM request will 401 (the credentials the tokens
          * were issued against are gone) and the app's normal reconnect flow
          * will kick in. Wiping every user's token would need a
@@ -160,11 +160,11 @@ class ConfigController extends Controller {
          * Build the SuiteCRM 8.x OAuth authorize URL and hand it back to Vue so the
          * frontend can `window.location = authorize_url`.
          *
-         * Iteration 20 (Finding 33): primary connect path is now the RFC 6749
-         * authorization-code flow. The password grant on {@see oauthConnect()}
-         * stays as an explicit "Advanced" fallback because some SuiteCRM 8.x
-         * installs are still fronted by password clients and because a couple of
-         * air-gapped setups can't complete a browser redirect back to Nextcloud.
+         * The primary connect path is the RFC 6749 authorization-code flow.
+         * The password grant on {@see oauthConnect()} stays as an explicit
+         * "Advanced" fallback because some SuiteCRM 8.x installs are still
+         * fronted by password clients and because a couple of air-gapped
+         * setups can't complete a browser redirect back to Nextcloud.
          *
          * @return DataResponse
          */
@@ -207,8 +207,8 @@ class ConfigController extends Controller {
          * consent screen.
          *
          * NoCSRFRequired: the browser arrives here from an external redirect, so
-         * there's no requesttoken to send. The `state` param — verified against
-         * the per-user store below — is the CSRF defence for this endpoint.
+         * there's no requesttoken to send. The `state` param, verified against
+         * the per-user store below, is the CSRF defence for this endpoint.
          *
          * @return RedirectResponse
          */
@@ -220,10 +220,10 @@ class ConfigController extends Controller {
                         return $this->redirectWithError('Not authenticated');
                 }
                 if ($code === '' || $state === '') {
-                        // Iteration 21 (Finding 7): user aborted the SuiteCRM consent
-                        // screen (Cancel button, tab close, network drop). The pending
-                        // state row would otherwise sit valid in the store for ~10min
-                        // until TTL expiry — clear it now so it can't be reused.
+                        // User aborted the SuiteCRM consent screen (Cancel button, tab
+                        // close, network drop). The pending state row would otherwise
+                        // sit valid in the store for ~10min until TTL expiry; clear it
+                        // now so it can't be reused.
                         $this->stateStore->clear($this->userId);
                         return $this->redirectWithError('Missing code or state');
                 }
@@ -248,18 +248,17 @@ class ConfigController extends Controller {
                         'redirect_uri' => $redirectUri,
                 ], 'POST');
 
-                // Iteration 37 (audit fix): the previous try/catch that lived
-                // here was dead code — requestOAuthAccessToken() catches every
-                // Throwable and returns ['error' => ...], so no exception ever
-                // crosses the method boundary. The three actionable catch
-                // branches (LocalServerException, 401/invalid_client, generic
+                // The previous try/catch that lived here was dead code:
+                // requestOAuthAccessToken() catches every Throwable and returns
+                // ['error' => ...], so no exception ever crosses the method
+                // boundary. The three actionable catch branches
+                // (LocalServerException, 401/invalid_client, generic
                 // ClientException) never ran; the small ['error' => msg]
                 // fallback did, producing a raw guzzle message with no admin
-                // guidance. Iteration 37 enriches the service's error return
-                // shape with http_status / error_code / error_description /
-                // error_kind so this call site can produce the same
-                // admin-friendly messages from the returned array — this time
-                // reachable.
+                // guidance. The service's error return shape now carries
+                // http_status / error_code / error_description / error_kind
+                // so this call site can produce the same admin-friendly
+                // messages from the returned array (this time reachable).
                 if (!isset($result['access_token'], $result['refresh_token'])) {
                         $errorKind = (string) ($result['error_kind'] ?? '');
                         $httpStatus = (int) ($result['http_status'] ?? 0);
@@ -294,16 +293,17 @@ class ConfigController extends Controller {
                 $this->tokens->setAccessToken($this->userId, $result['access_token']);
                 $this->tokens->setRefreshToken($this->userId, $result['refresh_token']);
 
-                // Iteration 21 (Finding 3): the previous implementation called
-                // `V8/me`, which is not part of SuiteCRM 8's documented API surface
-                // and 404s on stock installs. That meant the auth-code path stored
-                // user_name='connected' and — worse — never populated `user_id`, so
-                // dashboards that filter Meetings/Calls/Tasks by `assigned_user_id`
-                // silently returned empty for every OAuth-connected user.
+                // The previous implementation called `V8/me`, which is not
+                // part of SuiteCRM 8's documented API surface and 404s on
+                // stock installs. That meant the auth-code path stored
+                // user_name='connected' and, worse, never populated `user_id`,
+                // so dashboards that filter Meetings/Calls/Tasks by
+                // `assigned_user_id` silently returned empty for every
+                // OAuth-connected user.
                 //
-                // Fix: pull the SuiteCRM user id from the JWT `sub` claim and fetch
-                // `module/Users/{sub}` directly. Both `user_name` and `user_id` are
-                // now populated on connect.
+                // Fix: pull the SuiteCRM user id from the JWT `sub` claim and
+                // fetch `module/Users/{sub}` directly. Both `user_name` and
+                // `user_id` are now populated on connect.
                 $sub = $this->decodeJwtSub($result['access_token']);
                 $userName = 'connected';
                 $scrmUserId = '';
@@ -319,7 +319,7 @@ class ConfigController extends Controller {
                                         $scrmUserId = $userResponse['data']['id'] ?? '';
                                 }
                         } catch (\Throwable $e) {
-                                // Keep the fallback values — tokens are stored, user_name
+                                // Keep the fallback values; tokens are stored, user_name
                                 // defaults to 'connected'. The user can still connect; the
                                 // dashboards will be empty until the next login refreshes
                                 // the whoami lookup.

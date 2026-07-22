@@ -17,13 +17,11 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Iteration 17 — Finding 49 (regression coverage for Notifier::prepare()).
- * Iteration 21b — align with fix #8 in Iteration 21: a reminder whose type
- * is neither 'Calls' nor 'Meetings' produces no renderable content, so the
- * notifier now throws InvalidArgumentException (the NC contract for
+ * Regression coverage for Notifier::prepare(). A reminder whose type is
+ * neither 'Calls' nor 'Meetings' produces no renderable content, so the
+ * notifier throws InvalidArgumentException (the NC contract for
  * "suppress this row entirely") instead of silently emitting a blank
- * notification. testGracefulOnMissingParams was written before that change
- * and has been reworked here to pin the new contract.
+ * notification.
  *
  * @Code Changes by: Kim Haverblad, 2026
  */
@@ -53,7 +51,7 @@ class NotifierTest extends TestCase {
 			static fn (string $text, array $params = []): string => vsprintf(str_replace('%s', '%s', $text), $params)
 		);
 
-		// URL generator no-ops — the icon path is not under test here.
+		// URL generator no-ops, the icon path is not under test here.
 		$this->url->method('imagePath')->willReturn('/img/app-dark.svg');
 		$this->url->method('getAbsoluteURL')->willReturnArgument(0);
 
@@ -92,9 +90,9 @@ class NotifierTest extends TestCase {
 	}
 
 	/**
-	 * Iteration 13 regression: when the SuiteCRM payload has no 'link' key
-	 * we must NOT call setLink() with null — that used to blow up the
-	 * notifier under strict types on NC 28+.
+	 * Regression: when the SuiteCRM payload has no 'link' key we must NOT
+	 * call setLink() with null, since that blows up the notifier under
+	 * strict types on NC 28+.
 	 */
 	public function testMissingLinkSkipsSetLink(): void {
 		$notification = $this->createReminderNotification([
@@ -113,7 +111,7 @@ class NotifierTest extends TestCase {
 
 	/**
 	 * Same regression as {@see testMissingLinkSkipsSetLink()} but with the
-	 * key present and set to the empty string — the guard is `$link !== ''`.
+	 * key present and set to the empty string; the guard is `$link !== ''`.
 	 */
 	public function testEmptyLinkSkipsSetLink(): void {
 		$notification = $this->createReminderNotification([
@@ -130,12 +128,11 @@ class NotifierTest extends TestCase {
 	}
 
 	/**
-	 * Iteration 21 (fix #8): a reminder with no type — or with any type we
-	 * don't know how to render — produces no content string, and rather
-	 * than emitting a blank row in the notification tray the notifier now
-	 * throws to tell NC's notification manager to suppress the row.
-	 * Empty-params is the canonical instance of "unknown type" (type
-	 * defaults to '').
+	 * A reminder with no type, or with any type we don't know how to
+	 * render, produces no content string. Rather than emitting a blank
+	 * row in the notification tray the notifier throws, to tell NC's
+	 * notification manager to suppress the row. Empty-params is the
+	 * canonical instance of "unknown type" (type defaults to '').
 	 */
 	public function testEmptyParamsUnknownTypeThrows(): void {
 		$notification = $this->createReminderNotification([]);
@@ -148,7 +145,7 @@ class NotifierTest extends TestCase {
 	}
 
 	/**
-	 * Explicit unknown type — same suppression contract as
+	 * Explicit unknown type, same suppression contract as
 	 * {@see self::testEmptyParamsUnknownTypeThrows()} but with the type
 	 * field set to a value that just isn't in the render matrix.
 	 */

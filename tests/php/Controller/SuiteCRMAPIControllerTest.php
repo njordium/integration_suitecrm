@@ -15,19 +15,19 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Iter 69 — regression coverage for
+ * Regression coverage for
  * {@see SuiteCRMAPIController::createFollowupTask()}, the first
  * user-facing write endpoint on the fork.
  *
  * The endpoint has three classes of failure it must handle before
  * reaching SuiteCRM's API:
  *
- * 1. Unauthenticated user (no stored access token) — return 401 so
+ * 1. Unauthenticated user (no stored access token): return 401 so
  *    the frontend can surface the OAuth reconnect prompt.
  * 2. Malformed input (empty name / empty sourceId / invalid source
- *    module not in the whitelist / priority outside High/Medium/Low)
- *    — return 400 with a specific error message so the user sees why.
- * 3. SuiteCRM API error propagated up — surface as 502 (bad gateway)
+ *    module not in the whitelist / priority outside High/Medium/Low):
+ *    return 400 with a specific error message so the user sees why.
+ * 3. SuiteCRM API error propagated up: surface as 502 (bad gateway)
  *    with the original error envelope so the frontend can decide
  *    between "user's fault" (400s from SuiteCRM) and "server's fault"
  *    (5xx from SuiteCRM).
@@ -35,7 +35,7 @@ use PHPUnit\Framework\TestCase;
  * Only on the happy path does the endpoint invoke
  * {@see SuiteCRMAPIService::createRecord()}. When it does, the
  * payload must include `parent_type` and `parent_id` (linking the
- * follow-up Task back to its source Meeting/Call/etc.) — that's the
+ * follow-up Task back to its source Meeting/Call/etc.); that's the
  * whole point of "follow-up".
  *
  * @Code Changes by: Kim Haverblad, 2026
@@ -114,7 +114,7 @@ class SuiteCRMAPIControllerTest extends TestCase {
 		$controller = $this->makeController('alice');
 		$this->apiService->expects($this->never())->method('createRecord');
 
-		// Emails is deliberately NOT in the whitelist — Tasks can't be
+		// Emails is deliberately NOT in the whitelist, Tasks can't be
 		// parented by an Email in SuiteCRM's data model.
 		$response = $controller->createFollowupTask('Emails', 'email-1', 'Reply to');
 
@@ -186,7 +186,7 @@ class SuiteCRMAPIControllerTest extends TestCase {
 		$response = $controller->createFollowupTask(
 			'Meetings', 'meet-1', 'Follow up',
 			'', // description
-			'', // dateDue — empty string, must be omitted from attributes
+			'', // dateDue, empty string, must be omitted from attributes
 		);
 
 		$this->assertSame(200, $response->getStatus());
@@ -232,7 +232,7 @@ class SuiteCRMAPIControllerTest extends TestCase {
 	/**
 	 * Data-driven check that every whitelisted parent module reaches the
 	 * SuiteCRM API without a 400. Uses dataProvider so PHPUnit runs each
-	 * case with its own setUp() / mocks — instantiating the TestCase
+	 * case with its own setUp() / mocks, instantiating the TestCase
 	 * class ourselves inside a foreach breaks PHPUnit's lifecycle.
 	 *
 	 * @dataProvider provideWhitelistedParentModules
@@ -267,7 +267,7 @@ class SuiteCRMAPIControllerTest extends TestCase {
 	}
 
 	// ---------------------------------------------------------------------
-	// Iter 70a — logNote() coverage.
+	// logNote() coverage.
 	//
 	// Same failure-mode structure as createFollowupTask(): auth guard,
 	// input validation, target whitelist, happy path builds correct
@@ -310,7 +310,7 @@ class SuiteCRMAPIControllerTest extends TestCase {
 		$controller = $this->makeController('alice');
 		$this->apiService->expects($this->never())->method('createRecord');
 
-		// Users is deliberately NOT in the whitelist — attaching a Note
+		// Users is deliberately NOT in the whitelist, attaching a Note
 		// to a system module would be a strange thing to allow and
 		// widens the endpoint's blast radius unnecessarily.
 		$response = $controller->logNote('Users', 'user-1', 'Test');
@@ -348,7 +348,7 @@ class SuiteCRMAPIControllerTest extends TestCase {
 	}
 
 	public function testLogNoteAcceptsEmptyDescription(): void {
-		// The description field is optional — a Note with just a title is
+		// The description field is optional, a Note with just a title is
 		// legitimate ("logged: call happened, no further detail").
 		$controller = $this->makeController('alice');
 
@@ -413,13 +413,13 @@ class SuiteCRMAPIControllerTest extends TestCase {
 	}
 
 	// ---------------------------------------------------------------------
-	// Iter 71a — linkDeckCard() coverage.
+	// linkDeckCard() coverage.
 	//
-	// Deck-side comment on the card is handled by the frontend (iter 71b,
-	// via NC Deck's OCS API). This endpoint just handles the SuiteCRM
-	// side: a Note attached to the target SuiteCRM record that points
-	// back at the Deck card. Body format is stable so SuiteCRM users
-	// can search for "Nextcloud Deck card" and get a clean hit set.
+	// The Deck-side comment on the card is handled by the frontend (via
+	// NC Deck's OCS API). This endpoint just handles the SuiteCRM side:
+	// a Note attached to the target SuiteCRM record that points back at
+	// the Deck card. Body format is stable so SuiteCRM users can search
+	// for "Nextcloud Deck card" and get a clean hit set.
 	// ---------------------------------------------------------------------
 
 	public function testLinkDeckCardRequiresAuthenticatedUser(): void {
@@ -498,7 +498,7 @@ class SuiteCRMAPIControllerTest extends TestCase {
 				'https://crm', 'tok', 'alice',
 				'Notes',
 				$this->callback(function (array $attrs): bool {
-					// The exact body format is a documented contract —
+					// The exact body format is a documented contract,
 					// SuiteCRM users may search or filter on it.
 					return $attrs['name'] === 'Deck link: Q3 launch checklist'
 						&& str_contains($attrs['description'], 'Linked from Nextcloud Deck card "Q3 launch checklist"')
@@ -585,7 +585,7 @@ class SuiteCRMAPIControllerTest extends TestCase {
 	}
 
 	// ---------------------------------------------------------------------
-	// Iter 72a — emailToCase() coverage.
+	// emailToCase() coverage.
 	//
 	// Focus of the tests: the body-composition contract. Different
 	// combinations of sender metadata produce different but predictable
@@ -745,7 +745,7 @@ class SuiteCRMAPIControllerTest extends TestCase {
 
 	public function testEmailToCaseAlwaysSetsStatusToNew(): void {
 		// Guard against a future refactor accidentally dropping the
-		// explicit status='New' — SuiteCRM's default may change and
+		// explicit status='New', SuiteCRM's default may change and
 		// email-sourced Cases silently landing in a wrong queue would
 		// be a support-nightmare regression.
 		$controller = $this->makeController('alice');

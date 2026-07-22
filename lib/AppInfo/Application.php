@@ -48,7 +48,7 @@ class Application extends App implements IBootstrap {
 		$context->registerSearchProvider(SuiteCRMSearchProvider::class);
 		$context->registerReferenceProvider(SuiteCRMReferenceProvider::class);
 		$context->registerNotifierService(Notifier::class);
-		// Iter 79: inject the global Quick Actions floating action button
+		// Inject the global Quick Actions floating action button
 		// on every full page render for signed-in users.
 		$context->registerEventListener(BeforeTemplateRenderedEvent::class, AddQuickActionsScriptListener::class);
 	}

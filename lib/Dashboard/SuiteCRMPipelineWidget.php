@@ -27,7 +27,7 @@ use OCA\SuiteCRM\Service\SuiteCRMAPIService;
 use OCA\SuiteCRM\Service\TokenStorage;
 
 /**
- * "My pipeline" dashboard widget — iter 77.
+ * "My pipeline" dashboard widget.
  *
  * Fifth dashboard widget. Framing is user-selectable via the
  * `pipeline_mode` personal preference (see PersonalSettings.vue):
@@ -39,7 +39,7 @@ use OCA\SuiteCRM\Service\TokenStorage;
  *  - weighted: Opportunities sorted by amount × probability/100 DESC.
  *
  * All three modes filter out terminal sales_stages (Closed Won,
- * Closed Lost) client-side. Order 50 — bottom of the SuiteCRM widget
+ * Closed Lost) client-side. Order 50, bottom of the SuiteCRM widget
  * stack, since pipeline value tends to be a strategic morning check
  * rather than an operational one.
  */

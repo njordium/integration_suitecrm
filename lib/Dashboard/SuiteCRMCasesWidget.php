@@ -26,7 +26,7 @@ use OCA\SuiteCRM\Service\SuiteCRMAPIService;
 use OCA\SuiteCRM\Service\TokenStorage;
 
 /**
- * "My open Cases" dashboard widget — iter 75.
+ * "My open Cases" dashboard widget.
  *
  * Third widget in the roadmap after the classic reminder widget
  * ({@see SuiteCRMWidget}) and the schedule widget
@@ -41,7 +41,7 @@ use OCA\SuiteCRM\Service\TokenStorage;
  * {@see getItems()}) so this widget behaves identically on both the
  * legacy dashboard and the NC 30+ API-rendered dashboard.
  *
- * Backlog note (iter 76/77): the same structure will be reused for the
+ * Backlog note: the same structure can be reused for the
  * "My open Tasks" and "My pipeline" widgets so it pays to keep the
  * pattern strictly parallel here.
  */
@@ -96,7 +96,7 @@ class SuiteCRMCasesWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWid
 	 * IAPIWidget: return open Cases as structured data for the dashboard app.
 	 *
 	 * `$since` is threaded through unused for the same reason as
-	 * {@see SuiteCRMCalendarWidget::getItems()} — {@see SuiteCRMAPIService::getMyCases()}
+	 * {@see SuiteCRMCalendarWidget::getItems()}, {@see SuiteCRMAPIService::getMyCases()}
 	 * already scopes to the caller and priority-sorts, so cursor paging
 	 * would only matter for tenants with hundreds of open Cases per rep.
 	 *

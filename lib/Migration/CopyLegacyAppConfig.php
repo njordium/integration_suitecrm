@@ -65,7 +65,7 @@ class CopyLegacyAppConfig implements IRepairStep {
 		$userPrefsCopied = $this->copyUserPreferences();
 
 		if ($appConfigCopied === 0 && $userPrefsCopied === 0) {
-			$output->info('No legacy SuiteCRM integration settings found — nothing to migrate.');
+			$output->info('No legacy SuiteCRM integration settings found, nothing to migrate.');
 			return;
 		}
 

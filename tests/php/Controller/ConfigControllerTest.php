@@ -19,22 +19,17 @@ use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
 /**
- * Iteration 17 — Finding 49
+ * Regression coverage for {@see ConfigController::setConfig()}.
  *
- * Regression coverage for {@see ConfigController::setConfig()}. Finding 5
- * (Iteration 11) added a strict allowlist; without these tests a future
- * refactor could silently reintroduce arbitrary-preference writes from any
- * authenticated user.
+ * A strict allowlist governs which user preferences the endpoint accepts;
+ * without these tests a future refactor could silently reintroduce
+ * arbitrary-preference writes from any authenticated user.
  *
- * Iteration 34 — Test fixture update
- *
- * Iteration 33 added a LoggerInterface constructor dependency on
- * ConfigController (positions the logger as constructor argument #10,
- * one slot before the trailing ?string $userId). The setUp() and
- * makeController() helpers below were previously wiring nine mocks and
- * hitting a TypeError in CI because the userId string was landing on
- * the LoggerInterface slot. The tenth mock plus the extra positional
- * arg below restore the signature contract.
+ * Test fixture note: ConfigController's constructor now carries a
+ * LoggerInterface dependency (argument #10, one slot before the trailing
+ * ?string $userId). The setUp() and makeController() helpers below wire
+ * ten mocks; an earlier nine-mock wiring caused a TypeError in CI because
+ * the userId string was landing on the LoggerInterface slot.
  *
  * @Code Changes by: Kim Haverblad, 2026
  */
@@ -146,14 +141,12 @@ class ConfigControllerTest extends TestCase {
 	}
 
 	/**
-	 * Iteration 52 (guards iter 51): the admin "Reset connection" button
-	 * fires DELETE /admin-config, which must call
-	 * IAppConfig::deleteKey() for each of the four admin-scoped keys
-	 * (oauth_instance_url, client_id, client_secret,
-	 * oauth_authorize_path) — and no others. Also verifies the
-	 * controller writes an info-level log line so a session grep can
-	 * distinguish "admin used the reset button" from an occ-driven
-	 * config wipe.
+	 * The admin "Reset connection" button fires DELETE /admin-config,
+	 * which must call IAppConfig::deleteKey() for each of the four
+	 * admin-scoped keys (oauth_instance_url, client_id, client_secret,
+	 * oauth_authorize_path), and no others. Also verifies the controller
+	 * writes an info-level log line so a session grep can distinguish
+	 * "admin used the reset button" from an occ-driven config wipe.
 	 */
 	public function testResetAdminConfigDeletesAllExpectedKeys(): void {
 		$deleted = [];

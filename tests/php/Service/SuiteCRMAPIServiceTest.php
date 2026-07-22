@@ -18,7 +18,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
 /**
- * Iteration 42 — regression coverage for {@see SuiteCRMAPIService::search()}.
+ * Regression coverage for {@see SuiteCRMAPIService::search()}.
  *
  * Search has been the fork's most bug-prone method. Every prior fix was
  * caught by live testing against a real SuiteCRM install rather than by
@@ -26,23 +26,22 @@ use Psr\Log\LoggerInterface;
  * anything to say about its contents. The tests below guard the invariants
  * each production bug taught us:
  *
- *   * Iter 18: filter must be pushed to SuiteCRM, not grepped client-side.
- *   * Iter 21 (Finding 1): the operator `contains` is not valid on
- *     SuiteCRM 8.x — SuiteCRM 8.10.1 responds `400 Filter operator contains
- *     is invalid`. `like` with explicit `%wildcards%` is the stable path.
- *   * Iter 21 (Finding 4): `full_name` is a non-db computed column on both
- *     Contacts and Leads — filtering by it silently matched zero rows. The
- *     real column to filter on is `last_name` (plus, since iter 35,
- *     `first_name`).
- *   * Iter 35 (Finding 25 follow-up): person modules now list both
- *     `last_name` and `first_name` in `name_attrs`, and search() fires one
- *     request per attribute + dedupes by `module|id`. A first-name-only
- *     query ("Serena") must return the Contact "Serena Arent".
- *   * Iter 36: the Emails module's `fields` list must not contain
- *     `date_sent` — that column does not exist on SuiteCRM 8's Email bean
- *     and requesting it responds 400.
- *   * Iter 35 error semantics: a single-attribute failure inside a module
- *     must not crash the whole search or spam the log — only if every
+ *   * The filter must be pushed to SuiteCRM, not grepped client-side.
+ *   * The operator `contains` is not valid on SuiteCRM 8.x. SuiteCRM 8.10.1
+ *     responds `400 Filter operator contains is invalid`. `like` with
+ *     explicit `%wildcards%` is the stable path.
+ *   * `full_name` is a non-db computed column on both Contacts and Leads.
+ *     Filtering by it silently matches zero rows. The real columns to
+ *     filter on are `last_name` and `first_name`.
+ *   * Person modules list both `last_name` and `first_name` in
+ *     `name_attrs`, and search() fires one request per attribute plus
+ *     dedupes by `module|id`. A first-name-only query ("Serena") must
+ *     return the Contact "Serena Arent".
+ *   * The Emails module's `fields` list must not contain `date_sent`.
+ *     That column does not exist on SuiteCRM 8's Email bean and requesting
+ *     it responds 400.
+ *   * Search error semantics: a single-attribute failure inside a module
+ *     must not crash the whole search or spam the log. Only if every
  *     attribute for the module errors do we emit a warning.
  *
  * @Code Changes by: Kim Haverblad, 2026
@@ -120,15 +119,14 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	// ---------------------------------------------------------------------
-	// Behavioral tests via partial mock — guard search() flow.
+	// Behavioral tests via partial mock, guard search() flow.
 	// ---------------------------------------------------------------------
 
 	/**
-	 * Iter 35 regression: first-name-only search must hit Contact records.
-	 * Before iter 35 the Contacts filter was pinned to `last_name`, so
-	 * typing "Serena" returned zero Contact hits even when "Serena Arent"
-	 * existed as a Contact. Live-verified against the docker container
-	 * earlier in this session; this test locks it in.
+	 * First-name-only search must hit Contact records. An earlier version
+	 * pinned the Contacts filter to `last_name`, so typing "Serena" returned
+	 * zero Contact hits even when "Serena Arent" existed as a Contact.
+	 * Live-verified against the docker container; this test locks it in.
 	 */
 	public function testSearchByFirstNameHitsContacts(): void {
 		$test = $this;
@@ -161,8 +159,8 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	/**
-	 * The pre-iter-35 default (last-name filter) must still work — iter 35
-	 * added a second attribute rather than swapping.
+	 * The last-name filter must still work. The first-name attribute was
+	 * added alongside it, rather than swapped in.
 	 */
 	public function testSearchByLastNameHitsContacts(): void {
 		$test = $this;
@@ -190,8 +188,8 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	/**
-	 * Iter 35 dedup: a Contact whose first_name AND last_name both match
-	 * the substring must appear exactly once, not twice. Dedup key is
+	 * Dedup: a Contact whose first_name AND last_name both match the
+	 * substring must appear exactly once, not twice. Dedup key is
 	 * `module|id`.
 	 */
 	public function testSameRecordAcrossAttributesIsDedupedToOne(): void {
@@ -219,10 +217,10 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	/**
-	 * Iter 35 error semantics — partial failure. If one of a module's
-	 * attributes errors but the other returns cleanly, we log NOTHING.
-	 * Otherwise every degraded-but-working custom schema would spam
-	 * warnings on every search.
+	 * Error semantics: partial failure. If one of a module's attributes
+	 * errors but the other returns cleanly, we log NOTHING. Otherwise
+	 * every degraded-but-working custom schema would spam warnings on
+	 * every search.
 	 */
 	public function testPartialAttributeErrorSuppressesWarning(): void {
 		$test = $this;
@@ -241,8 +239,8 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	/**
-	 * Iter 35 error semantics — total failure. When EVERY attribute of a
-	 * module errors, we DO emit a warning with the module name and the
+	 * Error semantics: total failure. When EVERY attribute of a module
+	 * errors, we DO emit a warning with the module name and the
 	 * per-attribute errors, so a broken schema surfaces in the admin log
 	 * rather than silently returning empty. Uses Emails (single attribute)
 	 * as the total-failure case since one error = all attributes failed.
@@ -269,10 +267,9 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	/**
-	 * Iter 24 regression: the `like` operator requires explicit
-	 * `%wildcards%` wrapping around the substring so mid-word matches work.
-	 * URL-encoded, the % becomes %25, so a live URL should contain
-	 * `%25<query>%25`.
+	 * The `like` operator requires explicit `%wildcards%` wrapping around
+	 * the substring so mid-word matches work. URL-encoded, the % becomes
+	 * %25, so a live URL should contain `%25<query>%25`.
 	 */
 	public function testSearchWrapsQueryWithWildcardsAndUrlEncodes(): void {
 		$seenEndpoints = [];
@@ -294,9 +291,8 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	/**
-	 * Iter 21 (Finding 1) regression: the operator must be `like`, not
-	 * `contains`. SuiteCRM 8.10.1 rejects the latter with
-	 * `400 Filter operator contains is invalid`.
+	 * The operator must be `like`, not `contains`. SuiteCRM 8.10.1 rejects
+	 * the latter with `400 Filter operator contains is invalid`.
 	 */
 	public function testSearchUsesLikeOperatorNotContains(): void {
 		$seenEndpoints = [];
@@ -312,7 +308,7 @@ class SuiteCRMAPIServiceTest extends TestCase {
 			$this->assertStringNotContainsString(
 				'%5Bcontains%5D',
 				$endpoint,
-				'search() must not use [contains] — SuiteCRM 8.x rejects it. Endpoint: ' . $endpoint,
+				'search() must not use [contains]. SuiteCRM 8.x rejects it. Endpoint: ' . $endpoint,
 			);
 			$this->assertStringContainsString(
 				'%5Blike%5D',
@@ -323,9 +319,9 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	/**
-	 * Iter 35 requires each module row to declare the `name_attrs` array
-	 * (renamed from the pre-iter-35 single-string `name_attr`). A future
-	 * refactor could accidentally revert this — this test locks the shape.
+	 * Each module row must declare a `name_attrs` array (renamed from the
+	 * older single-string `name_attr` field). A future refactor could
+	 * accidentally revert this; this test locks the shape.
 	 */
 	public function testEveryModuleRowDeclaresNameAttrsArray(): void {
 		$searchModules = self::readSearchModules();
@@ -337,20 +333,20 @@ class SuiteCRMAPIServiceTest extends TestCase {
 			$this->assertArrayNotHasKey(
 				'name_attr',
 				$entry,
-				"Module {$entry['module']} still has the old singular name_attr — iter 35 removed it",
+				"Module {$entry['module']} still has the old singular name_attr; it must be renamed to name_attrs",
 			);
 		}
 	}
 
 	// ---------------------------------------------------------------------
-	// Structural tests on SEARCH_MODULES — cheap, catch drift before the
+	// Structural tests on SEARCH_MODULES, cheap, catch drift before the
 	// URL is ever built.
 	// ---------------------------------------------------------------------
 
 	/**
-	 * Iter 35 regression guard: person modules (Contacts, Leads) MUST list
-	 * both last_name and first_name in `name_attrs` so a first-name-only
-	 * query hits them. See iter 35 commit + Finding 25 audit trail.
+	 * Regression guard: person modules (Contacts, Leads) MUST list both
+	 * last_name and first_name in `name_attrs` so a first-name-only query
+	 * hits them.
 	 */
 	public function testContactsAndLeadsFilterOnBothNameHalves(): void {
 		$searchModules = self::readSearchModules();
@@ -360,21 +356,21 @@ class SuiteCRMAPIServiceTest extends TestCase {
 			$this->assertContains(
 				'last_name',
 				$entry['name_attrs'],
-				"$module must filter on last_name (iter 21 finding 4)",
+				"$module must filter on last_name",
 			);
 			$this->assertContains(
 				'first_name',
 				$entry['name_attrs'],
-				"$module must filter on first_name (iter 35 finding 25 follow-up)",
+				"$module must filter on first_name",
 			);
 		}
 	}
 
 	/**
-	 * Iter 36 regression guard: SuiteCRM 8's Email bean does not expose a
+	 * Regression guard: SuiteCRM 8's Email bean does not expose a
 	 * `date_sent` column. Requesting it responds
 	 * `400 The following field in Email module is not found: date_sent`.
-	 * Iter 36 removed it from the Emails module's `fields` list.
+	 * That field was removed from the Emails module's `fields` list.
 	 */
 	public function testEmailsFieldsListDoesNotIncludeDateSent(): void {
 		$searchModules = self::readSearchModules();
@@ -383,16 +379,16 @@ class SuiteCRMAPIServiceTest extends TestCase {
 		$this->assertStringNotContainsString(
 			'date_sent',
 			$emails['fields'],
-			'iter 36: Emails.fields must not contain date_sent — the column does not exist on SuiteCRM 8 Email',
+			'Emails.fields must not contain date_sent; the column does not exist on SuiteCRM 8 Email',
 		);
 	}
 
 	/**
-	 * Iter 21 (Finding 4) regression guard: `full_name` must not appear as
-	 * a `name_attrs` entry on any module. It's a computed column and
-	 * filtering by it silently matches nothing on every SuiteCRM 8 install.
-	 * (`full_name` is still fine as a returned FIELD in `fields` — we just
-	 * can't filter on it.)
+	 * Regression guard: `full_name` must not appear as a `name_attrs`
+	 * entry on any module. It is a computed column and filtering by it
+	 * silently matches nothing on every SuiteCRM 8 install. (`full_name`
+	 * is still fine as a returned FIELD in `fields`; we just can't filter
+	 * on it.)
 	 */
 	public function testNoModuleFiltersByComputedFullName(): void {
 		$searchModules = self::readSearchModules();
@@ -400,23 +396,23 @@ class SuiteCRMAPIServiceTest extends TestCase {
 			$this->assertNotContains(
 				'full_name',
 				$entry['name_attrs'],
-				"Module {$entry['module']} must not filter by full_name (iter 21 finding 4)",
+				"Module {$entry['module']} must not filter by full_name",
 			);
 		}
 	}
 
 	// ---------------------------------------------------------------------
-	// Iter 52 — regression coverage for iter 50's getUpcoming() past-due
-	// handling (upstream issue #8). Every test uses the partial-mock
-	// pattern established for search() above so we can synthesise SuiteCRM
-	// responses without hitting the wire.
+	// Regression coverage for getUpcoming() past-due handling (upstream
+	// issue #8). Every test uses the partial-mock pattern established for
+	// search() above so we can synthesise SuiteCRM responses without
+	// hitting the wire.
 	// ---------------------------------------------------------------------
 
 	/**
-	 * Iter 50: a past-due Meeting whose `status` is still `Planned` (the
+	 * A past-due Meeting whose `status` is still `Planned` (the
 	 * rep hasn't marked it Held) must appear in the widget's output with
-	 * `is_overdue=true`. Before iter 50 the `date_start > now` filter
-	 * silently dropped every such row.
+	 * `is_overdue=true`. An earlier `date_start > now` filter silently
+	 * dropped every such row.
 	 */
 	public function testGetUpcomingIncludesPastDueNotDispositionedMeeting(): void {
 		$requestStub = function ($url, $token, $userId, $endpoint) {
@@ -447,9 +443,8 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	/**
-	 * Iter 50: a past-due Meeting whose status is `Held` has been
-	 * dispositioned; the widget must skip it (no nagging about resolved
-	 * items).
+	 * A past-due Meeting whose status is `Held` has been dispositioned;
+	 * the widget must skip it (no nagging about resolved items).
 	 */
 	public function testGetUpcomingExcludesPastDueDispositionedMeeting(): void {
 		$requestStub = function ($url, $token, $userId, $endpoint) {
@@ -477,8 +472,8 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	/**
-	 * Iter 50: a future-dated Meeting is always included regardless of
-	 * status — the widget's job is to surface the schedule.
+	 * A future-dated Meeting is always included regardless of status;
+	 * the widget's job is to surface the schedule.
 	 */
 	public function testGetUpcomingIncludesFutureMeetingRegardlessOfStatus(): void {
 		$requestStub = function ($url, $token, $userId, $endpoint) {
@@ -510,7 +505,7 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	/**
-	 * Iter 50: Task status vocabulary differs from Meetings/Calls. The
+	 * Task status vocabulary differs from Meetings/Calls. The
 	 * SEARCH_MODULES entry lists `Not Started`, `In Progress`,
 	 * `Pending Input` as still-actionable. `Completed` and `Deferred`
 	 * disposition the row.
@@ -552,9 +547,9 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	/**
-	 * Iter 50 structural guard: every UPCOMING_MODULES row must declare
-	 * `overdue_statuses` — the past-due filter path dereferences it
-	 * unconditionally after iter 50b dropped the `?? []` fallback.
+	 * Structural guard: every UPCOMING_MODULES row must declare
+	 * `overdue_statuses`. The past-due filter path dereferences it
+	 * unconditionally; the `?? []` fallback was dropped.
 	 */
 	public function testEveryUpcomingModuleRowDeclaresOverdueStatuses(): void {
 		$upcomingModules = self::readUpcomingModules();
@@ -563,12 +558,12 @@ class SuiteCRMAPIServiceTest extends TestCase {
 			$this->assertArrayHasKey(
 				'overdue_statuses',
 				$entry,
-				"Module {$entry['module']} missing overdue_statuses (iter 50)",
+				"Module {$entry['module']} missing overdue_statuses",
 			);
 			$this->assertIsArray($entry['overdue_statuses'], "Module {$entry['module']} overdue_statuses must be array");
 			$this->assertNotEmpty(
 				$entry['overdue_statuses'],
-				"Module {$entry['module']} overdue_statuses must be non-empty — an empty list would mean 'never actionable'"
+				"Module {$entry['module']} overdue_statuses must be non-empty, an empty list would mean 'never actionable'"
 			);
 		}
 	}
@@ -581,7 +576,7 @@ class SuiteCRMAPIServiceTest extends TestCase {
 		$refl = new \ReflectionClass(SuiteCRMAPIService::class);
 		$constant = $refl->getReflectionConstant('SEARCH_MODULES');
 		if ($constant === false) {
-			throw new \RuntimeException('SUT no longer declares SEARCH_MODULES — search invariants broken');
+			throw new \RuntimeException('SUT no longer declares SEARCH_MODULES; search invariants broken');
 		}
 		return $constant->getValue();
 	}
@@ -590,7 +585,7 @@ class SuiteCRMAPIServiceTest extends TestCase {
 		$refl = new \ReflectionClass(SuiteCRMAPIService::class);
 		$constant = $refl->getReflectionConstant('UPCOMING_MODULES');
 		if ($constant === false) {
-			throw new \RuntimeException('SUT no longer declares UPCOMING_MODULES — calendar widget invariants broken');
+			throw new \RuntimeException('SUT no longer declares UPCOMING_MODULES; calendar widget invariants broken');
 		}
 		return $constant->getValue();
 	}
@@ -605,13 +600,13 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	// ---------------------------------------------------------------------
-	// Iter 68 — createRecord + linkRecord write-path coverage.
+	// createRecord + linkRecord write-path coverage.
 	//
 	// Guards the JSON:API envelope shape and endpoint routing that all
-	// four planned write features (Task from widget, Talk → Note,
-	// Email → Case, Deck ↔ Opportunity) depend on. If SuiteCRM's
-	// V8 API rejects our payload shape at any point, these tests are
-	// where we notice — not in a production incident.
+	// four write features (Task from widget, Talk to Note, Email to
+	// Case, Deck linked to Opportunity) depend on. If SuiteCRM's V8 API
+	// rejects our payload shape at any point, these tests are where we
+	// notice, not in a production incident.
 	// ---------------------------------------------------------------------
 
 	public function testCreateRecordWrapsAttributesInJsonApiEnvelope(): void {
@@ -640,10 +635,10 @@ class SuiteCRMAPIServiceTest extends TestCase {
 			['name' => 'Follow up', 'description' => 'Called client', 'status' => 'Not Started'],
 		);
 
-		// v2.1.1 hotfix: creation endpoint is `module` (no module
-		// suffix) — the module name is in `data.type` of the JSON:API
-		// payload. See createRecord() docblock for the SuiteCRM 8.10.x
-		// route-registration reasoning.
+		// v2.1.1 hotfix: creation endpoint is `module` (no module suffix);
+		// the module name is in `data.type` of the JSON:API payload. See
+		// createRecord() docblock for the SuiteCRM 8.10.x route-registration
+		// reasoning.
 		$this->assertSame('module', $capturedEndpoint);
 		$this->assertSame('POST', $capturedMethod);
 		$this->assertTrue($capturedJsonBody, 'createRecord() must set $jsonBody=true so request() sends application/vnd.api+json');
@@ -661,10 +656,10 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	public function testCreateRecordEndpointIsAlwaysSuffixlessModule(): void {
-		// v2.1.1: with the JSON:API-compliant creation endpoint the
-		// module name never appears in the URL path — it lives in
-		// `data.type`. Weird module names therefore can't inject via
-		// the URL. This is a defensive check to guard the invariant.
+		// v2.1.1: with the JSON:API-compliant creation endpoint the module
+		// name never appears in the URL path; it lives in `data.type`.
+		// Weird module names therefore can't inject via the URL. This is a
+		// defensive check to guard the invariant.
 		$capturedEndpoint = null;
 		$capturedType = null;
 		$service = $this->makeService(function (...$args) use (&$capturedEndpoint, &$capturedType) {
@@ -678,10 +673,10 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	public function testCreateRecordPropagatesRequestErrorEnvelope(): void {
-		// The write path must not swallow error envelopes — a failed
-		// POST should surface the same {'error' => msg, 'body' => raw}
-		// shape as failed reads, so controllers can render actionable
-		// admin messages.
+		// The write path must not swallow error envelopes; a failed POST
+		// should surface the same {'error' => msg, 'body' => raw} shape as
+		// failed reads, so controllers can render actionable admin
+		// messages.
 		$service = $this->makeService(fn (...$args) => [
 			'error' => 'Bad credentials',
 			'body' => '{"errors":[{"detail":"invalid token"}]}',
@@ -728,8 +723,8 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	public function testCreateRecordSignatureAcceptsEmptyAttributes(): void {
-		// SuiteCRM 8.x will 400 on empty attributes for most modules,
-		// but the SUT must let that happen — not pre-emptively refuse.
+		// SuiteCRM 8.x will 400 on empty attributes for most modules, but
+		// the SUT must let that happen rather than pre-emptively refuse.
 		// Users deserve the real API error message, not our guess.
 		$service = $this->makeService(fn (...$args) => ['data' => ['id' => 'ok']]);
 		$result = $service->createRecord('https://crm', 'tok', 'u', 'Tasks', []);
@@ -737,19 +732,18 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	// ---------------------------------------------------------------------
-	// Iter 75 — regression coverage for getMyCases().
+	// Regression coverage for getMyCases().
 	//
 	// getMyCases() backs the "My open Cases" dashboard widget. Invariants:
 	//   * Cases with terminal statuses (Closed / Rejected / Duplicate)
 	//     are filtered out client-side because SuiteCRM 8.10.x's JSON:API
-	//     filter surface has no reliable NOT-IN operator (iter 24 finding
-	//     applies here too).
+	//     filter surface has no reliable NOT-IN operator.
 	//   * Priority ordering follows PRIORITY_ORDER: P1/High first,
 	//     P2/Medium next, P3/Low last, unknown values sort last but
 	//     don't crash. Both label sets are covered because SuiteCRM
 	//     installs are inconsistent about which they ship.
 	//   * Within a priority tier, older Cases (larger age_days) come
-	//     first — the rep should notice long-open Cases before newly
+	//     first; the rep should notice long-open Cases before newly
 	//     opened ones.
 	//   * If the caller hasn't stored their SuiteCRM user_id (fresh
 	//     install, unlinked account), we return [] instead of firing an
@@ -771,7 +765,7 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	public function testGetMyCasesReturnsEmptyWhenNoSuiteCRMUserIdStored(): void {
 		// Safety guard: without a stored SuiteCRM user_id we cannot
 		// filter by `assigned_user_id`, so the query would return every
-		// Case in the tenant. The service returns [] instead — the
+		// Case in the tenant. The service returns [] instead; the
 		// controller renders it as an empty widget.
 		//
 		// PHPUnit's default mock return for IConfig::getUserValue is
@@ -900,10 +894,10 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	public function testGetMyCasesHandlesHighMediumLowLabelSet(): void {
-		// SuiteCRM 8 installs are inconsistent about Case priority
-		// labels — stock English ships P1/P2/P3, but relabelled installs
-		// use High/Medium/Low. PRIORITY_ORDER weights both so widgets
-		// sort predictably regardless of the tenant's labelling choice.
+		// SuiteCRM 8 installs are inconsistent about Case priority labels.
+		// Stock English ships P1/P2/P3, but relabelled installs use
+		// High/Medium/Low. PRIORITY_ORDER weights both so widgets sort
+		// predictably regardless of the tenant's labelling choice.
 		$this->stubSuiteCRMUserId('scrm-alice-uuid');
 		$requestStub = function () {
 			return [
@@ -1003,9 +997,9 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	public function testGetMyCasesPropagatesUpstreamErrorEnvelope(): void {
-		// A read failure must surface the same error shape as writes —
-		// the widget renders "Error connecting to SuiteCRM" only if
-		// the payload has an `error` key.
+		// A read failure must surface the same error shape as writes;
+		// the widget renders "Error connecting to SuiteCRM" only if the
+		// payload has an `error` key.
 		$this->stubSuiteCRMUserId('scrm-alice-uuid');
 		$service = $this->makeService(fn () => [
 			'error' => 'Bad credentials',
@@ -1017,7 +1011,7 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	// ---------------------------------------------------------------------
-	// Iter 76 — regression coverage for getMyTasks().
+	// Regression coverage for getMyTasks().
 	//
 	// Invariants:
 	//   * Terminal statuses (Completed / Deferred) are filtered out
@@ -1025,10 +1019,10 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	//   * Priority sort follows PRIORITY_ORDER (shared with getMyCases()).
 	//   * Within a priority tier, dated Tasks sort by due_ts ASC (earliest
 	//     due first). Undated Tasks (date_due empty or malformed) fall
-	//     LAST within the tier — a dated Task carries an urgency signal
+	//     LAST within the tier; a dated Task carries an urgency signal
 	//     an undated one doesn't.
 	//   * Between two undated Tasks at the same priority, date_entered
-	//     is the stable tiebreaker — older created first.
+	//     is the stable tiebreaker; older created first.
 	//   * Empty-user-id safety guard (same reasoning as getMyCases).
 	//   * Upstream error envelope propagates unchanged.
 	// ---------------------------------------------------------------------
@@ -1164,9 +1158,8 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	public function testGetMyTasksSortsUndatedTasksLastWithinPriorityTier(): void {
-		// A dated Task at High carries an urgency signal an undated
-		// High Task doesn't — the undated one must sort last within
-		// the tier.
+		// A dated Task at High carries an urgency signal an undated High
+		// Task doesn't; the undated one must sort last within the tier.
 		$this->stubSuiteCRMUserId('scrm-alice-uuid');
 		$requestStub = function () {
 			return [
@@ -1202,9 +1195,8 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	public function testGetMyTasksBreaksUndatedTiesByCreationDate(): void {
-		// Two undated Tasks at the same priority — the older creation
-		// wins so an old forgotten Task surfaces above a fresh
-		// undated one.
+		// Two undated Tasks at the same priority: the older creation wins
+		// so an old forgotten Task surfaces above a fresh undated one.
 		$this->stubSuiteCRMUserId('scrm-alice-uuid');
 		$requestStub = function () {
 			return [
@@ -1269,7 +1261,7 @@ class SuiteCRMAPIServiceTest extends TestCase {
 
 	public function testGetMyTasksHandlesMalformedDueDateAsUndated(): void {
 		// Studio-customised installs occasionally return non-ISO strings.
-		// A parse failure must not crash the sort — the row falls through
+		// A parse failure must not crash the sort; the row falls through
 		// to the undated tier.
 		$this->stubSuiteCRMUserId('scrm-alice-uuid');
 		$requestStub = function () {
@@ -1330,7 +1322,7 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	// ---------------------------------------------------------------------
-	// Iter 77 — regression coverage for getMyPipeline().
+	// Regression coverage for getMyPipeline().
 	//
 	// Invariants:
 	//   * All three modes filter out terminal sales_stages (Closed Won,
@@ -1339,9 +1331,9 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	//     current calendar quarter and sorts by close_date ASC.
 	//   * top_value mode sorts by amount DESC across all open Opportunities
 	//     regardless of close_date (including deals with empty close_date).
-	//   * weighted mode sorts by amount × probability/100 DESC.
+	//   * weighted mode sorts by amount x probability/100 DESC.
 	//   * Unknown mode strings snap to DEFAULT_PIPELINE_MODE rather than
-	//     crashing — old bookmarks, hand-edited preferences, or Vue's
+	//     crashing. Old bookmarks, hand-edited preferences, or Vue's
 	//     v-model returning stale value shouldn't kill the widget.
 	//   * Empty-user-id safety guard (same reasoning as getMyCases).
 	//   * Rows tagged with type='opportunity', close_ts (int|null),
@@ -1613,7 +1605,7 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	public function testGetMyPipelineUnknownModeFallsBackToDefault(): void {
 		// A garbled preference value must not crash the widget. Since
 		// closing_quarter is the default it applies the quarter-window
-		// filter — an undated row would be dropped even though the
+		// filter, an undated row would be dropped even though the
 		// caller passed 'not_a_real_mode'.
 		$this->stubSuiteCRMUserId('scrm-alice-uuid');
 		$requestStub = function () {
@@ -1704,7 +1696,7 @@ class SuiteCRMAPIServiceTest extends TestCase {
 
 	public function testGetMyCasesTagsRowsWithTypeAndAgeAndPriorityRank(): void {
 		// Rows must carry `type='case'`, `age_days` (int), and
-		// `priority_rank` (int) — the widget uses these to render the
+		// `priority_rank` (int), the widget uses these to render the
 		// icon, the "N days open" subline, and the sort key for
 		// server-side dashboard rendering.
 		$this->stubSuiteCRMUserId('scrm-alice-uuid');

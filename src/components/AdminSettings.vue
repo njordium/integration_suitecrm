@@ -45,10 +45,9 @@
 				@update:value="onInput" />
 
 			<!--
-				Iteration 21 (Finding 2): the OAuth authorize endpoint path is
-				now editable from the admin UI. Fresh SuiteCRM 8.4+ installs
-				don't need to touch this; installs upgraded from 7.x or fronted
-				by a rewriting proxy sometimes do.
+				The OAuth authorize endpoint path is editable from the admin UI.
+				Fresh SuiteCRM 8.4+ installs don't need to touch this; installs
+				upgraded from 7.x or fronted by a rewriting proxy sometimes do.
 			-->
 			<NcTextField
 				v-model="state.oauth_authorize_path"
@@ -58,12 +57,12 @@
 		</div>
 
 		<!--
-			Iteration 51 (upstream issue #14): "Reset connection" affordance.
-			Closes the case where an admin picked the wrong OAuth2 client type
-			in SuiteCRM (password vs authorization code) or seeded a bad
-			client_secret and had no visible way to start over. The button
-			opens a confirmation dialog; on confirm we DELETE the admin-config
-			endpoint and clear the local form state.
+			"Reset connection" affordance (upstream issue #14). Closes the case
+			where an admin picked the wrong OAuth2 client type in SuiteCRM
+			(password vs authorization code) or seeded a bad client_secret and
+			had no visible way to start over. The button opens a confirmation
+			dialog; on confirm we DELETE the admin-config endpoint and clear
+			the local form state.
 		-->
 		<div class="reset-zone">
 			<h3>{{ t('njordium_suitecrm', 'Reset connection') }}</h3>
@@ -124,7 +123,7 @@ export default {
 			// "user typed a new value" (send it) from "user hasn't touched
 			// this field" (leave the stored secret untouched).
 			newSecret: '',
-			// Iteration 51: reset confirmation dialog visibility.
+			// Reset confirmation dialog visibility.
 			showResetDialog: false,
 		}
 	},
@@ -144,13 +143,13 @@ export default {
 
 		secretPlaceholder() {
 			return this.secretIsStored
-				? t('njordium_suitecrm', 'A secret is stored — type to replace')
+				? t('njordium_suitecrm', 'A secret is stored, type to replace')
 				: t('njordium_suitecrm', 'Client secret of your application')
 		},
 
 		/**
-		 * Iteration 51: buttons rendered by NcDialog. Kept as a computed so
-		 * the translation strings are re-evaluated if the user changes NC's
+		 * Buttons rendered by NcDialog. Kept as a computed so the
+		 * translation strings are re-evaluated if the user changes NC's
 		 * UI language between dialog opens.
 		 */
 		resetDialogButtons() {
@@ -179,11 +178,10 @@ export default {
 		},
 
 		/**
-		 * Iteration 51: DELETE the admin-config endpoint, then clear the
-		 * local form state so the fields reset without a page reload.
-		 * User tokens are intentionally left in place — they'll fail their
-		 * next SuiteCRM request and the per-user OAuth flow restarts
-		 * naturally.
+		 * DELETE the admin-config endpoint, then clear the local form
+		 * state so the fields reset without a page reload. User tokens
+		 * are intentionally left in place; they'll fail their next
+		 * SuiteCRM request and the per-user OAuth flow restarts naturally.
 		 */
 		performReset() {
 			const url = generateUrl('/apps/njordium_suitecrm/admin-config')
@@ -195,7 +193,7 @@ export default {
 					this.state.oauth_authorize_path = ''
 					this.newSecret = ''
 					this.showResetDialog = false
-					showSuccess(t('njordium_suitecrm', 'SuiteCRM connection reset — enter new credentials to reconnect'))
+					showSuccess(t('njordium_suitecrm', 'SuiteCRM connection reset, enter new credentials to reconnect'))
 				})
 				.catch((error) => {
 					showError(t('njordium_suitecrm', 'Failed to reset SuiteCRM connection')

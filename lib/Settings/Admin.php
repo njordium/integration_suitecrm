@@ -24,7 +24,7 @@ class Admin implements ISettings {
 	public function getForm(): TemplateResponse {
 		// Never ship the plaintext OAuth client_secret to the browser. The Vue
 		// admin form only needs to know whether one is stored so it can render
-		// a "stored — type to replace" placeholder; the value stays on the
+		// a "stored, type to replace" placeholder; the value stays on the
 		// server until the admin explicitly overwrites it.
 		$clientId = $this->appConfig->getValueString(Application::APP_ID, 'client_id');
 		$clientSecret = $this->appConfig->getValueString(Application::APP_ID, 'client_secret');
@@ -34,10 +34,10 @@ class Admin implements ISettings {
 			'client_id' => $clientId,
 			'client_secret_set' => $clientSecret !== '',
 			'oauth_instance_url' => $oauthUrl,
-			// Iteration 21 (Finding 2): expose the authorize path to the admin
-			// UI so admins on a `/Api/authorize`-style install can change it
-			// without dropping to `occ config:app:set`. Default matches the
-			// fresh-8.x path used elsewhere in this app.
+			// Expose the authorize path to the admin UI so admins on a
+			// `/Api/authorize`-style install can change it without dropping to
+			// `occ config:app:set`. Default matches the fresh-8.x path used
+			// elsewhere in this app.
 			'oauth_authorize_path' => $this->appConfig->getValueString(Application::APP_ID, 'oauth_authorize_path', '/Api/authorize'),
 		]);
 		return new TemplateResponse(Application::APP_ID, 'adminSettings');

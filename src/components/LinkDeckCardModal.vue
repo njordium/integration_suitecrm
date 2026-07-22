@@ -79,14 +79,14 @@
 
 <script>
 /**
- * LinkDeckCardModal — iter 71b.
+ * LinkDeckCardModal.
  *
  * Creates a bidirectional link between a Nextcloud Deck card and a
  * SuiteCRM record. Two-part submit:
  *
  *   1. POST /apps/njordium_suitecrm/link-deck-card creates a Note on
  *      the SuiteCRM record referencing the Deck card URL (this is the
- *      side we can guarantee — same failure envelope as the other
+ *      side we can guarantee, same failure envelope as the other
  *      write endpoints).
  *   2. POST /ocs/v2.php/apps/deck/api/v1.0/cards/{cardId}/comments
  *      adds a Deck comment pointing back at the SuiteCRM record. If
@@ -186,7 +186,7 @@ export default {
 			this.postWarning = ''
 			try {
 				// Step 1: SuiteCRM-side Note. If this fails there's no
-				// point commenting on the Deck card — the link would be
+				// point commenting on the Deck card, the link would be
 				// half-dead.
 				const suitecrmUrl = generateUrl('/apps/njordium_suitecrm/link-deck-card')
 				const suitecrmPayload = {
@@ -199,7 +199,7 @@ export default {
 				const suitecrmResponse = await axios.post(suitecrmUrl, suitecrmPayload)
 				const noteId = suitecrmResponse?.data?.data?.id ?? null
 
-				// Step 2: Deck-side comment. Best-effort — a failure here
+				// Step 2: Deck-side comment. Best-effort, a failure here
 				// still counts as partial success because the SuiteCRM
 				// side landed.
 				const commentBody = this.composeDeckComment()
@@ -223,7 +223,7 @@ export default {
 					} else {
 						this.postWarning = t('njordium_suitecrm', 'SuiteCRM Note created, but the Deck-card comment failed. Nextcloud log should have details.')
 					}
-					showSuccess(t('njordium_suitecrm', 'SuiteCRM Note created (Deck comment failed — see the panel above)'))
+					showSuccess(t('njordium_suitecrm', 'SuiteCRM Note created (Deck comment failed, see the panel above)'))
 				}
 
 				this.$emit('created', { noteId })
@@ -250,7 +250,7 @@ export default {
 			const label = this.targetRecord.module + ' ' + this.targetRecord.id
 			if (this.extraNote.trim() !== '') {
 				const params = { label, note: this.extraNote.trim() }
-				return t('njordium_suitecrm', 'Linked to SuiteCRM {label} — {note}', params)
+				return t('njordium_suitecrm', 'Linked to SuiteCRM {label}, {note}', params)
 			}
 			return t('njordium_suitecrm', 'Linked to SuiteCRM {label}', { label })
 		},
