@@ -6,9 +6,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-## 2.0.2 – 2026-07-22
+## 2.1.0 – 2026-07-22
 
-Diagnostic release + write-path infrastructure. Adds the `--push-test` flag to the `occ` connection command so admins can verify writes against a target SuiteCRM instance, plus internal `SuiteCRMAPIService::createRecord()` and `linkRecord()` methods that the four planned user-intent write features (iter 69-72) will build on. No user-visible behaviour changes yet — the write features land in 2.1.0.
+Four user-intent write features that turn Nextcloud activity into linked SuiteCRM records. Personal Settings → **Quick actions to SuiteCRM** gains three buttons: Log Talk conversation as a Note, Link Deck card ↔ SuiteCRM record (with reciprocal comment on the card), Convert email to Case (paste form). A reusable `TaskFollowupModal.vue` component ships too — the widget-item wire-up that surfaces it is deferred to iter 69b.
+
+The write path is protected end-to-end: every endpoint gates on the OAuth session token, whitelists source and target modules to the eight the fork integrates with, and propagates SuiteCRM errors as HTTP 502 with the original envelope so the frontend can distinguish user-fault from server-fault. Four backend endpoints share the same `SuiteCRMAPIService::createRecord()` primitive, and 37 PHPUnit tests cover the failure modes.
+
+Existing 2.0.x behaviour is unchanged — this is purely additive. Read-only deployments can install this version safely; nothing writes to SuiteCRM until a user explicitly clicks a Quick Action button.
+
+Also adds the `occ njordium_suitecrm:test-connection --push-test` diagnostic that was originally introduced as the write-features assurance gate — it stays useful for verifying a fresh SuiteCRM instance's `client_credentials` grant is properly configured before rolling the app out to end users.
 
 ### Added
 
