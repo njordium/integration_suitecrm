@@ -18,7 +18,7 @@
 					:reduce="option => option.value"
 					:loading="loadingConversations"
 					:disabled="submitting"
-					:placeholder="t('njordium_suitecrm', 'Pick a conversation  …')" />
+					:placeholder="t('njordium_suitecrm', 'Pick a conversation …')" />
 			</label>
 
 			<SuiteCRMRecordPicker
@@ -55,7 +55,7 @@
 				<template v-if="submitting" #icon>
 					<NcLoadingIcon :size="20" />
 				</template>
-				{{ submitting ? t('njordium_suitecrm', 'Creating Note  …') : t('njordium_suitecrm', 'Create Note') }}
+				{{ submitting ? t('njordium_suitecrm', 'Creating Note …') : t('njordium_suitecrm', 'Create Note') }}
 			</NcButton>
 		</template>
 	</NcDialog>
