@@ -485,6 +485,375 @@ class SuiteCRMAPIService {
 	}
 
 	/**
+	 * Cases assigned to the current user that are still open — the "My open
+	 * Cases" dashboard widget (iter 75).
+	 *
+	 * SuiteCRM 8.10.x doesn't expose a reliable `NOT IN` filter operator on
+	 * its JSON:API surface (iter 24 established that `contains` is rejected,
+	 * `like` is the only string-match operator, and boolean-combining
+	 * multiple `[eq]` filters degrades to top-level `OR` on 8.4/8.5 — see
+	 * the block comment on {@see search()}). So the terminal-status
+	 * filtering is done client-side after a single narrow request scoped
+	 * by `assigned_user_id`.
+	 *
+	 * `date_entered` is always present on a Case bean, so the "age in days"
+	 * computation is deterministic. Priority ordering follows the standard
+	 * SuiteCRM Case severity enum: {@see PRIORITY_ORDER} defines the sort
+	 * weight for both the `High/Medium/Low` and `P1/P2/P3` label sets so
+	 * installs of either flavour sort predictably.
+	 *
+	 * Sort is priority DESC (P1/High first) then date_entered ASC (oldest
+	 * first) so the rep sees the highest-severity oldest-untouched Case at
+	 * the top of the widget.
+	 *
+	 * @return array Sorted result rows, each tagged with `type='case'`,
+	 *               `age_days` (int, since date_entered), and
+	 *               `priority_rank` (int, lower = more urgent).
+	 *               On upstream API failure, returns the SuiteCRM error payload.
+	 */
+	public function getMyCases(string $url, string $accessToken, string $userId, int $limit = 20): array {
+		$scrmUserId = $this->config->getUserValue($userId, Application::APP_ID, 'user_id');
+		if ($scrmUserId === '') {
+			return [];
+		}
+
+		$filters = [
+			'fields[Cases]=name,case_number,priority,status,description,date_entered,account_name',
+			urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId),
+			'filter[operator]=and',
+		];
+		$response = $this->request(
+			$url, $accessToken, $userId,
+			'module/Cases?' . implode('&', $filters)
+		);
+		if (isset($response['error'])) {
+			return $response;
+		}
+
+		$now = new DateTime();
+		$rows = [];
+		foreach ($response['data'] ?? [] as $row) {
+			$status = (string) ($row['attributes']['status'] ?? '');
+			if (in_array($status, self::CLOSED_CASE_STATUSES, true)) {
+				continue;
+			}
+			$dateEnteredStr = (string) ($row['attributes']['date_entered'] ?? '');
+			if ($dateEnteredStr !== '') {
+				try {
+					$dateEntered = new DateTime($dateEnteredStr);
+					$ageDays = (int) $now->diff($dateEntered)->days;
+				} catch (Exception) {
+					$ageDays = 0;
+				}
+			} else {
+				$ageDays = 0;
+			}
+			$priority = (string) ($row['attributes']['priority'] ?? '');
+			$row['type'] = 'case';
+			$row['age_days'] = $ageDays;
+			$row['priority_rank'] = self::PRIORITY_ORDER[$priority] ?? 99;
+			$rows[] = $row;
+		}
+
+		usort($rows, function ($a, $b) {
+			$rankCmp = $a['priority_rank'] <=> $b['priority_rank'];
+			if ($rankCmp !== 0) {
+				return $rankCmp;
+			}
+			// Older first within the same priority tier — larger age_days first.
+			return $b['age_days'] <=> $a['age_days'];
+		});
+
+		return array_slice($rows, 0, $limit);
+	}
+
+	/**
+	 * Cases assigned to me → see {@see getMyCases()}. Tasks share the same
+	 * pattern but with a due-date subline rather than an aging one, and a
+	 * different terminal-status set.
+	 *
+	 * Iter 76: "My open Tasks" widget. Distinct from the calendar widget's
+	 * Tasks slice — the calendar widget is date-oriented and drops undated
+	 * Tasks (and Tasks whose date_due is outside the horizon window).
+	 * This widget is workload-oriented and surfaces every actionable Task
+	 * assigned to the user, including undated ones (a common miss in
+	 * SuiteCRM 8 where reps create Tasks without setting a due date).
+	 *
+	 * Sort: priority DESC (High > Medium > Low > unknown), then date_due
+	 * ASC with nulls sorted LAST (an undated Task after a dated one at
+	 * the same priority, since dated Tasks carry an explicit urgency
+	 * signal), then date_entered ASC as a stable tiebreaker for undated
+	 * Tasks so an older undated Task surfaces above a fresher undated Task.
+	 *
+	 * `date_due` remains a string in the returned row so the frontend can
+	 * format it against the user's locale via `moment`; a parsed
+	 * `due_ts` int is added alongside for the priority-then-due sort
+	 * comparator to work in constant time.
+	 *
+	 * @return array Sorted result rows, each tagged with `type='task'`,
+	 *               `due_ts` (int|null Unix timestamp), and
+	 *               `priority_rank` (int, lower = more urgent).
+	 *               On upstream API failure, returns the SuiteCRM error payload.
+	 */
+	public function getMyTasks(string $url, string $accessToken, string $userId, int $limit = 20): array {
+		$scrmUserId = $this->config->getUserValue($userId, Application::APP_ID, 'user_id');
+		if ($scrmUserId === '') {
+			return [];
+		}
+
+		$filters = [
+			'fields[Tasks]=name,status,priority,date_due,date_entered,description',
+			urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId),
+			'filter[operator]=and',
+		];
+		$response = $this->request(
+			$url, $accessToken, $userId,
+			'module/Tasks?' . implode('&', $filters)
+		);
+		if (isset($response['error'])) {
+			return $response;
+		}
+
+		$rows = [];
+		foreach ($response['data'] ?? [] as $row) {
+			$status = (string) ($row['attributes']['status'] ?? '');
+			if (in_array($status, self::CLOSED_TASK_STATUSES, true)) {
+				continue;
+			}
+			$dueStr = (string) ($row['attributes']['date_due'] ?? '');
+			$dueTs = null;
+			if ($dueStr !== '') {
+				try {
+					$dueTs = (new DateTime($dueStr))->getTimestamp();
+				} catch (Exception) {
+					// Malformed date_due — treat as undated rather than crash.
+					$dueTs = null;
+				}
+			}
+			$enteredStr = (string) ($row['attributes']['date_entered'] ?? '');
+			$enteredTs = 0;
+			if ($enteredStr !== '') {
+				try {
+					$enteredTs = (new DateTime($enteredStr))->getTimestamp();
+				} catch (Exception) {
+					$enteredTs = 0;
+				}
+			}
+			$priority = (string) ($row['attributes']['priority'] ?? '');
+			$row['type'] = 'task';
+			$row['due_ts'] = $dueTs;
+			$row['entered_ts'] = $enteredTs;
+			$row['priority_rank'] = self::PRIORITY_ORDER[$priority] ?? 99;
+			$rows[] = $row;
+		}
+
+		usort($rows, function ($a, $b) {
+			$rankCmp = $a['priority_rank'] <=> $b['priority_rank'];
+			if ($rankCmp !== 0) {
+				return $rankCmp;
+			}
+			// Nulls last: an undated Task follows a dated Task at the same
+			// priority. Comparing directly on `due_ts` would treat null as 0
+			// and sort undated Tasks to the top of every priority tier.
+			$aDue = $a['due_ts'];
+			$bDue = $b['due_ts'];
+			if ($aDue === null && $bDue === null) {
+				// Both undated — fall through to date_entered.
+				return $a['entered_ts'] <=> $b['entered_ts'];
+			}
+			if ($aDue === null) {
+				return 1;
+			}
+			if ($bDue === null) {
+				return -1;
+			}
+			return $aDue <=> $bDue;
+		});
+
+		return array_slice($rows, 0, $limit);
+	}
+
+	/**
+	 * Terminal Case statuses — Cases in these states do not appear in the
+	 * "My open Cases" widget. Kept as a class constant so it's a single
+	 * point of update if a customer install adds an extra terminal state
+	 * ("Won't Fix" is a common addition, though not stock).
+	 */
+	private const CLOSED_CASE_STATUSES = ['Closed', 'Rejected', 'Duplicate'];
+
+	/**
+	 * Terminal Task statuses — Tasks in these states do not appear in the
+	 * "My open Tasks" widget. The vocabulary follows the same principle as
+	 * {@see UPCOMING_MODULES} overdue_statuses for Tasks: `Not Started`,
+	 * `In Progress`, `Pending Input` are the actionable states; `Completed`
+	 * and `Deferred` are terminal. A `Deferred` Task is a deliberate "not
+	 * now" decision — the rep has already dispositioned it, so the widget
+	 * respects that and stops surfacing it.
+	 */
+	private const CLOSED_TASK_STATUSES = ['Completed', 'Deferred'];
+
+	/**
+	 * Terminal Opportunity sales_stages — Opportunities in these states do
+	 * not appear in the "My pipeline" widget. Stock SuiteCRM 8 ships
+	 * `Closed Won` and `Closed Lost` as the terminal pair; both mean the
+	 * deal has been dispositioned and no further pipeline action is due
+	 * from the rep. Studio-customised installs sometimes add stages like
+	 * `Cancelled` or `On Hold` — a customer install that needs those
+	 * filtered would edit this constant.
+	 */
+	private const CLOSED_OPPORTUNITY_STAGES = ['Closed Won', 'Closed Lost'];
+
+	/**
+	 * The three pipeline framing modes exposed by the "My pipeline" widget.
+	 * Kept as a class constant so the personal settings selector, the
+	 * controller endpoint, and the widget itself share a single source of
+	 * truth for what "valid mode" means. An unknown mode string on the
+	 * wire falls through to {@see DEFAULT_PIPELINE_MODE} rather than
+	 * crashing — same defensive posture as {@see PRIORITY_ORDER}.
+	 */
+	public const PIPELINE_MODES = ['closing_quarter', 'top_value', 'weighted'];
+	public const DEFAULT_PIPELINE_MODE = 'closing_quarter';
+
+	/**
+	 * Opportunities assigned to me → "My pipeline" widget (iter 77).
+	 *
+	 * Distinct from the Cases and Tasks widgets in that framing is
+	 * user-selectable via a personal preference (see the
+	 * {@see PIPELINE_MODES} const). Reps whose deals close on a
+	 * predictable quarterly cadence want `closing_quarter`; reps with
+	 * long-tail deals whose calendar dates are aspirational want
+	 * `top_value`; reps building against a forecast target want
+	 * `weighted` (amount × probability/100).
+	 *
+	 * All three modes filter out terminal `sales_stage` values
+	 * ({@see CLOSED_OPPORTUNITY_STAGES}) client-side because the JSON:API
+	 * NOT-IN limitation applies to Opportunity queries too.
+	 *
+	 * Mode-specific behaviour:
+	 *   * `closing_quarter` — further filter to `close_date` within the
+	 *     current calendar quarter. Sort by `close_date` ASC so the
+	 *     imminent deals surface first. Deals with empty close_date are
+	 *     excluded from this mode entirely — the mode's whole point is
+	 *     "which of my deals need to land THIS quarter".
+	 *   * `top_value` — no additional filter beyond terminal-stage.
+	 *     Sort by `amount` DESC. Deals with empty/zero amount sort last.
+	 *   * `weighted` — no additional filter. Sort by
+	 *     `amount * probability / 100` DESC. Deals with a null
+	 *     `probability` are treated as 0 (they carry no forecast signal
+	 *     yet) and sort to the tail.
+	 *
+	 * Each returned row is tagged with `type='opportunity'`,
+	 * `close_ts` (`int|null`), `amount_num` (float), `probability_num`
+	 * (float), and `weighted_num` (float) — the widget's Vue frontend
+	 * uses these for display without re-parsing the strings.
+	 *
+	 * @param string $mode One of {@see PIPELINE_MODES}. Unknown strings
+	 *                     fall through to {@see DEFAULT_PIPELINE_MODE}
+	 *                     rather than crashing — an old bookmarked URL or
+	 *                     a typo in personal-settings JSON shouldn't kill
+	 *                     the widget.
+	 * @return array Sorted result rows.
+	 *               On upstream API failure, returns the SuiteCRM error payload.
+	 */
+	public function getMyPipeline(string $url, string $accessToken, string $userId, string $mode = self::DEFAULT_PIPELINE_MODE, int $limit = 20): array {
+		$scrmUserId = $this->config->getUserValue($userId, Application::APP_ID, 'user_id');
+		if ($scrmUserId === '') {
+			return [];
+		}
+		if (!in_array($mode, self::PIPELINE_MODES, true)) {
+			$mode = self::DEFAULT_PIPELINE_MODE;
+		}
+
+		$filters = [
+			'fields[Opportunities]=name,amount,currency_symbol,probability,sales_stage,close_date,account_name,date_entered',
+			urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId),
+			'filter[operator]=and',
+		];
+		$response = $this->request(
+			$url, $accessToken, $userId,
+			'module/Opportunities?' . implode('&', $filters)
+		);
+		if (isset($response['error'])) {
+			return $response;
+		}
+
+		[$quarterStart, $quarterEnd] = $this->currentQuarterWindow();
+
+		$rows = [];
+		foreach ($response['data'] ?? [] as $row) {
+			$stage = (string) ($row['attributes']['sales_stage'] ?? '');
+			if (in_array($stage, self::CLOSED_OPPORTUNITY_STAGES, true)) {
+				continue;
+			}
+			$closeStr = (string) ($row['attributes']['close_date'] ?? '');
+			$closeTs = null;
+			if ($closeStr !== '') {
+				try {
+					$closeTs = (new DateTime($closeStr))->getTimestamp();
+				} catch (Exception) {
+					$closeTs = null;
+				}
+			}
+			if ($mode === 'closing_quarter') {
+				if ($closeTs === null || $closeTs < $quarterStart || $closeTs > $quarterEnd) {
+					continue;
+				}
+			}
+			$amountNum = (float) ($row['attributes']['amount'] ?? 0);
+			$probabilityNum = (float) ($row['attributes']['probability'] ?? 0);
+			$weightedNum = $amountNum * ($probabilityNum / 100.0);
+			$row['type'] = 'opportunity';
+			$row['close_ts'] = $closeTs;
+			$row['amount_num'] = $amountNum;
+			$row['probability_num'] = $probabilityNum;
+			$row['weighted_num'] = $weightedNum;
+			$rows[] = $row;
+		}
+
+		usort($rows, match ($mode) {
+			'top_value' => static fn ($a, $b) => $b['amount_num'] <=> $a['amount_num'],
+			'weighted' => static fn ($a, $b) => $b['weighted_num'] <=> $a['weighted_num'],
+			default => static fn ($a, $b) => ($a['close_ts'] ?? PHP_INT_MAX) <=> ($b['close_ts'] ?? PHP_INT_MAX),
+		});
+
+		return array_slice($rows, 0, $limit);
+	}
+
+	/**
+	 * Start and end Unix timestamps of the current calendar quarter, in
+	 * server-local time. Q1 = Jan 1 – Mar 31, Q2 = Apr 1 – Jun 30, etc.
+	 * Extracted so the getMyPipeline() `closing_quarter` filter is
+	 * testable without freezing global time.
+	 *
+	 * @return array{0: int, 1: int} [start, end] as Unix timestamps.
+	 */
+	private function currentQuarterWindow(): array {
+		$now = new DateTime();
+		$month = (int) $now->format('n');
+		$quarterFirstMonth = (int) (floor(($month - 1) / 3) * 3) + 1;
+		$year = (int) $now->format('Y');
+		$start = (new DateTime())->setDate($year, $quarterFirstMonth, 1)->setTime(0, 0, 0);
+		$end = (clone $start)->add(new DateInterval('P3M'))->sub(new DateInterval('PT1S'));
+		return [$start->getTimestamp(), $end->getTimestamp()];
+	}
+
+	/**
+	 * Case-priority sort weight. Both label sets are covered because
+	 * SuiteCRM 8 installs are inconsistent — the stock English dropdown
+	 * uses `P1/P2/P3` but some ship with `High/Medium/Low` and Studio
+	 * lets tenants relabel freely. Unknown values fall through to 99 in
+	 * {@see getMyCases()} so they sort last but don't crash.
+	 */
+	private const PRIORITY_ORDER = [
+		'P1' => 1,
+		'High' => 1,
+		'P2' => 2,
+		'Medium' => 2,
+		'P3' => 3,
+		'Low' => 3,
+	];
+
+	/**
 	 * Cross-module free-text search.
 	 *
 	 * Iteration 18 (Finding 16): the filter is pushed to SuiteCRM v8 REST

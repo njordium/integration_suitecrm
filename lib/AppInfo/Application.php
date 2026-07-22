@@ -15,6 +15,9 @@ use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 
 use OCA\SuiteCRM\Dashboard\SuiteCRMCalendarWidget;
+use OCA\SuiteCRM\Dashboard\SuiteCRMCasesWidget;
+use OCA\SuiteCRM\Dashboard\SuiteCRMPipelineWidget;
+use OCA\SuiteCRM\Dashboard\SuiteCRMTasksWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMWidget;
 use OCA\SuiteCRM\Notification\Notifier;
 use OCA\SuiteCRM\Reference\SuiteCRMReferenceProvider;
@@ -36,6 +39,9 @@ class Application extends App implements IBootstrap {
 	public function register(IRegistrationContext $context): void {
 		$context->registerDashboardWidget(SuiteCRMWidget::class);
 		$context->registerDashboardWidget(SuiteCRMCalendarWidget::class);
+		$context->registerDashboardWidget(SuiteCRMCasesWidget::class);
+		$context->registerDashboardWidget(SuiteCRMTasksWidget::class);
+		$context->registerDashboardWidget(SuiteCRMPipelineWidget::class);
 		$context->registerSearchProvider(SuiteCRMSearchProvider::class);
 		$context->registerReferenceProvider(SuiteCRMReferenceProvider::class);
 		$context->registerNotifierService(Notifier::class);

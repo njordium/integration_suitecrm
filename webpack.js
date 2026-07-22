@@ -15,6 +15,9 @@ webpackConfig.entry = {
     adminSettings: { import: path.join(__dirname, 'src', 'adminSettings.js'), filename: 'njordium_suitecrm-adminSettings.js' },
     dashboard: { import: path.join(__dirname, 'src', 'dashboard.js'), filename: 'njordium_suitecrm-dashboard.js' },
     calendar: { import: path.join(__dirname, 'src', 'calendar.js'), filename: 'njordium_suitecrm-calendar.js' },
+    cases: { import: path.join(__dirname, 'src', 'cases.js'), filename: 'njordium_suitecrm-cases.js' },
+    tasks: { import: path.join(__dirname, 'src', 'tasks.js'), filename: 'njordium_suitecrm-tasks.js' },
+    pipeline: { import: path.join(__dirname, 'src', 'pipeline.js'), filename: 'njordium_suitecrm-pipeline.js' },
 }
 
 module.exports = webpackConfig

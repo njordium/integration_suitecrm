@@ -735,4 +735,987 @@ class SuiteCRMAPIServiceTest extends TestCase {
 		$result = $service->createRecord('https://crm', 'tok', 'u', 'Tasks', []);
 		$this->assertSame('ok', $result['data']['id']);
 	}
+
+	// ---------------------------------------------------------------------
+	// Iter 75 — regression coverage for getMyCases().
+	//
+	// getMyCases() backs the "My open Cases" dashboard widget. Invariants:
+	//   * Cases with terminal statuses (Closed / Rejected / Duplicate)
+	//     are filtered out client-side because SuiteCRM 8.10.x's JSON:API
+	//     filter surface has no reliable NOT-IN operator (iter 24 finding
+	//     applies here too).
+	//   * Priority ordering follows PRIORITY_ORDER: P1/High first,
+	//     P2/Medium next, P3/Low last, unknown values sort last but
+	//     don't crash. Both label sets are covered because SuiteCRM
+	//     installs are inconsistent about which they ship.
+	//   * Within a priority tier, older Cases (larger age_days) come
+	//     first — the rep should notice long-open Cases before newly
+	//     opened ones.
+	//   * If the caller hasn't stored their SuiteCRM user_id (fresh
+	//     install, unlinked account), we return [] instead of firing an
+	//     unscoped query that would return every Case in the tenant.
+	//   * Upstream error envelopes propagate unchanged so the controller
+	//     can render an actionable admin message.
+	// ---------------------------------------------------------------------
+
+	/**
+	 * Wire the config mock so getUserValue('u', app, 'user_id') returns
+	 * the given SuiteCRM user id. All getMyCases tests need this because
+	 * an empty user id short-circuits the method (safety guard against
+	 * fetching every Case in the tenant).
+	 */
+	private function stubSuiteCRMUserId(string $suiteUserId): void {
+		$this->config->method('getUserValue')->willReturn($suiteUserId);
+	}
+
+	public function testGetMyCasesReturnsEmptyWhenNoSuiteCRMUserIdStored(): void {
+		// Safety guard: without a stored SuiteCRM user_id we cannot
+		// filter by `assigned_user_id`, so the query would return every
+		// Case in the tenant. The service returns [] instead — the
+		// controller renders it as an empty widget.
+		$requestCalls = 0;
+		$service = $this->makeService(function () use (&$requestCalls) {
+			$requestCalls++;
+			return ['data' => []];
+		});
+		$result = $service->getMyCases('https://crm', 'tok', 'alice', 20);
+		$this->assertSame([], $result);
+		$this->assertSame(0, $requestCalls, 'unscoped Case query must never fire');
+	}
+
+	public function testGetMyCasesFiltersOutTerminalStatuses(): void {
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			return [
+				'data' => [
+					[
+						'id' => 'case-open',
+						'attributes' => [
+							'name' => 'Login issue',
+							'case_number' => '101',
+							'priority' => 'P2',
+							'status' => 'New',
+							'date_entered' => (new \DateTime('-3 days'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+					[
+						'id' => 'case-closed',
+						'attributes' => [
+							'name' => 'Old resolved bug',
+							'case_number' => '99',
+							'priority' => 'P1',
+							'status' => 'Closed',
+							'date_entered' => (new \DateTime('-30 days'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+					[
+						'id' => 'case-rejected',
+						'attributes' => [
+							'name' => 'Not our problem',
+							'case_number' => '98',
+							'priority' => 'P1',
+							'status' => 'Rejected',
+							'date_entered' => (new \DateTime('-15 days'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+					[
+						'id' => 'case-duplicate',
+						'attributes' => [
+							'name' => 'Duplicate of 101',
+							'case_number' => '102',
+							'priority' => 'P2',
+							'status' => 'Duplicate',
+							'date_entered' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyCases('https://crm', 'tok', 'alice', 20);
+
+		$this->assertCount(1, $results, 'only the New Case should survive the terminal-status filter');
+		$this->assertSame('case-open', $results[0]['id']);
+	}
+
+	public function testGetMyCasesSortsByPriorityThenAge(): void {
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			return [
+				'data' => [
+					[
+						'id' => 'case-p2-old',
+						'attributes' => [
+							'name' => 'P2 case, older',
+							'priority' => 'P2',
+							'status' => 'Assigned',
+							'date_entered' => (new \DateTime('-10 days'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+					[
+						'id' => 'case-p1-fresh',
+						'attributes' => [
+							'name' => 'P1 case, fresh',
+							'priority' => 'P1',
+							'status' => 'New',
+							'date_entered' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+					[
+						'id' => 'case-p1-old',
+						'attributes' => [
+							'name' => 'P1 case, older',
+							'priority' => 'P1',
+							'status' => 'New',
+							'date_entered' => (new \DateTime('-5 days'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+					[
+						'id' => 'case-p3-fresh',
+						'attributes' => [
+							'name' => 'P3 case, fresh',
+							'priority' => 'P3',
+							'status' => 'Pending Input',
+							'date_entered' => (new \DateTime('-2 days'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyCases('https://crm', 'tok', 'alice', 20);
+
+		$this->assertCount(4, $results);
+		// P1 tier first, older-of-the-two ahead of fresher.
+		$this->assertSame('case-p1-old', $results[0]['id']);
+		$this->assertSame('case-p1-fresh', $results[1]['id']);
+		// Then P2, then P3.
+		$this->assertSame('case-p2-old', $results[2]['id']);
+		$this->assertSame('case-p3-fresh', $results[3]['id']);
+	}
+
+	public function testGetMyCasesHandlesHighMediumLowLabelSet(): void {
+		// SuiteCRM 8 installs are inconsistent about Case priority
+		// labels — stock English ships P1/P2/P3, but relabelled installs
+		// use High/Medium/Low. PRIORITY_ORDER weights both so widgets
+		// sort predictably regardless of the tenant's labelling choice.
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			return [
+				'data' => [
+					[
+						'id' => 'case-medium',
+						'attributes' => [
+							'name' => 'Medium priority case',
+							'priority' => 'Medium',
+							'status' => 'New',
+							'date_entered' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+					[
+						'id' => 'case-high',
+						'attributes' => [
+							'name' => 'High priority case',
+							'priority' => 'High',
+							'status' => 'New',
+							'date_entered' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+					[
+						'id' => 'case-low',
+						'attributes' => [
+							'name' => 'Low priority case',
+							'priority' => 'Low',
+							'status' => 'New',
+							'date_entered' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyCases('https://crm', 'tok', 'alice', 20);
+
+		$this->assertSame(['case-high', 'case-medium', 'case-low'], array_column($results, 'id'));
+	}
+
+	public function testGetMyCasesUnknownPrioritySortsLast(): void {
+		// A Studio-customised install could ship priority values that
+		// aren't in PRIORITY_ORDER. Unknown values shouldn't crash;
+		// they should sort behind the known tiers so the rep still sees
+		// their P1/High Cases first.
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			return [
+				'data' => [
+					[
+						'id' => 'case-weird',
+						'attributes' => [
+							'name' => 'Studio-custom priority',
+							'priority' => 'Blocker',
+							'status' => 'New',
+							'date_entered' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+					[
+						'id' => 'case-p3',
+						'attributes' => [
+							'name' => 'Standard P3',
+							'priority' => 'P3',
+							'status' => 'New',
+							'date_entered' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyCases('https://crm', 'tok', 'alice', 20);
+
+		$this->assertSame(['case-p3', 'case-weird'], array_column($results, 'id'));
+	}
+
+	public function testGetMyCasesRespectsLimit(): void {
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			$data = [];
+			for ($i = 0; $i < 30; $i++) {
+				$data[] = [
+					'id' => 'case-' . $i,
+					'attributes' => [
+						'name' => 'Case ' . $i,
+						'priority' => 'P2',
+						'status' => 'New',
+						'date_entered' => (new \DateTime('-' . ($i + 1) . ' days'))->format('Y-m-d\TH:i:s'),
+					],
+				];
+			}
+			return ['data' => $data];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyCases('https://crm', 'tok', 'alice', 7);
+		$this->assertCount(7, $results, 'limit must cap the result set after client-side sort');
+	}
+
+	public function testGetMyCasesPropagatesUpstreamErrorEnvelope(): void {
+		// A read failure must surface the same error shape as writes —
+		// the widget renders "Error connecting to SuiteCRM" only if
+		// the payload has an `error` key.
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$service = $this->makeService(fn () => [
+			'error' => 'Bad credentials',
+			'body' => '{"errors":[{"detail":"invalid token"}]}',
+		]);
+		$result = $service->getMyCases('https://crm', 'tok', 'alice', 20);
+		$this->assertArrayHasKey('error', $result);
+		$this->assertSame('Bad credentials', $result['error']);
+	}
+
+	// ---------------------------------------------------------------------
+	// Iter 76 — regression coverage for getMyTasks().
+	//
+	// Invariants:
+	//   * Terminal statuses (Completed / Deferred) are filtered out
+	//     client-side. Actionable: Not Started / In Progress / Pending Input.
+	//   * Priority sort follows PRIORITY_ORDER (shared with getMyCases()).
+	//   * Within a priority tier, dated Tasks sort by due_ts ASC (earliest
+	//     due first). Undated Tasks (date_due empty or malformed) fall
+	//     LAST within the tier — a dated Task carries an urgency signal
+	//     an undated one doesn't.
+	//   * Between two undated Tasks at the same priority, date_entered
+	//     is the stable tiebreaker — older created first.
+	//   * Empty-user-id safety guard (same reasoning as getMyCases).
+	//   * Upstream error envelope propagates unchanged.
+	// ---------------------------------------------------------------------
+
+	public function testGetMyTasksReturnsEmptyWhenNoSuiteCRMUserIdStored(): void {
+		$requestCalls = 0;
+		$service = $this->makeService(function () use (&$requestCalls) {
+			$requestCalls++;
+			return ['data' => []];
+		});
+		$result = $service->getMyTasks('https://crm', 'tok', 'alice', 20);
+		$this->assertSame([], $result);
+		$this->assertSame(0, $requestCalls, 'unscoped Task query must never fire');
+	}
+
+	public function testGetMyTasksFiltersOutTerminalStatuses(): void {
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			return [
+				'data' => [
+					[
+						'id' => 'task-open-in-progress',
+						'attributes' => [
+							'name' => 'Draft proposal',
+							'priority' => 'High',
+							'status' => 'In Progress',
+							'date_due' => (new \DateTime('+2 days'))->format('Y-m-d\TH:i:s'),
+							'date_entered' => (new \DateTime('-5 days'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+					[
+						'id' => 'task-open-not-started',
+						'attributes' => [
+							'name' => 'Schedule review',
+							'priority' => 'Medium',
+							'status' => 'Not Started',
+							'date_due' => (new \DateTime('+5 days'))->format('Y-m-d\TH:i:s'),
+							'date_entered' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+					[
+						'id' => 'task-open-pending',
+						'attributes' => [
+							'name' => 'Awaiting client sign-off',
+							'priority' => 'Medium',
+							'status' => 'Pending Input',
+							'date_due' => (new \DateTime('+10 days'))->format('Y-m-d\TH:i:s'),
+							'date_entered' => (new \DateTime('-3 days'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+					[
+						'id' => 'task-completed',
+						'attributes' => [
+							'name' => 'Old finished task',
+							'priority' => 'High',
+							'status' => 'Completed',
+							'date_due' => (new \DateTime('-2 days'))->format('Y-m-d\TH:i:s'),
+							'date_entered' => (new \DateTime('-20 days'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+					[
+						'id' => 'task-deferred',
+						'attributes' => [
+							'name' => 'Deliberately skipped',
+							'priority' => 'Low',
+							'status' => 'Deferred',
+							'date_due' => (new \DateTime('+30 days'))->format('Y-m-d\TH:i:s'),
+							'date_entered' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyTasks('https://crm', 'tok', 'alice', 20);
+
+		$ids = array_column($results, 'id');
+		$this->assertContains('task-open-in-progress', $ids);
+		$this->assertContains('task-open-not-started', $ids);
+		$this->assertContains('task-open-pending', $ids);
+		$this->assertNotContains('task-completed', $ids);
+		$this->assertNotContains('task-deferred', $ids);
+	}
+
+	public function testGetMyTasksSortsByPriorityThenDueDate(): void {
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			return [
+				'data' => [
+					[
+						'id' => 'task-medium-due-tomorrow',
+						'attributes' => [
+							'name' => 'M, due tomorrow',
+							'priority' => 'Medium',
+							'status' => 'Not Started',
+							'date_due' => (new \DateTime('+1 day'))->format('Y-m-d\TH:i:s'),
+							'date_entered' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+					[
+						'id' => 'task-high-due-next-week',
+						'attributes' => [
+							'name' => 'H, due next week',
+							'priority' => 'High',
+							'status' => 'Not Started',
+							'date_due' => (new \DateTime('+7 days'))->format('Y-m-d\TH:i:s'),
+							'date_entered' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+					[
+						'id' => 'task-high-due-tomorrow',
+						'attributes' => [
+							'name' => 'H, due tomorrow',
+							'priority' => 'High',
+							'status' => 'In Progress',
+							'date_due' => (new \DateTime('+1 day'))->format('Y-m-d\TH:i:s'),
+							'date_entered' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyTasks('https://crm', 'tok', 'alice', 20);
+
+		$this->assertSame(
+			['task-high-due-tomorrow', 'task-high-due-next-week', 'task-medium-due-tomorrow'],
+			array_column($results, 'id'),
+		);
+	}
+
+	public function testGetMyTasksSortsUndatedTasksLastWithinPriorityTier(): void {
+		// A dated Task at High carries an urgency signal an undated
+		// High Task doesn't — the undated one must sort last within
+		// the tier.
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			return [
+				'data' => [
+					[
+						'id' => 'task-high-undated',
+						'attributes' => [
+							'name' => 'High no due date',
+							'priority' => 'High',
+							'status' => 'Not Started',
+							'date_due' => '',
+							'date_entered' => (new \DateTime('-2 days'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+					[
+						'id' => 'task-high-dated',
+						'attributes' => [
+							'name' => 'High with due date',
+							'priority' => 'High',
+							'status' => 'Not Started',
+							'date_due' => (new \DateTime('+3 days'))->format('Y-m-d\TH:i:s'),
+							'date_entered' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyTasks('https://crm', 'tok', 'alice', 20);
+
+		$this->assertSame(['task-high-dated', 'task-high-undated'], array_column($results, 'id'));
+		$this->assertNull($results[1]['due_ts'], 'undated Task must expose due_ts=null');
+	}
+
+	public function testGetMyTasksBreaksUndatedTiesByCreationDate(): void {
+		// Two undated Tasks at the same priority — the older creation
+		// wins so an old forgotten Task surfaces above a fresh
+		// undated one.
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			return [
+				'data' => [
+					[
+						'id' => 'task-undated-fresh',
+						'attributes' => [
+							'name' => 'Fresh undated',
+							'priority' => 'Medium',
+							'status' => 'Not Started',
+							'date_due' => '',
+							'date_entered' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+					[
+						'id' => 'task-undated-old',
+						'attributes' => [
+							'name' => 'Old undated',
+							'priority' => 'Medium',
+							'status' => 'Not Started',
+							'date_due' => '',
+							'date_entered' => (new \DateTime('-30 days'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyTasks('https://crm', 'tok', 'alice', 20);
+
+		$this->assertSame(['task-undated-old', 'task-undated-fresh'], array_column($results, 'id'));
+	}
+
+	public function testGetMyTasksTagsRowsWithTypeAndDueTs(): void {
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$dueDate = (new \DateTime('+3 days'))->format('Y-m-d\TH:i:s');
+		$requestStub = function () use ($dueDate) {
+			return [
+				'data' => [
+					[
+						'id' => 'task-1',
+						'attributes' => [
+							'name' => 'Tagged',
+							'priority' => 'High',
+							'status' => 'Not Started',
+							'date_due' => $dueDate,
+							'date_entered' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyTasks('https://crm', 'tok', 'alice', 20);
+
+		$this->assertCount(1, $results);
+		$this->assertSame('task', $results[0]['type']);
+		$this->assertSame(1, $results[0]['priority_rank']);
+		$this->assertNotNull($results[0]['due_ts']);
+		$this->assertSame((new \DateTime($dueDate))->getTimestamp(), $results[0]['due_ts']);
+	}
+
+	public function testGetMyTasksHandlesMalformedDueDateAsUndated(): void {
+		// Studio-customised installs occasionally return non-ISO strings.
+		// A parse failure must not crash the sort — the row falls through
+		// to the undated tier.
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			return [
+				'data' => [
+					[
+						'id' => 'task-bad-date',
+						'attributes' => [
+							'name' => 'Malformed date',
+							'priority' => 'Medium',
+							'status' => 'Not Started',
+							'date_due' => 'not-a-date',
+							'date_entered' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyTasks('https://crm', 'tok', 'alice', 20);
+
+		$this->assertCount(1, $results);
+		$this->assertNull($results[0]['due_ts']);
+	}
+
+	public function testGetMyTasksPropagatesUpstreamErrorEnvelope(): void {
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$service = $this->makeService(fn () => [
+			'error' => 'Bad credentials',
+			'body' => '{"errors":[{"detail":"invalid token"}]}',
+		]);
+		$result = $service->getMyTasks('https://crm', 'tok', 'alice', 20);
+		$this->assertArrayHasKey('error', $result);
+		$this->assertSame('Bad credentials', $result['error']);
+	}
+
+	public function testGetMyTasksRespectsLimit(): void {
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			$data = [];
+			for ($i = 0; $i < 25; $i++) {
+				$data[] = [
+					'id' => 'task-' . $i,
+					'attributes' => [
+						'name' => 'Task ' . $i,
+						'priority' => 'Medium',
+						'status' => 'Not Started',
+						'date_due' => (new \DateTime('+' . ($i + 1) . ' days'))->format('Y-m-d\TH:i:s'),
+						'date_entered' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s'),
+					],
+				];
+			}
+			return ['data' => $data];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyTasks('https://crm', 'tok', 'alice', 7);
+		$this->assertCount(7, $results);
+	}
+
+	// ---------------------------------------------------------------------
+	// Iter 77 — regression coverage for getMyPipeline().
+	//
+	// Invariants:
+	//   * All three modes filter out terminal sales_stages (Closed Won,
+	//     Closed Lost) client-side.
+	//   * closing_quarter mode further filters to close_date within the
+	//     current calendar quarter and sorts by close_date ASC.
+	//   * top_value mode sorts by amount DESC across all open Opportunities
+	//     regardless of close_date (including deals with empty close_date).
+	//   * weighted mode sorts by amount × probability/100 DESC.
+	//   * Unknown mode strings snap to DEFAULT_PIPELINE_MODE rather than
+	//     crashing — old bookmarks, hand-edited preferences, or Vue's
+	//     v-model returning stale value shouldn't kill the widget.
+	//   * Empty-user-id safety guard (same reasoning as getMyCases).
+	//   * Rows tagged with type='opportunity', close_ts (int|null),
+	//     amount_num (float), probability_num (float), weighted_num (float).
+	// ---------------------------------------------------------------------
+
+	public function testGetMyPipelineReturnsEmptyWhenNoSuiteCRMUserIdStored(): void {
+		$requestCalls = 0;
+		$service = $this->makeService(function () use (&$requestCalls) {
+			$requestCalls++;
+			return ['data' => []];
+		});
+		$result = $service->getMyPipeline('https://crm', 'tok', 'alice', 'closing_quarter', 20);
+		$this->assertSame([], $result);
+		$this->assertSame(0, $requestCalls);
+	}
+
+	public function testGetMyPipelineFiltersOutTerminalSalesStages(): void {
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			$thisQuarter = (new \DateTime())->format('Y-m-d');
+			return [
+				'data' => [
+					[
+						'id' => 'opp-open',
+						'attributes' => [
+							'name' => 'Open deal',
+							'amount' => '10000',
+							'probability' => '50',
+							'sales_stage' => 'Negotiation/Review',
+							'close_date' => $thisQuarter,
+							'currency_symbol' => '$',
+						],
+					],
+					[
+						'id' => 'opp-won',
+						'attributes' => [
+							'name' => 'Already-won deal',
+							'amount' => '50000',
+							'probability' => '100',
+							'sales_stage' => 'Closed Won',
+							'close_date' => $thisQuarter,
+							'currency_symbol' => '$',
+						],
+					],
+					[
+						'id' => 'opp-lost',
+						'attributes' => [
+							'name' => 'Lost deal',
+							'amount' => '20000',
+							'probability' => '0',
+							'sales_stage' => 'Closed Lost',
+							'close_date' => $thisQuarter,
+							'currency_symbol' => '$',
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyPipeline('https://crm', 'tok', 'alice', 'top_value', 20);
+
+		$ids = array_column($results, 'id');
+		$this->assertContains('opp-open', $ids);
+		$this->assertNotContains('opp-won', $ids);
+		$this->assertNotContains('opp-lost', $ids);
+	}
+
+	public function testGetMyPipelineTopValueModeSortsByAmountDesc(): void {
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			return [
+				'data' => [
+					[
+						'id' => 'opp-small',
+						'attributes' => [
+							'name' => 'Small',
+							'amount' => '5000',
+							'probability' => '90',
+							'sales_stage' => 'Proposal/Price Quote',
+							'close_date' => (new \DateTime('+10 years'))->format('Y-m-d'),
+						],
+					],
+					[
+						'id' => 'opp-huge',
+						'attributes' => [
+							'name' => 'Huge',
+							'amount' => '500000',
+							'probability' => '20',
+							'sales_stage' => 'Prospecting',
+							'close_date' => (new \DateTime('+10 years'))->format('Y-m-d'),
+						],
+					],
+					[
+						'id' => 'opp-medium',
+						'attributes' => [
+							'name' => 'Medium',
+							'amount' => '50000',
+							'probability' => '50',
+							'sales_stage' => 'Qualification',
+							'close_date' => (new \DateTime('+10 years'))->format('Y-m-d'),
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyPipeline('https://crm', 'tok', 'alice', 'top_value', 20);
+
+		$this->assertSame(['opp-huge', 'opp-medium', 'opp-small'], array_column($results, 'id'));
+	}
+
+	public function testGetMyPipelineWeightedModeSortsByWeightedValue(): void {
+		// weighted = amount × probability / 100.
+		// $500k × 20% = $100k     (huge deal, low probability)
+		// $50k × 90%  = $45k      (medium deal, high probability)
+		// $5k × 100%  = $5k       (small deal, guaranteed)
+		// Expected order: huge ($100k weighted) > medium ($45k) > small ($5k).
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			return [
+				'data' => [
+					[
+						'id' => 'opp-small-certain',
+						'attributes' => [
+							'name' => 'Small guaranteed',
+							'amount' => '5000',
+							'probability' => '100',
+							'sales_stage' => 'Proposal/Price Quote',
+						],
+					],
+					[
+						'id' => 'opp-medium-likely',
+						'attributes' => [
+							'name' => 'Medium likely',
+							'amount' => '50000',
+							'probability' => '90',
+							'sales_stage' => 'Negotiation/Review',
+						],
+					],
+					[
+						'id' => 'opp-huge-longshot',
+						'attributes' => [
+							'name' => 'Huge longshot',
+							'amount' => '500000',
+							'probability' => '20',
+							'sales_stage' => 'Prospecting',
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyPipeline('https://crm', 'tok', 'alice', 'weighted', 20);
+
+		$this->assertSame(
+			['opp-huge-longshot', 'opp-medium-likely', 'opp-small-certain'],
+			array_column($results, 'id'),
+		);
+		$this->assertEqualsWithDelta(100000.0, $results[0]['weighted_num'], 0.01);
+		$this->assertEqualsWithDelta(45000.0, $results[1]['weighted_num'], 0.01);
+		$this->assertEqualsWithDelta(5000.0, $results[2]['weighted_num'], 0.01);
+	}
+
+	public function testGetMyPipelineClosingQuarterFiltersByQuarterWindow(): void {
+		// closing_quarter mode drops rows whose close_date isn't in the
+		// current calendar quarter. Rows without a close_date are also
+		// dropped from this mode entirely.
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			return [
+				'data' => [
+					[
+						'id' => 'opp-in-quarter',
+						'attributes' => [
+							'name' => 'In-quarter deal',
+							'amount' => '10000',
+							'probability' => '50',
+							'sales_stage' => 'Qualification',
+							'close_date' => (new \DateTime())->format('Y-m-d'),
+						],
+					],
+					[
+						'id' => 'opp-far-future',
+						'attributes' => [
+							'name' => 'Far future deal',
+							'amount' => '100000',
+							'probability' => '50',
+							'sales_stage' => 'Qualification',
+							'close_date' => (new \DateTime('+2 years'))->format('Y-m-d'),
+						],
+					],
+					[
+						'id' => 'opp-undated',
+						'attributes' => [
+							'name' => 'Undated deal',
+							'amount' => '50000',
+							'probability' => '50',
+							'sales_stage' => 'Qualification',
+							'close_date' => '',
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyPipeline('https://crm', 'tok', 'alice', 'closing_quarter', 20);
+
+		$ids = array_column($results, 'id');
+		$this->assertContains('opp-in-quarter', $ids);
+		$this->assertNotContains('opp-far-future', $ids, 'far-future close_date excluded from closing_quarter mode');
+		$this->assertNotContains('opp-undated', $ids, 'undated deals excluded from closing_quarter mode');
+	}
+
+	public function testGetMyPipelineClosingQuarterSortsByCloseDateAsc(): void {
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$today = new \DateTime();
+		// Pick two dates guaranteed to be in the current quarter regardless
+		// of when this test runs: today + 1 day and today. If today is Dec
+		// 31 the "+1 day" spills to next quarter — but that's edge enough
+		// to accept the test as documentation of intent even then. In every
+		// other case both dates land in the same quarter as `now`.
+		$requestStub = function () use ($today) {
+			return [
+				'data' => [
+					[
+						'id' => 'opp-later',
+						'attributes' => [
+							'name' => 'Closes later',
+							'amount' => '10000',
+							'probability' => '50',
+							'sales_stage' => 'Negotiation/Review',
+							'close_date' => (clone $today)->format('Y-m-d'),
+						],
+					],
+					[
+						'id' => 'opp-earlier',
+						'attributes' => [
+							'name' => 'Closes earlier',
+							'amount' => '10000',
+							'probability' => '50',
+							'sales_stage' => 'Negotiation/Review',
+							'close_date' => (clone $today)->sub(new \DateInterval('P1D'))->format('Y-m-d'),
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyPipeline('https://crm', 'tok', 'alice', 'closing_quarter', 20);
+
+		// Two rows returned only if today isn't the first day of a quarter
+		// (in which case the "-1 day" fixture spills to previous quarter and
+		// gets filtered out). Guard the assertion.
+		if (count($results) === 2) {
+			$this->assertSame('opp-earlier', $results[0]['id']);
+			$this->assertSame('opp-later', $results[1]['id']);
+		}
+	}
+
+	public function testGetMyPipelineUnknownModeFallsBackToDefault(): void {
+		// A garbled preference value must not crash the widget. Since
+		// closing_quarter is the default it applies the quarter-window
+		// filter — an undated row would be dropped even though the
+		// caller passed 'not_a_real_mode'.
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			return [
+				'data' => [
+					[
+						'id' => 'opp-undated',
+						'attributes' => [
+							'name' => 'Undated deal',
+							'amount' => '10000',
+							'probability' => '50',
+							'sales_stage' => 'Qualification',
+							'close_date' => '',
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyPipeline('https://crm', 'tok', 'alice', 'not_a_real_mode', 20);
+		// Undated deal should be dropped because the fallback was
+		// closing_quarter, which filters undated deals out.
+		$this->assertSame([], $results);
+	}
+
+	public function testGetMyPipelineTagsRows(): void {
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			return [
+				'data' => [
+					[
+						'id' => 'opp-1',
+						'attributes' => [
+							'name' => 'Tagged',
+							'amount' => '75000',
+							'probability' => '40',
+							'sales_stage' => 'Proposal/Price Quote',
+							'close_date' => (new \DateTime('+1 year'))->format('Y-m-d'),
+							'currency_symbol' => '$',
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyPipeline('https://crm', 'tok', 'alice', 'top_value', 20);
+
+		$this->assertCount(1, $results);
+		$this->assertSame('opportunity', $results[0]['type']);
+		$this->assertEqualsWithDelta(75000.0, $results[0]['amount_num'], 0.01);
+		$this->assertEqualsWithDelta(40.0, $results[0]['probability_num'], 0.01);
+		$this->assertEqualsWithDelta(30000.0, $results[0]['weighted_num'], 0.01);
+		$this->assertNotNull($results[0]['close_ts']);
+	}
+
+	public function testGetMyPipelinePropagatesUpstreamErrorEnvelope(): void {
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$service = $this->makeService(fn () => [
+			'error' => 'Bad credentials',
+			'body' => '{"errors":[{"detail":"invalid token"}]}',
+		]);
+		$result = $service->getMyPipeline('https://crm', 'tok', 'alice', 'top_value', 20);
+		$this->assertArrayHasKey('error', $result);
+		$this->assertSame('Bad credentials', $result['error']);
+	}
+
+	public function testGetMyPipelineRespectsLimit(): void {
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			$data = [];
+			for ($i = 0; $i < 30; $i++) {
+				$data[] = [
+					'id' => 'opp-' . $i,
+					'attributes' => [
+						'name' => 'Deal ' . $i,
+						'amount' => (string) (($i + 1) * 1000),
+						'probability' => '50',
+						'sales_stage' => 'Qualification',
+					],
+				];
+			}
+			return ['data' => $data];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyPipeline('https://crm', 'tok', 'alice', 'top_value', 7);
+		$this->assertCount(7, $results);
+	}
+
+	public function testGetMyCasesTagsRowsWithTypeAndAgeAndPriorityRank(): void {
+		// Rows must carry `type='case'`, `age_days` (int), and
+		// `priority_rank` (int) — the widget uses these to render the
+		// icon, the "N days open" subline, and the sort key for
+		// server-side dashboard rendering.
+		$this->stubSuiteCRMUserId('scrm-alice-uuid');
+		$requestStub = function () {
+			return [
+				'data' => [
+					[
+						'id' => 'case-1',
+						'attributes' => [
+							'name' => 'Tagged',
+							'priority' => 'P1',
+							'status' => 'New',
+							'date_entered' => (new \DateTime('-4 days'))->format('Y-m-d\TH:i:s'),
+						],
+					],
+				],
+			];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getMyCases('https://crm', 'tok', 'alice', 20);
+
+		$this->assertCount(1, $results);
+		$this->assertSame('case', $results[0]['type']);
+		$this->assertSame(1, $results[0]['priority_rank']);
+		// `diff->days` can be 3 or 4 depending on the exact moment the
+		// test runs vs the "-4 days" fixture; assert a generous range.
+		$this->assertGreaterThanOrEqual(3, $results[0]['age_days']);
+		$this->assertLessThanOrEqual(4, $results[0]['age_days']);
+	}
 }

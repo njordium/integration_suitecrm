@@ -13,6 +13,7 @@ use OCP\IConfig;
 use OCP\Settings\ISettings;
 
 use OCA\SuiteCRM\AppInfo\Application;
+use OCA\SuiteCRM\Service\SuiteCRMAPIService;
 
 class Personal implements ISettings {
 
@@ -33,6 +34,15 @@ class Personal implements ISettings {
 		$userName = $this->config->getUserValue($userId, Application::APP_ID, 'user_name');
 		$searchEnabled = $this->config->getUserValue($userId, Application::APP_ID, 'search_enabled', '0');
 		$notificationEnabled = $this->config->getUserValue($userId, Application::APP_ID, 'notification_enabled', '0');
+		// Iter 77: pipeline widget framing preference. Default falls
+		// back to closing_quarter for fresh installs; an unknown value
+		// on disk (Studio-customised install, hand-edited row) also
+		// snaps to the default so the widget never crashes on a bad
+		// preference string.
+		$pipelineMode = $this->config->getUserValue($userId, Application::APP_ID, 'pipeline_mode', SuiteCRMAPIService::DEFAULT_PIPELINE_MODE);
+		if (!in_array($pipelineMode, SuiteCRMAPIService::PIPELINE_MODES, true)) {
+			$pipelineMode = SuiteCRMAPIService::DEFAULT_PIPELINE_MODE;
+		}
 
 		$clientID = $this->appConfig->getValueString(Application::APP_ID, 'client_id');
 		$clientSecret = ($this->appConfig->getValueString(Application::APP_ID, 'client_secret') !== '');
@@ -45,6 +55,7 @@ class Personal implements ISettings {
 			'search_enabled' => ($searchEnabled === '1'),
 			'notification_enabled' => ($notificationEnabled === '1'),
 			'user_name' => $userName,
+			'pipeline_mode' => $pipelineMode,
 		]);
 		return new TemplateResponse(Application::APP_ID, 'personalSettings');
 	}

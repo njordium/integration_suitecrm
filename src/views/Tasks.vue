@@ -9,7 +9,7 @@
 				<template #action>
 					<div v-if="state === 'no-token' || state === 'error'" class="connect-button">
 						<a class="button" :href="settingsUrl">
-							{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
+							{{ t('njordium_suitecrm', 'Connect to SuiteCRM') }}
 						</a>
 					</div>
 				</template>
@@ -19,6 +19,18 @@
 </template>
 
 <script>
+/**
+ * SuiteCRMTasks — iter 76.
+ *
+ * "My open Tasks" dashboard widget. Workload-oriented, not
+ * schedule-oriented — includes undated Tasks the calendar widget
+ * drops. Subline shows priority · due-date-relative-label, or
+ * "no due date" when date_due is empty. Moment renders the
+ * relative label so the user sees "due yesterday" / "due in 3 days"
+ * in their own locale rather than raw ISO dates.
+ *
+ * @author Kim Haverblad
+ */
 import axios from '@nextcloud/axios'
 import { showError } from '@nextcloud/dialogs'
 import moment from '@nextcloud/moment'
@@ -26,14 +38,8 @@ import { generateUrl, imagePath } from '@nextcloud/router'
 import NcDashboardWidget from '@nextcloud/vue/components/NcDashboardWidget'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 
-const TYPE_MODULE = {
-	meeting: 'Meetings',
-	call: 'Calls',
-	task: 'Tasks',
-}
-
 export default {
-	name: 'SuiteCRMCalendar',
+	name: 'SuiteCRMTasks',
 
 	components: {
 		NcDashboardWidget,
@@ -50,7 +56,7 @@ export default {
 	data() {
 		return {
 			suitecrmUrl: null,
-			events: [],
+			tasks: [],
 			loop: null,
 			state: 'loading',
 			settingsUrl: generateUrl('/settings/user/connected-accounts'),
@@ -60,27 +66,27 @@ export default {
 
 	computed: {
 		showMoreUrl() {
-			return this.suitecrmUrl + '/index.php?module=Calendar&action=index'
+			return this.suitecrmUrl + '/index.php?module=Tasks&action=index'
 		},
 
 		items() {
-			return this.events.map((e) => ({
-				id: e.id,
-				targetUrl: this.getEventTarget(e),
-				avatarUrl: this.getAvatarUrl(e),
-				avatarUsername: this.getMainText(e),
-				mainText: this.getMainText(e),
-				subText: this.getSubline(e),
+			return this.tasks.map((t) => ({
+				id: t.id,
+				targetUrl: this.getTaskTarget(t),
+				avatarUrl: imagePath('njordium_suitecrm', 'app.svg'),
+				avatarUsername: this.getMainText(t),
+				mainText: this.getMainText(t),
+				subText: this.getSubline(t),
 			}))
 		},
 
 		emptyContentMessage() {
 			if (this.state === 'no-token') {
-				return t('integration_suitecrm', 'No SuiteCRM account connected')
+				return t('njordium_suitecrm', 'No SuiteCRM account connected')
 			} else if (this.state === 'error') {
-				return t('integration_suitecrm', 'Error connecting to SuiteCRM')
+				return t('njordium_suitecrm', 'Error connecting to SuiteCRM')
 			} else if (this.state === 'ok') {
-				return t('integration_suitecrm', 'No upcoming SuiteCRM events')
+				return t('njordium_suitecrm', 'No open SuiteCRM Tasks')
 			}
 			return ''
 		},
@@ -116,68 +122,54 @@ export default {
 
 		async launchLoop() {
 			try {
-				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
+				const response = await axios.get(generateUrl('/apps/njordium_suitecrm/url'))
 				this.suitecrmUrl = response.data.replace(/\/+$/, '')
 			} catch {
 				// URL probe is best-effort; the widget still works, just without
 				// an absolute prefix on the "show more" link.
 			}
-			this.fetchEvents()
-			this.loop = setInterval(() => this.fetchEvents(), 120000)
+			this.fetchTasks()
+			this.loop = setInterval(() => this.fetchTasks(), 120000)
 		},
 
-		fetchEvents() {
-			axios.get(generateUrl('/apps/integration_suitecrm/upcoming')).then((response) => {
-				this.events = response.data
+		fetchTasks() {
+			axios.get(generateUrl('/apps/njordium_suitecrm/my-tasks')).then((response) => {
+				this.tasks = response.data
 				this.state = 'ok'
 			}).catch((error) => {
 				clearInterval(this.loop)
 				if (error.response && error.response.status === 400) {
 					this.state = 'no-token'
 				} else if (error.response && error.response.status === 401) {
-					showError(t('integration_suitecrm', 'Failed to get SuiteCRM upcoming events'))
+					showError(t('njordium_suitecrm', 'Failed to get SuiteCRM open Tasks'))
 					this.state = 'error'
 				}
 			})
 		},
 
-		getEventTarget(e) {
-			const module = TYPE_MODULE[e.type]
-			if (!module) {
-				return this.suitecrmUrl
+		getTaskTarget(task) {
+			if (!this.suitecrmUrl) {
+				return ''
 			}
-			return this.suitecrmUrl + '/index.php?module=' + module + '&action=DetailView&record=' + e.id
+			return this.suitecrmUrl + '/index.php?module=Tasks&action=DetailView&record=' + task.id
 		},
 
-		getAvatarUrl(e) {
-			if (e.type === 'call') {
-				return imagePath('integration_suitecrm', 'call.png')
-			}
-			if (e.type === 'meeting') {
-				return imagePath('integration_suitecrm', 'meeting.png')
-			}
-			return ''
+		getMainText(task) {
+			return task.attributes?.name || t('njordium_suitecrm', '(no title)')
 		},
 
-		getMainText(e) {
-			return e.attributes?.name || t('integration_suitecrm', '(no title)')
-		},
-
-		getSubline(e) {
-			const when = moment.unix(e.event_ts)
-			const label = when.calendar()
-			if (e.type === 'meeting') {
-				const loc = e.attributes?.location
-				return loc ? `${label} · ${loc}` : label
+		getSubline(task) {
+			const parts = []
+			const priority = task.attributes?.priority
+			if (priority) {
+				parts.push(priority)
 			}
-			if (e.type === 'call') {
-				return `📞 ${label}`
+			if (task.due_ts) {
+				parts.push(moment.unix(task.due_ts).fromNow())
+			} else {
+				parts.push(t('njordium_suitecrm', 'no due date'))
 			}
-			if (e.type === 'task') {
-				const prio = e.attributes?.priority
-				return prio ? `${label} · ${prio}` : label
-			}
-			return label
+			return parts.join(' · ')
 		},
 	},
 }

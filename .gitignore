@@ -10,3 +10,7 @@ vendor/
 .phpunit.cache/
 .phpstan.cache/
 composer.lock
+# FUSE-mounted filesystems (SSHFS, network drives) create these "ghost"
+# files whenever an editor unlinks a still-open file. They're stale
+# intermediate snapshots and must never enter git.
+.fuse_hidden*

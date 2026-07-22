@@ -120,6 +120,85 @@ class SuiteCRMAPIController extends Controller {
 	}
 
 	/**
+	 * Iter 77 — "My pipeline" widget backing endpoint.
+	 *
+	 * Returns Opportunities assigned to the current user, framed by
+	 * the requested `mode` (closing_quarter | top_value | weighted).
+	 * An unknown mode falls back silently to the default rather than
+	 * 400ing — the widget's Vue frontend or the personal-settings
+	 * NcSelect might send an outdated value during rollout, and the
+	 * widget should still render.
+	 *
+	 * @param string $mode See SuiteCRMAPIService::PIPELINE_MODES.
+	 * @param int    $limit Cap on total results.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/my-pipeline')]
+	public function getMyPipeline(string $mode = 'closing_quarter', int $limit = 20): DataResponse {
+		if ($this->accessToken === '' || $this->userId === null) {
+			return new DataResponse('', 400);
+		}
+		$result = $this->suitecrmAPIService->getMyPipeline(
+			$this->suitecrmUrl, $this->accessToken, $this->userId, $mode, $limit
+		);
+		if (!isset($result['error'])) {
+			return new DataResponse($result);
+		}
+		return new DataResponse($result, 401);
+	}
+
+	/**
+	 * Iter 76 — "My open Tasks" widget backing endpoint.
+	 *
+	 * Returns Tasks assigned to the current user whose status is not
+	 * terminal (Completed / Deferred), priority-sorted with due date
+	 * as tiebreaker and undated Tasks sorted last within a priority
+	 * tier. Distinct from `/upcoming` — that endpoint drops Tasks
+	 * outside the schedule window and undated Tasks entirely.
+	 *
+	 * @param int $limit Cap on total results.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/my-tasks')]
+	public function getMyTasks(int $limit = 20): DataResponse {
+		if ($this->accessToken === '' || $this->userId === null) {
+			return new DataResponse('', 400);
+		}
+		$result = $this->suitecrmAPIService->getMyTasks(
+			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit
+		);
+		if (!isset($result['error'])) {
+			return new DataResponse($result);
+		}
+		return new DataResponse($result, 401);
+	}
+
+	/**
+	 * Iter 75 — "My open Cases" widget backing endpoint.
+	 *
+	 * Returns Cases assigned to the current user where status is not
+	 * in the terminal set (Closed / Rejected / Duplicate), priority-
+	 * sorted then oldest-first within priority. Shape matches the
+	 * frontend contract used by the Vue widget in `src/views/Cases.vue`.
+	 *
+	 * @param int $limit Cap on total results (default matches getUpcoming).
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/my-cases')]
+	public function getMyCases(int $limit = 20): DataResponse {
+		if ($this->accessToken === '' || $this->userId === null) {
+			return new DataResponse('', 400);
+		}
+		$result = $this->suitecrmAPIService->getMyCases(
+			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit
+		);
+		if (!isset($result['error'])) {
+			return new DataResponse($result);
+		}
+		return new DataResponse($result, 401);
+	}
+
+	/**
 	 * Iter 69 — first user-facing write feature.
 	 *
 	 * Create a follow-up SuiteCRM Task linked back to a source record

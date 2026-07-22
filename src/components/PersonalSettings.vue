@@ -101,6 +101,25 @@
 				</NcCheckboxRadioSwitch>
 			</div>
 
+			<div v-if="connected" class="suitecrm-widget-prefs">
+				<h3>
+					<ViewDashboardOutlineIcon :size="20" class="widget-prefs-heading-icon" />
+					{{ t('njordium_suitecrm', 'Dashboard widget preferences') }}
+				</h3>
+				<label class="suitecrm-widget-prefs__field">
+					{{ t('njordium_suitecrm', 'Pipeline widget mode') }}
+					<NcSelect
+						v-model="pipelineMode"
+						:options="pipelineModeOptions"
+						:reduce="(option) => option.value"
+						:clearable="false"
+						@update:modelValue="onPipelineModeChange" />
+				</label>
+				<p class="settings-hint">
+					{{ pipelineModeHint }}
+				</p>
+			</div>
+
 			<div v-if="connected" class="suitecrm-quick-actions">
 				<h3>
 					<PlusBoxOutlineIcon :size="20" class="quick-actions-heading-icon" />
@@ -196,6 +215,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcPasswordField from '@nextcloud/vue/components/NcPasswordField'
+import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import CalendarSyncIcon from 'vue-material-design-icons/CalendarSync.vue'
 import CardsOutlineIcon from 'vue-material-design-icons/CardsOutline.vue'
@@ -207,6 +227,7 @@ import LoginIcon from 'vue-material-design-icons/Login.vue'
 import LogoutIcon from 'vue-material-design-icons/Logout.vue'
 import MessageTextOutlineIcon from 'vue-material-design-icons/MessageTextOutline.vue'
 import PlusBoxOutlineIcon from 'vue-material-design-icons/PlusBoxOutline.vue'
+import ViewDashboardOutlineIcon from 'vue-material-design-icons/ViewDashboardOutline.vue'
 import EmailToCaseModal from './EmailToCaseModal.vue'
 import LinkDeckCardModal from './LinkDeckCardModal.vue'
 import TalkToNoteModal from './TalkToNoteModal.vue'
@@ -221,6 +242,7 @@ export default {
 		NcCheckboxRadioSwitch,
 		NcNoteCard,
 		NcPasswordField,
+		NcSelect,
 		NcTextField,
 		TalkToNoteModal,
 		CalendarSyncIcon,
@@ -233,6 +255,7 @@ export default {
 		LogoutIcon,
 		MessageTextOutlineIcon,
 		PlusBoxOutlineIcon,
+		ViewDashboardOutlineIcon,
 	},
 
 	props: {},
@@ -249,7 +272,34 @@ export default {
 			// Not a set of individual flags because the modals are
 			// mutually exclusive (only one dialog can be open at once).
 			quickAction: null,
+			// Iter 77: pipeline widget framing preference. Kept in
+			// component state (rather than reading state.pipeline_mode
+			// directly on each render) so NcSelect's v-model works
+			// without a two-way computed. Backend validates the value
+			// against SuiteCRMAPIService::PIPELINE_MODES on read; an
+			// unknown string here falls back silently to the default.
+			pipelineMode: loadState('njordium_suitecrm', 'user-config').pipeline_mode || 'closing_quarter',
 		}
+	},
+
+	computed: {
+		pipelineModeOptions() {
+			return [
+				{ label: t('njordium_suitecrm', 'Closing this quarter'), value: 'closing_quarter' },
+				{ label: t('njordium_suitecrm', 'Top value'), value: 'top_value' },
+				{ label: t('njordium_suitecrm', 'Weighted value (amount × probability)'), value: 'weighted' },
+			]
+		},
+
+		pipelineModeHint() {
+			if (this.pipelineMode === 'top_value') {
+				return t('njordium_suitecrm', 'The pipeline widget lists your open Opportunities sorted by amount, largest first, regardless of close date. Deals with no amount sort last.')
+			}
+			if (this.pipelineMode === 'weighted') {
+				return t('njordium_suitecrm', 'The pipeline widget lists your open Opportunities sorted by forecast-weighted value (amount × probability), largest first. Matches the way finance tracks pipeline.')
+			}
+			return t('njordium_suitecrm', 'The pipeline widget lists your open Opportunities whose close date falls in the current calendar quarter, earliest first.')
+		},
 	},
 
 	computed: {
@@ -325,6 +375,17 @@ export default {
 		onSearchChange(checked) {
 			this.state.search_enabled = checked
 			this.saveOptions({ search_enabled: checked ? '1' : '0' })
+		},
+
+		onPipelineModeChange(newMode) {
+			// NcSelect emits either the option object or the reduced
+			// value depending on version — normalise to the raw string
+			// before storing.
+			const value = typeof newMode === 'object' && newMode !== null
+				? newMode.value
+				: newMode
+			this.pipelineMode = value
+			this.saveOptions({ pipeline_mode: value })
 		},
 
 		saveOptions(values) {

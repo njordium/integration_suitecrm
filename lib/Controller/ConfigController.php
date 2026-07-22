@@ -43,6 +43,11 @@ class ConfigController extends Controller {
                 'user_name',
                 'search_enabled',
                 'notification_enabled',
+                // Iter 77: framing mode for the "My pipeline" widget.
+                // Validated against SuiteCRMAPIService::PIPELINE_MODES on
+                // read; an unknown value stored here silently falls back
+                // to the default rather than crashing the widget.
+                'pipeline_mode',
         ];
 
         public function __construct(string $appName,
