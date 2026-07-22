@@ -101,6 +101,46 @@
 				</NcCheckboxRadioSwitch>
 			</div>
 
+			<div v-if="connected" class="suitecrm-quick-actions">
+				<h3>
+					<PlusBoxOutlineIcon :size="20" class="quick-actions-heading-icon" />
+					{{ t('njordium_suitecrm', 'Quick actions to SuiteCRM') }}
+				</h3>
+				<p class="settings-hint">
+					{{ t('njordium_suitecrm', 'Capture something from Nextcloud into your SuiteCRM record. Each action creates a linked SuiteCRM record and opens the confirmation in the SuiteCRM UI.') }}
+				</p>
+				<div class="suitecrm-quick-actions__buttons">
+					<NcButton variant="secondary" @click="openTalkModal">
+						<template #icon>
+							<MessageTextOutlineIcon :size="20" />
+						</template>
+						{{ t('njordium_suitecrm', 'Log Talk conversation …') }}
+					</NcButton>
+					<NcButton variant="secondary" @click="openDeckModal">
+						<template #icon>
+							<CardsOutlineIcon :size="20" />
+						</template>
+						{{ t('njordium_suitecrm', 'Link Deck card …') }}
+					</NcButton>
+					<NcButton variant="secondary" @click="openEmailModal">
+						<template #icon>
+							<EmailOutlineIcon :size="20" />
+						</template>
+						{{ t('njordium_suitecrm', 'Convert email to Case …') }}
+					</NcButton>
+				</div>
+			</div>
+
+			<TalkToNoteModal
+				:open="quickAction === 'talk'"
+				@close="quickAction = null" />
+			<LinkDeckCardModal
+				:open="quickAction === 'deck'"
+				@close="quickAction = null" />
+			<EmailToCaseModal
+				:open="quickAction === 'email'"
+				@close="quickAction = null" />
+
 			<div v-if="connected" class="suitecrm-companion">
 				<h3>
 					<CalendarSyncIcon :size="20" class="companion-heading-icon" />
@@ -158,27 +198,41 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcPasswordField from '@nextcloud/vue/components/NcPasswordField'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import CalendarSyncIcon from 'vue-material-design-icons/CalendarSync.vue'
+import CardsOutlineIcon from 'vue-material-design-icons/CardsOutline.vue'
 import CheckCircleIcon from 'vue-material-design-icons/CheckCircle.vue'
 import ContentCopyIcon from 'vue-material-design-icons/ContentCopy.vue'
+import EmailOutlineIcon from 'vue-material-design-icons/EmailOutline.vue'
 import KeyPlusIcon from 'vue-material-design-icons/KeyPlus.vue'
 import LoginIcon from 'vue-material-design-icons/Login.vue'
 import LogoutIcon from 'vue-material-design-icons/Logout.vue'
+import MessageTextOutlineIcon from 'vue-material-design-icons/MessageTextOutline.vue'
+import PlusBoxOutlineIcon from 'vue-material-design-icons/PlusBoxOutline.vue'
+import EmailToCaseModal from './EmailToCaseModal.vue'
+import LinkDeckCardModal from './LinkDeckCardModal.vue'
+import TalkToNoteModal from './TalkToNoteModal.vue'
 
 export default {
 	name: 'PersonalSettings',
 
 	components: {
+		EmailToCaseModal,
+		LinkDeckCardModal,
 		NcButton,
 		NcCheckboxRadioSwitch,
 		NcNoteCard,
 		NcPasswordField,
 		NcTextField,
+		TalkToNoteModal,
 		CalendarSyncIcon,
+		CardsOutlineIcon,
 		CheckCircleIcon,
 		ContentCopyIcon,
+		EmailOutlineIcon,
 		KeyPlusIcon,
 		LoginIcon,
 		LogoutIcon,
+		MessageTextOutlineIcon,
+		PlusBoxOutlineIcon,
 	},
 
 	props: {},
@@ -191,6 +245,10 @@ export default {
 			loading: false,
 			authorizing: false,
 			companion: null,
+			// Which of the write-feature modals is open. null when none.
+			// Not a set of individual flags because the modals are
+			// mutually exclusive (only one dialog can be open at once).
+			quickAction: null,
 		}
 	},
 
@@ -219,6 +277,18 @@ export default {
 	},
 
 	methods: {
+		openTalkModal() {
+			this.quickAction = 'talk'
+		},
+
+		openDeckModal() {
+			this.quickAction = 'deck'
+		},
+
+		openEmailModal() {
+			this.quickAction = 'email'
+		},
+
 		async loadCompanion() {
 			try {
 				const response = await axios.get(generateUrl('/apps/njordium_suitecrm/calendar-companion'))
