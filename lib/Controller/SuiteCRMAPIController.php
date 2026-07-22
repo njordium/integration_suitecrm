@@ -392,4 +392,103 @@ class SuiteCRMAPIController extends Controller {
 		return new DataResponse($result);
 	}
 
+	/**
+	 * Iter 72a — Email → SuiteCRM Case.
+	 *
+	 * Turns an inbound (or otherwise selected) email into a SuiteCRM
+	 * Case. Frontend responsibility (iter 72b) is either the NC Mail
+	 * integration hook or a plain paste-form; either way the backend
+	 * receives the same shape: subject + body + optional sender
+	 * metadata + priority. This endpoint composes them into a Case.
+	 *
+	 * The body format is stable and searchable:
+	 *
+	 *   From: <sender name> <email@address>
+	 *   Date: <email date>
+	 *
+	 *   <email body>
+	 *
+	 * Only the lines the caller supplied appear — no empty "From:"
+	 * header if senderEmail was omitted. That keeps the composed body
+	 * clean when the frontend can only extract partial metadata (e.g.
+	 * paste-form fallback where the user only copies the message
+	 * text).
+	 *
+	 * Contact / Account linking (matching sender email to an existing
+	 * SuiteCRM Contact) is deferred to iter 72b because the lookup
+	 * belongs in the frontend, which already has the SuiteCRMRecordPicker
+	 * infrastructure planned for iter 70b/71b. The frontend can call
+	 * this endpoint to create the Case, then call
+	 * SuiteCRMAPIService::linkRecord() (exposed by a future endpoint)
+	 * to attach the Contact. Keeping the two operations separate keeps
+	 * the endpoint composable and the tests focused.
+	 *
+	 * @param string $subject      Required — becomes Case.name
+	 * @param string $body         Required — becomes the Case.description body
+	 * @param string $senderEmail  Optional — displayed in the "From:" header
+	 * @param string $senderName   Optional — displayed alongside senderEmail
+	 * @param string $emailDate    Optional — displayed in the "Date:" header
+	 * @param string $priority     'High' | 'Medium' | 'Low'
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/email-to-case')]
+	public function emailToCase(
+		string $subject,
+		string $body,
+		string $senderEmail = '',
+		string $senderName = '',
+		string $emailDate = '',
+		string $priority = 'Medium',
+	): DataResponse {
+		if ($this->accessToken === '' || $this->userId === null) {
+			return new DataResponse(['error' => 'not connected'], 401);
+		}
+		if (trim($subject) === '') {
+			return new DataResponse(['error' => 'subject is required'], 400);
+		}
+		if (trim($body) === '') {
+			return new DataResponse(['error' => 'body is required'], 400);
+		}
+		if (!in_array($priority, ['High', 'Medium', 'Low'], true)) {
+			return new DataResponse(['error' => 'priority must be one of High / Medium / Low'], 400);
+		}
+
+		// Compose stable body — only include headers the caller
+		// actually filled in.
+		$headerLines = [];
+		if (trim($senderEmail) !== '' || trim($senderName) !== '') {
+			$fromValue = trim($senderName) !== '' && trim($senderEmail) !== ''
+				? sprintf('%s <%s>', trim($senderName), trim($senderEmail))
+				: (trim($senderEmail) !== '' ? trim($senderEmail) : trim($senderName));
+			$headerLines[] = 'From: ' . $fromValue;
+		}
+		if (trim($emailDate) !== '') {
+			$headerLines[] = 'Date: ' . trim($emailDate);
+		}
+
+		$description = $headerLines === []
+			? $body
+			: implode("\n", $headerLines) . "\n\n" . $body;
+
+		$attributes = [
+			'name' => trim($subject),
+			'description' => $description,
+			'priority' => $priority,
+			// SuiteCRM 8.x Case default state; kept explicit so a
+			// future SuiteCRM default change doesn't silently move
+			// email-sourced Cases into a different queue.
+			'status' => 'New',
+		];
+
+		$result = $this->suitecrmAPIService->createRecord(
+			$this->suitecrmUrl, $this->accessToken, $this->userId,
+			'Cases', $attributes,
+		);
+
+		if (isset($result['error'])) {
+			return new DataResponse($result, 502);
+		}
+		return new DataResponse($result);
+	}
+
 }

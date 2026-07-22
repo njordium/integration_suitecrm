@@ -583,4 +583,196 @@ class SuiteCRMAPIControllerTest extends TestCase {
 
 		$this->assertSame(502, $response->getStatus());
 	}
+
+	// ---------------------------------------------------------------------
+	// Iter 72a — emailToCase() coverage.
+	//
+	// Focus of the tests: the body-composition contract. Different
+	// combinations of sender metadata produce different but predictable
+	// From:/Date: header patterns; empty metadata collapses cleanly to
+	// "body only". The Case attributes must always include an explicit
+	// status='New' so a future SuiteCRM default change can't silently
+	// re-route email-sourced Cases.
+	// ---------------------------------------------------------------------
+
+	public function testEmailToCaseRequiresAuthenticatedUser(): void {
+		$controller = $this->makeController(null, '');
+
+		$response = $controller->emailToCase(
+			'Ticket subject', 'Ticket body text',
+		);
+
+		$this->assertSame(401, $response->getStatus());
+	}
+
+	public function testEmailToCaseRequiresSubject(): void {
+		$controller = $this->makeController('alice');
+		$this->apiService->expects($this->never())->method('createRecord');
+
+		$response = $controller->emailToCase('   ', 'Some body');
+
+		$this->assertSame(400, $response->getStatus());
+		$this->assertSame('subject is required', $response->getData()['error']);
+	}
+
+	public function testEmailToCaseRequiresBody(): void {
+		$controller = $this->makeController('alice');
+		$this->apiService->expects($this->never())->method('createRecord');
+
+		$response = $controller->emailToCase('Subject', '   ');
+
+		$this->assertSame(400, $response->getStatus());
+		$this->assertSame('body is required', $response->getData()['error']);
+	}
+
+	public function testEmailToCaseRejectsInvalidPriority(): void {
+		$controller = $this->makeController('alice');
+		$this->apiService->expects($this->never())->method('createRecord');
+
+		$response = $controller->emailToCase(
+			'Subject', 'Body', '', '', '', 'Critical',
+		);
+
+		$this->assertSame(400, $response->getStatus());
+		$this->assertStringContainsString('High / Medium / Low', $response->getData()['error']);
+	}
+
+	public function testEmailToCaseHappyPathWithFullMetadataComposesStableBody(): void {
+		$controller = $this->makeController('alice', 'tok', 'https://crm');
+
+		$this->apiService->expects($this->once())
+			->method('createRecord')
+			->with(
+				'https://crm', 'tok', 'alice',
+				'Cases',
+				$this->callback(function (array $attrs): bool {
+					// Expected body:
+					//   From: Alice Support <alice@example.com>
+					//   Date: 2026-07-22T09:30:00Z
+					//
+					//   Please help with X.
+					return $attrs['name'] === 'Cannot log in'
+						&& $attrs['priority'] === 'High'
+						&& $attrs['status'] === 'New'
+						&& str_contains($attrs['description'], 'From: Alice Support <alice@example.com>')
+						&& str_contains($attrs['description'], 'Date: 2026-07-22T09:30:00Z')
+						&& str_contains($attrs['description'], "\n\nPlease help with X.");
+				}),
+			)
+			->willReturn(['data' => ['type' => 'Cases', 'id' => 'case-77', 'attributes' => []]]);
+
+		$response = $controller->emailToCase(
+			'Cannot log in', 'Please help with X.',
+			'alice@example.com', 'Alice Support',
+			'2026-07-22T09:30:00Z', 'High',
+		);
+
+		$this->assertSame(200, $response->getStatus());
+		$this->assertSame('case-77', $response->getData()['data']['id']);
+	}
+
+	public function testEmailToCaseWithOnlyEmailNoNameOmitsAngleBrackets(): void {
+		$controller = $this->makeController('alice');
+
+		$this->apiService->expects($this->once())
+			->method('createRecord')
+			->with(
+				$this->anything(), $this->anything(), $this->anything(),
+				'Cases',
+				$this->callback(function (array $attrs): bool {
+					// No display name → "From: alice@example.com" (no
+					// angle brackets, since there's nothing to wrap).
+					return str_contains($attrs['description'], "From: alice@example.com\n")
+						&& !str_contains($attrs['description'], '<alice');
+				}),
+			)
+			->willReturn(['data' => ['id' => 'x']]);
+
+		$response = $controller->emailToCase(
+			'Subject', 'Body',
+			'alice@example.com', '',
+		);
+
+		$this->assertSame(200, $response->getStatus());
+	}
+
+	public function testEmailToCaseWithNoMetadataCollapsesToBodyOnly(): void {
+		// Paste-form fallback: user pastes only the message text.
+		// Body must be the plain email body with no dangling
+		// "From:" header or blank prefix line.
+		$controller = $this->makeController('alice');
+
+		$this->apiService->expects($this->once())
+			->method('createRecord')
+			->with(
+				$this->anything(), $this->anything(), $this->anything(),
+				'Cases',
+				$this->callback(function (array $attrs): bool {
+					return $attrs['description'] === 'Just the body.';
+				}),
+			)
+			->willReturn(['data' => ['id' => 'x']]);
+
+		$response = $controller->emailToCase('Subject', 'Just the body.');
+
+		$this->assertSame(200, $response->getStatus());
+	}
+
+	public function testEmailToCaseWithOnlyDateHeaderStillOmitsFromLine(): void {
+		// Weird but possible: caller has the date but not the sender.
+		// Only the "Date:" header should appear.
+		$controller = $this->makeController('alice');
+
+		$this->apiService->expects($this->once())
+			->method('createRecord')
+			->with(
+				$this->anything(), $this->anything(), $this->anything(),
+				'Cases',
+				$this->callback(function (array $attrs): bool {
+					return str_starts_with($attrs['description'], 'Date: 2026-07-22')
+						&& !str_contains($attrs['description'], 'From:');
+				}),
+			)
+			->willReturn(['data' => ['id' => 'x']]);
+
+		$response = $controller->emailToCase(
+			'Subject', 'Body',
+			'', '', '2026-07-22T10:00:00Z',
+		);
+
+		$this->assertSame(200, $response->getStatus());
+	}
+
+	public function testEmailToCaseAlwaysSetsStatusToNew(): void {
+		// Guard against a future refactor accidentally dropping the
+		// explicit status='New' — SuiteCRM's default may change and
+		// email-sourced Cases silently landing in a wrong queue would
+		// be a support-nightmare regression.
+		$controller = $this->makeController('alice');
+
+		$this->apiService->expects($this->once())
+			->method('createRecord')
+			->with(
+				$this->anything(), $this->anything(), $this->anything(),
+				'Cases',
+				$this->callback(function (array $attrs): bool {
+					return ($attrs['status'] ?? null) === 'New';
+				}),
+			)
+			->willReturn(['data' => ['id' => 'x']]);
+
+		$controller->emailToCase('Subject', 'Body');
+	}
+
+	public function testEmailToCasePropagatesSuiteCRMErrorAsBadGateway(): void {
+		$controller = $this->makeController('alice');
+
+		$this->apiService->method('createRecord')->willReturn([
+			'error' => 'Invalid module configuration',
+		]);
+
+		$response = $controller->emailToCase('Subject', 'Body');
+
+		$this->assertSame(502, $response->getStatus());
+	}
 }
