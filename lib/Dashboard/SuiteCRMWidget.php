@@ -60,7 +60,7 @@ class SuiteCRMWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWidget {
 	}
 
 	public function getTitle(): string {
-		return $this->l10n->t('SuiteCRM events');
+		return $this->l10n->t('SuiteCRM Events');
 	}
 
 	public function getOrder(): int {

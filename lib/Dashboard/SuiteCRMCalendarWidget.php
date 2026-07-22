@@ -71,7 +71,7 @@ class SuiteCRMCalendarWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIcon
 	}
 
 	public function getTitle(): string {
-		return $this->l10n->t('SuiteCRM calendar');
+		return $this->l10n->t('SuiteCRM Calendar');
 	}
 
 	public function getOrder(): int {
