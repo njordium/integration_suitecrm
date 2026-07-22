@@ -730,9 +730,9 @@ class SuiteCRMAPIService {
 	 * NOT-IN limitation applies to Opportunity queries too.
 	 *
 	 * Mode-specific behaviour:
-	 *   * `closing_quarter` — further filter to `close_date` within the
-	 *     current calendar quarter. Sort by `close_date` ASC so the
-	 *     imminent deals surface first. Deals with empty close_date are
+	 *   * `closing_quarter` — further filter to `date_closed` within the
+	 *     current calendar quarter. Sort by `date_closed` ASC so the
+	 *     imminent deals surface first. Deals with empty date_closed are
 	 *     excluded from this mode entirely — the mode's whole point is
 	 *     "which of my deals need to land THIS quarter".
 	 *   * `top_value` — no additional filter beyond terminal-stage.
@@ -765,7 +765,7 @@ class SuiteCRMAPIService {
 		}
 
 		$filters = [
-			'fields[Opportunities]=name,amount,currency_symbol,probability,sales_stage,close_date,account_name,date_entered',
+			'fields[Opportunities]=name,amount,currency_symbol,probability,sales_stage,date_closed,account_name,date_entered',
 			urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId),
 			'filter[operator]=and',
 		];
@@ -785,7 +785,7 @@ class SuiteCRMAPIService {
 			if (in_array($stage, self::CLOSED_OPPORTUNITY_STAGES, true)) {
 				continue;
 			}
-			$closeStr = (string) ($row['attributes']['close_date'] ?? '');
+			$closeStr = (string) ($row['attributes']['date_closed'] ?? '');
 			$closeTs = null;
 			if ($closeStr !== '') {
 				try {

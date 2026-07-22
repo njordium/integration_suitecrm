@@ -32,7 +32,7 @@ use OCA\SuiteCRM\Service\TokenStorage;
  * Fifth dashboard widget. Framing is user-selectable via the
  * `pipeline_mode` personal preference (see PersonalSettings.vue):
  *
- *  - closing_quarter: Opportunities whose close_date falls in the
+ *  - closing_quarter: Opportunities whose date_closed falls in the
  *    current calendar quarter, earliest first. Matches the way
  *    reps use SuiteCRM's own Pipeline dashboard.
  *  - top_value: Opportunities sorted by amount DESC.
