@@ -6,6 +6,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 2.4.0 – 2026-07-23
+
+Adds a per-user opt-out that lets the Calendar widget stop rendering SuiteCRM Tasks alongside Meetings and Calls. Rationale: reps who use the standalone "My open Tasks" widget introduced in 2.2.0 would otherwise see a dated Task twice on the dashboard, once in the schedule frame and once in the workload frame. The new toggle hands ownership of Tasks over to the workload widget for the users who want that split, while leaving 2.3.x behaviour unchanged for anyone who has never touched the setting.
+
+The shutoff sits inside `SuiteCRMAPIService::getUpcoming()` so both the Vue-mounted classic dashboard path and the NC 30+ server-side dashboard API path honour it uniformly, without duplicated wiring at the controller and widget layers.
+
+### Added
+
+- **`calendar_show_tasks` personal preference** (`Settings\Personal`, `ConfigController::USER_ALLOWED_KEYS`): stored as `'1'`/`'0'` in `oc_preferences`. Default `'1'` on missing row so existing installs keep current behaviour without a migration. Bounded write path: only whitelisted keys reach `setUserValue`.
+- **Toggle in Personal Settings** (`src/components/PersonalSettings.vue`): "Include Tasks in the Calendar widget" checkbox under Dashboard widget preferences, above the pipeline mode selector. Copy explains the intended split when the standalone Tasks widget is in play.
+
+### Changed
+
+- **`SuiteCRMAPIService::getUpcoming()`** now reads `calendar_show_tasks` from `IConfig::getUserValue` (default `'1'`) and skips the Tasks slice of `UPCOMING_MODULES` when the pref is `'0'`. One fewer HTTP round-trip to SuiteCRM per widget poll for opted-out users. Sort/overdue logic for the remaining Meetings and Calls is unchanged.
+- **`package.json` version bumped from stale `1.2.0` to `2.4.0`** to match `appinfo/info.xml`. The two had been drifting silently since the 2.0.x rename because nothing at runtime reads `package.json` version, so the mismatch went unnoticed for four minor releases.
+
+### Added (housekeeping)
+
+- **`scripts/verify-version.js` + `prebuild`/`predev` npm hooks**: dependency-free check that reads `<version>` from `appinfo/info.xml` and compares it to `package.json` version. `npm run build` and `npm run dev` now fail fast if the two drift, closing the gap that let `package.json` sit at `1.2.0` through four minor releases. Also available as a standalone `npm run verify:version` for use in release checklists.
+- **Three PHPUnit tests for the `calendar_show_tasks` preference** (`SuiteCRMAPIServiceTest`): unset pref (Tasks included by default), explicit `'1'` (Tasks included), explicit `'0'` (Tasks module never fetched + Meetings still delivered). The unset-pref test pins down the mock-default regression that failed the first two v2.4.0 release runs at PHPUnit — a `=== '1'` check collapsed to false against `IConfig::getUserValue`'s null default and silently dropped Tasks from every getUpcoming test. Read semantics changed to `!== '0'` so a null default now reads as "toggle unset -> include".
+
 ## 2.3.2 – 2026-07-22
 
 Adds a per-user opt-out for the global Quick Actions floating button introduced in 2.3.0, and along the way fixes a live regression on the existing Personal Settings toggles.

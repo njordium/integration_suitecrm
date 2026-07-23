@@ -47,6 +47,12 @@ class Personal implements ISettings {
 		// listener also defaults to enabled when the row is missing,
 		// so this row is really only written when the user unchecks.
 		$quickActionsEnabled = $this->config->getUserValue($userId, Application::APP_ID, 'quick_actions_enabled', '1');
+		// Calendar widget: include Tasks alongside Meetings/Calls.
+		// Default '1' preserves the 2.3.x behaviour where all three
+		// modules were fetched together; users can uncheck this to
+		// hand ownership of Tasks over to the standalone "My open
+		// Tasks" widget and stop the double-rendering.
+		$calendarShowTasks = $this->config->getUserValue($userId, Application::APP_ID, 'calendar_show_tasks', '1');
 
 		$clientID = $this->appConfig->getValueString(Application::APP_ID, 'client_id');
 		$clientSecret = ($this->appConfig->getValueString(Application::APP_ID, 'client_secret') !== '');
@@ -61,6 +67,7 @@ class Personal implements ISettings {
 			'user_name' => $userName,
 			'pipeline_mode' => $pipelineMode,
 			'quick_actions_enabled' => ($quickActionsEnabled === '1'),
+			'calendar_show_tasks' => ($calendarShowTasks === '1'),
 		]);
 		return new TemplateResponse(Application::APP_ID, 'personalSettings');
 	}

@@ -434,8 +434,31 @@ class SuiteCRMAPIService {
 		$horizon = (clone $now)->add(new DateInterval('P' . $horizonDays . 'D'));
 		$lookback = (clone $now)->sub(new DateInterval('P' . $overdueLookbackDays . 'D'));
 
+		// Per-user opt-out for Tasks in the Calendar widget. Users who
+		// already run the standalone "My open Tasks" widget can drop
+		// Tasks here to avoid the same row rendering twice on the
+		// dashboard. Read inside the service so both the Vue-mounted
+		// call path (SuiteCRMAPIController::getUpcoming) and the
+		// server-side dashboard-API path (SuiteCRMCalendarWidget::getItemsV2)
+		// honour it without duplicated wiring.
+		//
+		// Comparison uses `!== '0'` rather than `=== '1'` so the toggle
+		// is "on unless explicitly turned off". Two payoffs:
+		//   1. Missing preference row (fresh install, never-touched
+		//      toggle) reads as `''` under the getUserValue default
+		//      and still evaluates true, matching the design intent.
+		//   2. PHPUnit's default IConfig mock returns null for
+		//      getUserValue, which would collapse a `=== '1'` check
+		//      to false and silently break every existing getUpcoming
+		//      test. Same class of trap that iter 75-77 tests hit
+		//      with the empty-user-id safety guard.
+		$includeTasks = $this->config->getUserValue($userId, Application::APP_ID, 'calendar_show_tasks', '1') !== '0';
+
 		$combined = [];
 		foreach (self::UPCOMING_MODULES as $moduleDef) {
+			if (!$includeTasks && $moduleDef['module'] === 'Tasks') {
+				continue;
+			}
 			$filters = [
 				'fields[' . $moduleDef['module'] . ']=' . $moduleDef['fields'],
 				urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId),

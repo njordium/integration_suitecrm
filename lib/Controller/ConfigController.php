@@ -54,6 +54,13 @@ class ConfigController extends Controller {
                 // script tag entirely so opted-out users pay zero JS
                 // cost per page render. Default on missing row is '1'.
                 'quick_actions_enabled',
+                // Calendar widget: whether to include SuiteCRM Tasks
+                // alongside Meetings and Calls. Users running the
+                // standalone "My open Tasks" widget can drop Tasks
+                // here to avoid the same row appearing twice on the
+                // dashboard. Stored as '1'/'0'; default '1' on
+                // missing row preserves 2.3.x behaviour.
+                'calendar_show_tasks',
         ];
 
         public function __construct(string $appName,

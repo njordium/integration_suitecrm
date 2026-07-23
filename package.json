@@ -1,12 +1,15 @@
 {
 	"name": "njordium_suitecrm",
-	"version": "1.2.0",
+	"version": "2.4.0",
 	"description": "SuiteCRM integration",
 	"main": "index.js",
 	"directories": {
 		"test": "tests"
 	},
 	"scripts": {
+		"verify:version": "node scripts/verify-version.js",
+		"prebuild": "npm run verify:version",
+		"predev": "npm run verify:version",
 		"build": "NODE_ENV=production webpack --progress --config webpack.js",
 		"dev": "NODE_ENV=development webpack --progress --config webpack.js",
 		"watch": "NODE_ENV=development webpack --progress --watch --config webpack.js",

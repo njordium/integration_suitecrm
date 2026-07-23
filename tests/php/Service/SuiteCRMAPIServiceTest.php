@@ -569,6 +569,140 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	// ---------------------------------------------------------------------
+	// Regression coverage for the calendar_show_tasks personal
+	// preference (iter 81). All three branches are pinned down so a
+	// future refactor cannot silently flip the default off or reverse
+	// the opt-out sense. The behavioural contract:
+	//   - No stored preference    -> Tasks included (unchanged from 2.3.x)
+	//   - Preference stored as '1' -> Tasks included (explicit opt-in)
+	//   - Preference stored as '0' -> Tasks skipped, module never fetched
+	// ---------------------------------------------------------------------
+
+	public function testGetUpcomingIncludesTasksWhenCalendarShowTasksPrefIsUnset(): void {
+		// No stubSuiteCRMUserId call - every getUserValue returns
+		// PHPUnit's default (null). The service's `!== '0'` semantic
+		// treats null as "toggle unset" -> Tasks are included. This
+		// pins the regression we hit on the first v2.4.0 release run:
+		// a `=== '1'` check silently dropped the whole Tasks module
+		// from every getUpcoming test because the mock returned null.
+		$requestStub = function ($url, $token, $userId, $endpoint) {
+			if (str_contains($endpoint, 'module/Tasks')) {
+				return [
+					'data' => [
+						[
+							'id' => 'task-default-pref-uuid',
+							'attributes' => [
+								'name' => 'Follow up with prospect',
+								'date_due' => (new \DateTime('+1 day'))->format('Y-m-d\TH:i:s'),
+								'status' => 'Not Started',
+							],
+						],
+					],
+				];
+			}
+			return ['data' => []];
+		};
+
+		$service = $this->makeService($requestStub);
+		$results = $service->getUpcoming('http://scrm.example', 'tok', 'alice', 7, 20, 30);
+
+		$tasks = array_values(array_filter($results, fn ($r) => $r['type'] === 'task'));
+		$this->assertCount(1, $tasks, 'unset pref must default to Tasks-included');
+		$this->assertSame('task-default-pref-uuid', $tasks[0]['id']);
+	}
+
+	public function testGetUpcomingIncludesTasksWhenCalendarShowTasksPrefIsOne(): void {
+		$this->config->method('getUserValue')->willReturnCallback(
+			function ($uid, $app, $key, $default = '') {
+				if ($key === 'calendar_show_tasks') {
+					return '1';
+				}
+				return $default;
+			}
+		);
+		$requestStub = function ($url, $token, $userId, $endpoint) {
+			if (str_contains($endpoint, 'module/Tasks')) {
+				return [
+					'data' => [
+						[
+							'id' => 'task-explicit-on-uuid',
+							'attributes' => [
+								'name' => 'Task with pref explicitly on',
+								'date_due' => (new \DateTime('+2 days'))->format('Y-m-d\TH:i:s'),
+								'status' => 'Not Started',
+							],
+						],
+					],
+				];
+			}
+			return ['data' => []];
+		};
+
+		$service = $this->makeService($requestStub);
+		$results = $service->getUpcoming('http://scrm.example', 'tok', 'alice', 7, 20, 30);
+
+		$tasks = array_values(array_filter($results, fn ($r) => $r['type'] === 'task'));
+		$this->assertCount(1, $tasks);
+		$this->assertSame('task-explicit-on-uuid', $tasks[0]['id']);
+	}
+
+	public function testGetUpcomingSkipsTasksModuleWhenCalendarShowTasksPrefIsZero(): void {
+		$this->config->method('getUserValue')->willReturnCallback(
+			function ($uid, $app, $key, $default = '') {
+				if ($key === 'calendar_show_tasks') {
+					return '0';
+				}
+				return $default;
+			}
+		);
+		$tasksEndpointCalls = 0;
+		$requestStub = function ($url, $token, $userId, $endpoint) use (&$tasksEndpointCalls) {
+			if (str_contains($endpoint, 'module/Tasks')) {
+				$tasksEndpointCalls++;
+				return [
+					'data' => [
+						[
+							'id' => 'task-should-be-skipped-uuid',
+							'attributes' => [
+								'name' => 'This should not appear',
+								'date_due' => (new \DateTime('+1 day'))->format('Y-m-d\TH:i:s'),
+								'status' => 'Not Started',
+							],
+						],
+					],
+				];
+			}
+			if (str_contains($endpoint, 'module/Meetings')) {
+				return [
+					'data' => [
+						[
+							'id' => 'meeting-uuid',
+							'attributes' => [
+								'name' => 'Sanity meeting',
+								'date_start' => (new \DateTime('+1 day'))->format('Y-m-d\TH:i:s'),
+								'status' => 'Planned',
+							],
+						],
+					],
+				];
+			}
+			return ['data' => []];
+		};
+
+		$service = $this->makeService($requestStub);
+		$results = $service->getUpcoming('http://scrm.example', 'tok', 'alice', 7, 20, 30);
+
+		$this->assertSame(0, $tasksEndpointCalls, 'Tasks module must not be fetched when pref is 0 - one fewer HTTP round-trip is part of the perf story');
+		$tasks = array_values(array_filter($results, fn ($r) => $r['type'] === 'task'));
+		$this->assertEmpty($tasks, 'no Task row must appear in the result set');
+		// Meetings should still come through untouched - pref is
+		// module-scoped, not a blanket getUpcoming disable.
+		$meetings = array_values(array_filter($results, fn ($r) => $r['type'] === 'meeting'));
+		$this->assertCount(1, $meetings);
+		$this->assertSame('meeting-uuid', $meetings[0]['id']);
+	}
+
+	// ---------------------------------------------------------------------
 	// Reflection helpers for the private const.
 	// ---------------------------------------------------------------------
 

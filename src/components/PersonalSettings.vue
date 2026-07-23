@@ -106,6 +106,16 @@
 					<ViewDashboardOutlineIcon :size="20" />
 					{{ t('njordium_suitecrm', 'Dashboard widget preferences') }}
 				</h3>
+				<div class="suitecrm-widget-prefs__toggle">
+					<NcCheckboxRadioSwitch
+						:modelValue="!!state.calendar_show_tasks"
+						@update:modelValue="onCalendarShowTasksChange">
+						{{ t('njordium_suitecrm', 'Include Tasks in the Calendar widget') }}
+					</NcCheckboxRadioSwitch>
+					<p class="settings-hint">
+						{{ t('njordium_suitecrm', 'When enabled, the Calendar widget lists SuiteCRM Tasks alongside Meetings and Calls (dated Tasks within the horizon window). Turn off if you already use the standalone "My open Tasks" widget and want to stop seeing the same Task in both places. Takes effect on the next widget refresh.') }}
+					</p>
+				</div>
 				<div class="suitecrm-widget-prefs__group">
 					<span class="suitecrm-widget-prefs__group-label">
 						{{ t('njordium_suitecrm', 'Pipeline widget mode') }}
@@ -399,6 +409,15 @@ export default {
 			this.saveOptions({ pipeline_mode: value })
 		},
 
+		onCalendarShowTasksChange(checked) {
+			// Widget picks up the change on the next 120s poll; no need
+			// to force a reload. The service reads the pref inside
+			// getUpcoming() so both the Vue-mounted and the server-side
+			// dashboard-API render paths respect it uniformly.
+			this.state.calendar_show_tasks = checked
+			this.saveOptions({ calendar_show_tasks: checked ? '1' : '0' })
+		},
+
 		onQuickActionsFabChange(checked) {
 			// Server-side listener reads this on the next page render and
 			// skips the script tag, so the change takes effect after the
@@ -551,6 +570,11 @@ export default {
 		align-items: center;
 		gap: 8px;
 		margin-block-start: 24px;
+	}
+
+	.suitecrm-widget-prefs__toggle {
+		margin-block-start: 12px;
+		max-width: 500px;
 	}
 
 	.suitecrm-widget-prefs {
