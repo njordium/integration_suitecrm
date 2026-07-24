@@ -982,6 +982,108 @@ class SuiteCRMAPIService {
 	}
 
 	/**
+	 * "SuiteCRM Accounts" widget. Most recently added Accounts within
+	 * the caller's SuiteCRM ACL. Single-module fetch, no fan-out;
+	 * follows the same shape as {@see getRecentContacts()} so the two
+	 * widgets are trivially symmetric on the frontend.
+	 *
+	 * @return array Sorted result rows, each tagged with `type='account'`
+	 *               and `entered_ts` (int Unix timestamp). On upstream
+	 *               API failure, returns the SuiteCRM error payload.
+	 */
+	public function getRecentAccounts(string $url, string $accessToken, string $userId, int $limit = 20, int $lookbackDays = 90): array {
+		$now = new DateTime();
+		$lookback = (clone $now)->sub(new DateInterval('P' . $lookbackDays . 'D'));
+
+		$filters = [
+			'fields[Accounts]=name,industry,phone_office,website,date_entered,assigned_user_name',
+			urlencode('filter[date_entered][gt]') . '=' . urlencode($lookback->format('Y-m-d\TH:i:s')),
+			'filter[operator]=and',
+		];
+		$response = $this->request(
+			$url, $accessToken, $userId,
+			'module/Accounts?' . implode('&', $filters)
+		);
+		if (isset($response['error'])) {
+			return $response;
+		}
+
+		$rows = [];
+		foreach ($response['data'] ?? [] as $row) {
+			$dateEnteredStr = (string) ($row['attributes']['date_entered'] ?? '');
+			if ($dateEnteredStr === '') {
+				continue;
+			}
+			try {
+				$enteredTs = (new DateTime($dateEnteredStr))->getTimestamp();
+			} catch (Exception) {
+				continue;
+			}
+			$row['type'] = 'account';
+			$row['entered_ts'] = $enteredTs;
+			$rows[] = $row;
+		}
+
+		usort($rows, static fn ($a, $b) => $b['entered_ts'] <=> $a['entered_ts']);
+
+		return array_slice($rows, 0, $limit);
+	}
+
+	/**
+	 * "SuiteCRM Leads" widget. Most recently added Leads within the
+	 * caller's SuiteCRM ACL. Separate from the Contacts widget so users
+	 * can enable Contacts, Leads, or both independently rather than
+	 * fussing with a scope preference; the SuiteCRM home page groups
+	 * them into two panels for the same reason.
+	 *
+	 * Extra fields carried through vs Contacts: `lead_source` (how the
+	 * lead came in) and `status` (New / Assigned / In Process / etc)
+	 * so the subline can distinguish a fresh Web-form capture from an
+	 * already-worked cold-call lead.
+	 *
+	 * @return array Sorted result rows, each tagged with `type='lead'`
+	 *               and `entered_ts` (int Unix timestamp). On upstream
+	 *               API failure, returns the SuiteCRM error payload.
+	 */
+	public function getRecentLeads(string $url, string $accessToken, string $userId, int $limit = 20, int $lookbackDays = 90): array {
+		$now = new DateTime();
+		$lookback = (clone $now)->sub(new DateInterval('P' . $lookbackDays . 'D'));
+
+		$filters = [
+			'fields[Leads]=first_name,last_name,account_name,phone_work,email1,lead_source,status,date_entered,assigned_user_name',
+			urlencode('filter[date_entered][gt]') . '=' . urlencode($lookback->format('Y-m-d\TH:i:s')),
+			'filter[operator]=and',
+		];
+		$response = $this->request(
+			$url, $accessToken, $userId,
+			'module/Leads?' . implode('&', $filters)
+		);
+		if (isset($response['error'])) {
+			return $response;
+		}
+
+		$rows = [];
+		foreach ($response['data'] ?? [] as $row) {
+			$dateEnteredStr = (string) ($row['attributes']['date_entered'] ?? '');
+			if ($dateEnteredStr === '') {
+				continue;
+			}
+			try {
+				$enteredTs = (new DateTime($dateEnteredStr))->getTimestamp();
+			} catch (Exception) {
+				continue;
+			}
+			$row['type'] = 'lead';
+			$row['entered_ts'] = $enteredTs;
+			$rows[] = $row;
+		}
+
+		usort($rows, static fn ($a, $b) => $b['entered_ts'] <=> $a['entered_ts']);
+
+		return array_slice($rows, 0, $limit);
+	}
+
+	/**
 	 * Start and end Unix timestamps of the current calendar quarter, in
 	 * server-local time. Q1 = Jan 1 to Mar 31, Q2 = Apr 1 to Jun 30, etc.
 	 * Extracted so the getMyPipeline() `closing_quarter` filter is

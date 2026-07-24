@@ -873,6 +873,134 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	// ---------------------------------------------------------------------
+	// getRecentAccounts() (iter 86) — single-module query, sort by
+	// date_entered DESC, tag with type='account' + entered_ts.
+	// ---------------------------------------------------------------------
+
+	public function testGetRecentAccountsQueriesOnlyAccountsModule(): void {
+		$endpointsHit = [];
+		$requestStub = function ($url, $token, $userId, $endpoint) use (&$endpointsHit) {
+			$endpointsHit[] = $endpoint;
+			return ['data' => []];
+		};
+		$service = $this->makeService($requestStub);
+		$service->getRecentAccounts('http://scrm.example', 'tok', 'alice', 20);
+		$this->assertCount(1, $endpointsHit, 'Accounts widget must be a single-module fetch, no fan-out');
+		$this->assertStringContainsString('module/Accounts', $endpointsHit[0]);
+		$this->assertStringContainsString('filter[date_entered][gt]', urldecode($endpointsHit[0]));
+	}
+
+	public function testGetRecentAccountsSortsByDateEnteredDescending(): void {
+		$requestStub = fn (...$args) => ['data' => [
+			['id' => 'acc-old',    'attributes' => ['name' => 'Old Corp',    'date_entered' => (new \DateTime('-30 days'))->format('Y-m-d\TH:i:s')]],
+			['id' => 'acc-newest', 'attributes' => ['name' => 'Newest Inc',  'date_entered' => (new \DateTime('-1 hour'))->format('Y-m-d\TH:i:s')]],
+			['id' => 'acc-mid',    'attributes' => ['name' => 'Middle Ltd',  'date_entered' => (new \DateTime('-5 days'))->format('Y-m-d\TH:i:s')]],
+		]];
+		$service = $this->makeService($requestStub);
+		$results = $service->getRecentAccounts('http://scrm.example', 'tok', 'alice', 20);
+		$this->assertCount(3, $results);
+		$this->assertSame('acc-newest', $results[0]['id'], 'newest by date_entered must sort first');
+		$this->assertSame('acc-mid', $results[1]['id']);
+		$this->assertSame('acc-old', $results[2]['id']);
+		$this->assertSame('account', $results[0]['type']);
+		$this->assertIsInt($results[0]['entered_ts']);
+	}
+
+	public function testGetRecentAccountsRespectsLimit(): void {
+		$rows = [];
+		for ($i = 0; $i < 15; $i++) {
+			$rows[] = [
+				'id' => 'acc-' . $i,
+				'attributes' => ['name' => 'Account ' . $i, 'date_entered' => (new \DateTime('-' . $i . ' hours'))->format('Y-m-d\TH:i:s')],
+			];
+		}
+		$service = $this->makeService(fn (...$args) => ['data' => $rows]);
+		$results = $service->getRecentAccounts('http://scrm.example', 'tok', 'alice', 5);
+		$this->assertCount(5, $results);
+	}
+
+	public function testGetRecentAccountsPropagatesUpstreamError(): void {
+		$service = $this->makeService(fn (...$args) => ['error' => 'boom']);
+		$result = $service->getRecentAccounts('http://scrm.example', 'tok', 'alice', 20);
+		$this->assertSame(['error' => 'boom'], $result);
+	}
+
+	public function testGetRecentAccountsSkipsRowsWithMissingDateEntered(): void {
+		$requestStub = fn (...$args) => ['data' => [
+			['id' => 'acc-good',   'attributes' => ['name' => 'Good', 'date_entered' => (new \DateTime('-1 hour'))->format('Y-m-d\TH:i:s')]],
+			['id' => 'acc-broken', 'attributes' => ['name' => 'Broken']],
+		]];
+		$service = $this->makeService($requestStub);
+		$results = $service->getRecentAccounts('http://scrm.example', 'tok', 'alice', 20);
+		$ids = array_map(fn ($r) => $r['id'], $results);
+		$this->assertSame(['acc-good'], $ids);
+	}
+
+	// ---------------------------------------------------------------------
+	// getRecentLeads() (iter 87) — single-module query, sort by
+	// date_entered DESC, tag with type='lead' + entered_ts.
+	// ---------------------------------------------------------------------
+
+	public function testGetRecentLeadsQueriesOnlyLeadsModule(): void {
+		$endpointsHit = [];
+		$requestStub = function ($url, $token, $userId, $endpoint) use (&$endpointsHit) {
+			$endpointsHit[] = $endpoint;
+			return ['data' => []];
+		};
+		$service = $this->makeService($requestStub);
+		$service->getRecentLeads('http://scrm.example', 'tok', 'alice', 20);
+		$this->assertCount(1, $endpointsHit, 'Leads widget must be a single-module fetch, no fan-out');
+		$this->assertStringContainsString('module/Leads', $endpointsHit[0]);
+		$this->assertStringContainsString('filter[date_entered][gt]', urldecode($endpointsHit[0]));
+	}
+
+	public function testGetRecentLeadsSortsByDateEnteredDescending(): void {
+		$requestStub = fn (...$args) => ['data' => [
+			['id' => 'lead-old',    'attributes' => ['first_name' => 'Anna',  'last_name' => 'Old',   'date_entered' => (new \DateTime('-30 days'))->format('Y-m-d\TH:i:s')]],
+			['id' => 'lead-newest', 'attributes' => ['first_name' => 'Bob',   'last_name' => 'New',   'date_entered' => (new \DateTime('-1 hour'))->format('Y-m-d\TH:i:s')]],
+			['id' => 'lead-mid',    'attributes' => ['first_name' => 'Chris', 'last_name' => 'Mid',   'date_entered' => (new \DateTime('-5 days'))->format('Y-m-d\TH:i:s')]],
+		]];
+		$service = $this->makeService($requestStub);
+		$results = $service->getRecentLeads('http://scrm.example', 'tok', 'alice', 20);
+		$this->assertCount(3, $results);
+		$this->assertSame('lead-newest', $results[0]['id']);
+		$this->assertSame('lead-mid', $results[1]['id']);
+		$this->assertSame('lead-old', $results[2]['id']);
+		$this->assertSame('lead', $results[0]['type']);
+		$this->assertIsInt($results[0]['entered_ts']);
+	}
+
+	public function testGetRecentLeadsRespectsLimit(): void {
+		$rows = [];
+		for ($i = 0; $i < 15; $i++) {
+			$rows[] = [
+				'id' => 'lead-' . $i,
+				'attributes' => ['first_name' => 'L', 'last_name' => (string) $i, 'date_entered' => (new \DateTime('-' . $i . ' hours'))->format('Y-m-d\TH:i:s')],
+			];
+		}
+		$service = $this->makeService(fn (...$args) => ['data' => $rows]);
+		$results = $service->getRecentLeads('http://scrm.example', 'tok', 'alice', 5);
+		$this->assertCount(5, $results);
+	}
+
+	public function testGetRecentLeadsPropagatesUpstreamError(): void {
+		$service = $this->makeService(fn (...$args) => ['error' => 'boom']);
+		$result = $service->getRecentLeads('http://scrm.example', 'tok', 'alice', 20);
+		$this->assertSame(['error' => 'boom'], $result);
+	}
+
+	public function testGetRecentLeadsSkipsRowsWithMissingDateEntered(): void {
+		$requestStub = fn (...$args) => ['data' => [
+			['id' => 'lead-good',   'attributes' => ['first_name' => 'Good', 'last_name' => 'Row', 'date_entered' => (new \DateTime('-1 hour'))->format('Y-m-d\TH:i:s')]],
+			['id' => 'lead-broken', 'attributes' => ['first_name' => 'Broken', 'last_name' => 'Row']],
+		]];
+		$service = $this->makeService($requestStub);
+		$results = $service->getRecentLeads('http://scrm.example', 'tok', 'alice', 20);
+		$ids = array_map(fn ($r) => $r['id'], $results);
+		$this->assertSame(['lead-good'], $ids);
+	}
+
+	// ---------------------------------------------------------------------
 	// Reflection helpers for the private const.
 	// ---------------------------------------------------------------------
 

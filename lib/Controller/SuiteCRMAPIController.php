@@ -250,6 +250,44 @@ class SuiteCRMAPIController extends Controller {
 	}
 
 	/**
+	 * "SuiteCRM Accounts" widget backing endpoint. Same 400/401/200
+	 * contract as the other widget endpoints.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/recent-accounts')]
+	public function getRecentAccounts(int $limit = 20): DataResponse {
+		if ($this->accessToken === '' || $this->userId === null) {
+			return new DataResponse('', 400);
+		}
+		$result = $this->suitecrmAPIService->getRecentAccounts(
+			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit
+		);
+		if (!isset($result['error'])) {
+			return new DataResponse($result);
+		}
+		return new DataResponse($result, 401);
+	}
+
+	/**
+	 * "SuiteCRM Leads" widget backing endpoint. Same 400/401/200
+	 * contract as the other widget endpoints.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/recent-leads')]
+	public function getRecentLeads(int $limit = 20): DataResponse {
+		if ($this->accessToken === '' || $this->userId === null) {
+			return new DataResponse('', 400);
+		}
+		$result = $this->suitecrmAPIService->getRecentLeads(
+			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit
+		);
+		if (!isset($result['error'])) {
+			return new DataResponse($result);
+		}
+		return new DataResponse($result, 401);
+	}
+
+	/**
 	 * Follow-up Task creation endpoint.
 	 *
 	 * Create a follow-up SuiteCRM Task linked back to a source record

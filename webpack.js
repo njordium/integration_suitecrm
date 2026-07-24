@@ -21,6 +21,8 @@ webpackConfig.entry = {
     quickactions: { import: path.join(__dirname, 'src', 'quickActions.js'), filename: 'njordium_suitecrm-quickactions.js' },
     activities: { import: path.join(__dirname, 'src', 'activities.js'), filename: 'njordium_suitecrm-activities.js' },
     recentcontacts: { import: path.join(__dirname, 'src', 'recentContacts.js'), filename: 'njordium_suitecrm-recentcontacts.js' },
+    recentaccounts: { import: path.join(__dirname, 'src', 'recentAccounts.js'), filename: 'njordium_suitecrm-recentaccounts.js' },
+    recentleads: { import: path.join(__dirname, 'src', 'recentLeads.js'), filename: 'njordium_suitecrm-recentleads.js' },
 }
 
 module.exports = webpackConfig

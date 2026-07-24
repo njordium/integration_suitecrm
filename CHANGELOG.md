@@ -6,6 +6,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 2.6.0 – 2026-07-24
+
+Adds two more dashboard widgets that mirror the "My Accounts" and "My Leads" panels on SuiteCRM's own home page: **SuiteCRM Accounts** and **SuiteCRM Leads**. Both follow the same single-module recently-added shape established by the Contacts widget in 2.5.0, so the discovery cluster now covers all three person/organisation record types (Contacts at order 70, Accounts at 80, Leads at 90). Users enable exactly the cuts they care about, matching how SuiteCRM's own dashboard splits them into separate panels rather than mixing them behind a scope toggle.
+
+The Leads widget carries `lead_source` and `status` in the subline in addition to `account_name`, so a rep can distinguish a fresh Web-form capture ("New / Web") from an already-worked cold call ("In Process / Cold Call") at a glance without opening the record. Accounts uses `industry` as the extra distinguishing dimension.
+
+No new SuiteCRM API surface; both widgets query the standard v8 REST `module/<Name>` endpoint that Contacts already uses. ACL is enforced by the OAuth token layer, so each user sees exactly what their SuiteCRM role permits.
+
+### Added
+
+- **`SuiteCRM Accounts` dashboard widget** (`SuiteCRMAccountsWidget`, order 80): recently-added Accounts within the caller's ACL, sorted `date_entered DESC`, 90-day lookback, capped at 20 rows. Row: main = account name (falls back to `(no name)`), sub = `industry · date_entered`.
+- **`SuiteCRM Leads` dashboard widget** (`SuiteCRMLeadsWidget`, order 90): recently-added Leads within the caller's ACL, same sort/window/cap. Row: main = `first_name last_name` (falls back to `email1`, then `(no name)` so email-only Web-form captures still render clickable), sub = `account · status · lead_source · date_entered`.
+- **`SuiteCRMAPIService::getRecentAccounts()` / `getRecentLeads()`**: single-module queries with the same tag/timestamp shape (`type='account'`/`'lead'`, `entered_ts`) as `getRecentContacts()` from 2.5.0. Rows without `date_entered` are dropped rather than surfaced with an epoch-zero timestamp.
+- **`GET /apps/njordium_suitecrm/recent-accounts` / `recent-leads`**: controller endpoints. Same 400-when-no-token / 401-on-upstream-error / 200-on-ok contract as every other widget endpoint.
+- **`src/views/RecentAccounts.vue` + `src/recentAccounts.js`**, **`src/views/RecentLeads.vue` + `src/recentLeads.js`**: Vue mounts and mount scripts, structurally identical to `RecentContacts.vue`.
+- **10 PHPUnit tests** on `SuiteCRMAPIServiceTest` (5 per widget): single-module-query invariant, sort-by-date-entered-descending, limit respected, upstream error envelope propagation, missing-date rows dropped.
+
 ## 2.5.0 – 2026-07-24
 
 Adds two new dashboard widgets that round out the "what's happening in the CRM" surface for users who want more than their personal workload on the Nextcloud home dashboard.
