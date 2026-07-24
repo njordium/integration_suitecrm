@@ -840,6 +840,148 @@ class SuiteCRMAPIService {
 	}
 
 	/**
+	 * SuiteCRM canonical "activities" set. Matches what the History
+	 * subpanel on any record shows, so the widget vocabulary maps to
+	 * what the user already knows from the SuiteCRM UI. Emails are
+	 * deliberately excluded, SuiteCRM 8's Email bean is complex to
+	 * treat as an "activity" (draft/queued/sent state, inbound vs
+	 * outbound direction) and warrants its own dedicated widget if
+	 * demand emerges.
+	 *
+	 * Each row: SuiteCRM module segment, tag emitted on results (drives
+	 * the frontend icon), attribute list for fields[], and the field
+	 * used as the "recent" cursor.
+	 */
+	private const ACTIVITY_MODULES = [
+		['module' => 'Meetings', 'type' => 'meeting', 'fields' => 'name,status,date_modified,date_start,assigned_user_name', 'date_attr' => 'date_modified'],
+		['module' => 'Calls',    'type' => 'call',    'fields' => 'name,status,date_modified,date_start,assigned_user_name', 'date_attr' => 'date_modified'],
+		['module' => 'Tasks',    'type' => 'task',    'fields' => 'name,status,date_modified,date_due,assigned_user_name',   'date_attr' => 'date_modified'],
+		['module' => 'Notes',    'type' => 'note',    'fields' => 'name,description,date_modified,parent_type,assigned_user_name', 'date_attr' => 'date_modified'],
+	];
+
+	/**
+	 * "SuiteCRM Activities" widget. Fan-out to Calls, Meetings, Tasks,
+	 * and Notes filtered by `date_modified > (now - lookbackDays)`, then
+	 * merged and sorted client-side (newest first) and capped at
+	 * `$limit`. The fan-out costs four HTTP round-trips per poll; at
+	 * 120s poll cadence that's two API calls per module per minute
+	 * per widget user, which SuiteCRM 8's default rate limits swallow
+	 * comfortably.
+	 *
+	 * "Based on user access" is enforced by SuiteCRM's ACL layer against
+	 * the OAuth token holder, not by this method. The widget shows what
+	 * the user is allowed to see, exactly. No explicit `assigned_user_id`
+	 * filter, unlike {@see getMyTasks()}, because "activities in the
+	 * platform" reads as tenant-wide-within-my-ACL, not "only mine".
+	 *
+	 * Sort key is `date_modified` rather than `date_entered` because an
+	 * activity is a thing that changes state (a Call gets scheduled,
+	 * held, then logged; a Task gets started then completed). "Recent
+	 * activity" means "recently touched", which is the modification
+	 * timestamp.
+	 *
+	 * @return array Sorted result rows, each tagged with `type`
+	 *               (meeting|call|task|note) and `modified_ts` (int
+	 *               Unix timestamp). On upstream API failure, returns
+	 *               the SuiteCRM error payload from the first failing
+	 *               module (the calendar widget uses the same fail-fast
+	 *               strategy, {@see getUpcoming()}).
+	 */
+	public function getRecentActivities(string $url, string $accessToken, string $userId, int $limit = 20, int $lookbackDays = 30): array {
+		$now = new DateTime();
+		$lookback = (clone $now)->sub(new DateInterval('P' . $lookbackDays . 'D'));
+
+		$combined = [];
+		foreach (self::ACTIVITY_MODULES as $moduleDef) {
+			$filters = [
+				'fields[' . $moduleDef['module'] . ']=' . $moduleDef['fields'],
+				urlencode('filter[' . $moduleDef['date_attr'] . '][gt]') . '=' . urlencode($lookback->format('Y-m-d\TH:i:s')),
+				'filter[operator]=and',
+			];
+			$response = $this->request(
+				$url, $accessToken, $userId,
+				'module/' . $moduleDef['module'] . '?' . implode('&', $filters)
+			);
+			if (isset($response['error'])) {
+				return $response;
+			}
+			foreach ($response['data'] ?? [] as $row) {
+				$dateModifiedStr = (string) ($row['attributes']['date_modified'] ?? '');
+				if ($dateModifiedStr === '') {
+					continue;
+				}
+				try {
+					$modifiedTs = (new DateTime($dateModifiedStr))->getTimestamp();
+				} catch (Exception) {
+					continue;
+				}
+				$row['type'] = $moduleDef['type'];
+				$row['modified_ts'] = $modifiedTs;
+				$combined[] = $row;
+			}
+		}
+
+		usort($combined, static fn ($a, $b) => $b['modified_ts'] <=> $a['modified_ts']);
+
+		return array_slice($combined, 0, $limit);
+	}
+
+	/**
+	 * "SuiteCRM Contacts" widget. Returns the most recently added
+	 * Contacts visible to the current user (SuiteCRM ACL applied at the
+	 * v8 API layer, not here). Straight single-module query, no fan-out;
+	 * this is the cheapest widget in the pack.
+	 *
+	 * Sort key is `date_entered` (not `date_modified`) because the
+	 * widget is answering "who's newly in the CRM", not "which Contacts
+	 * were last edited". The lookback window bounds the result set so
+	 * a very large tenant doesn't fetch tens of thousands of rows to
+	 * throw most away, and the client-side sort then pins the newest
+	 * to the top.
+	 *
+	 * @return array Sorted result rows, each tagged with `type='contact'`
+	 *               and `entered_ts` (int Unix timestamp). On upstream
+	 *               API failure, returns the SuiteCRM error payload.
+	 */
+	public function getRecentContacts(string $url, string $accessToken, string $userId, int $limit = 20, int $lookbackDays = 90): array {
+		$now = new DateTime();
+		$lookback = (clone $now)->sub(new DateInterval('P' . $lookbackDays . 'D'));
+
+		$filters = [
+			'fields[Contacts]=first_name,last_name,account_name,phone_work,email1,date_entered,assigned_user_name',
+			urlencode('filter[date_entered][gt]') . '=' . urlencode($lookback->format('Y-m-d\TH:i:s')),
+			'filter[operator]=and',
+		];
+		$response = $this->request(
+			$url, $accessToken, $userId,
+			'module/Contacts?' . implode('&', $filters)
+		);
+		if (isset($response['error'])) {
+			return $response;
+		}
+
+		$rows = [];
+		foreach ($response['data'] ?? [] as $row) {
+			$dateEnteredStr = (string) ($row['attributes']['date_entered'] ?? '');
+			if ($dateEnteredStr === '') {
+				continue;
+			}
+			try {
+				$enteredTs = (new DateTime($dateEnteredStr))->getTimestamp();
+			} catch (Exception) {
+				continue;
+			}
+			$row['type'] = 'contact';
+			$row['entered_ts'] = $enteredTs;
+			$rows[] = $row;
+		}
+
+		usort($rows, static fn ($a, $b) => $b['entered_ts'] <=> $a['entered_ts']);
+
+		return array_slice($rows, 0, $limit);
+	}
+
+	/**
 	 * Start and end Unix timestamps of the current calendar quarter, in
 	 * server-local time. Q1 = Jan 1 to Mar 31, Q2 = Apr 1 to Jun 30, etc.
 	 * Extracted so the getMyPipeline() `closing_quarter` filter is

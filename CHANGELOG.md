@@ -6,6 +6,32 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 2.5.0 – 2026-07-24
+
+Adds two new dashboard widgets that round out the "what's happening in the CRM" surface for users who want more than their personal workload on the Nextcloud home dashboard.
+
+**SuiteCRM Activities** is a cross-module recent-activity feed covering the four canonical SuiteCRM activity types: Calls, Meetings, Tasks, and Notes. Rows are keyed on `date_modified`, so a Call rescheduled today surfaces above a Meeting held last week even if the Meeting was created more recently. The widget is tenant-wide within the caller's SuiteCRM ACL, not filtered to `assigned_user_id` — reads as "what has been touched in the CRM lately, that I have access to see". Complements the existing personal workload widgets (Cases, Tasks, pipeline) rather than duplicating them.
+
+**SuiteCRM Contacts** lists the most recently added Contacts visible to the current user. Simple single-module query, sort by `date_entered DESC`, capped at 20 rows. Answers "who's new in the CRM" as a discovery aid rather than a workload cue.
+
+Both widgets follow the same pattern established in 2.2.0 for Cases/Tasks/pipeline: `IWidget` + `IAPIWidget` + `IAPIWidgetV2` + `IIconWidget` (so they render identically on the classic dashboard and the NC 30+ server-side API dashboard), 120-second polling with a tab-hidden pause, connect-button empty state, hidden by default in the widget picker until the user enables them. No new configuration required; the SuiteCRM ACL layer already enforces per-user access.
+
+### Added
+
+- **`My SuiteCRM Activities` dashboard widget** (`SuiteCRMActivitiesWidget`, order 60): renders below the personal workload cluster (Cases/Tasks/pipeline at 30/40/50). Fan-out to the four canonical `ACTIVITY_MODULES` (Meetings, Calls, Tasks, Notes) filtered by `date_modified > now - 30 days`, merged client-side and sorted newest-first. Subline shape: `type · assigned user · relative-modified-time`. Four HTTP round-trips per poll, comfortably under SuiteCRM 8's default rate limits at the 120s poll cadence.
+- **`SuiteCRMAPIService::getRecentActivities(url, token, userId, limit=20, lookbackDays=30)`**: single fan-out method the widget calls. Rows without `date_modified` are dropped rather than surfaced with an epoch-zero timestamp that would render as "56 years ago". Error envelope from any of the four upstream calls bubbles up unchanged so the controller returns 401 to the frontend, matching the existing widget error-handling contract.
+- **`GET /apps/njordium_suitecrm/recent-activities`**: controller endpoint. Same 400-when-no-token / 401-on-upstream-error / 200-on-ok shape as `/upcoming` and `/my-cases`.
+- **`src/views/Activities.vue` + `src/activities.js`**: Vue mount for the classic dashboard path. Same 120s polling loop with tab-visibility pause that the other widgets use. Type-aware DetailView deep links (each row opens the record in its correct SuiteCRM module).
+
+- **`SuiteCRM Contacts` dashboard widget** (`SuiteCRMContactsWidget`, order 70): sits below Activities so the "discovery" cluster follows the "what's happening" cluster in visual order. Falls back to email as the row title when a Contact has no name captured yet, so an email-only capture from a lead-generation form still surfaces something clickable.
+- **`SuiteCRMAPIService::getRecentContacts(url, token, userId, limit=20, lookbackDays=90)`**: single-module query with a 90-day lookback (wider than Activities to catch quieter tenants). Same tag/timestamp pattern (`type='contact'`, `entered_ts`) as the other service methods so the frontend layer stays uniform.
+- **`GET /apps/njordium_suitecrm/recent-contacts`**: controller endpoint.
+- **`src/views/RecentContacts.vue` + `src/recentContacts.js`**: Vue mount.
+
+### Added (tests)
+
+- **10 PHPUnit tests for the new service methods** on `SuiteCRMAPIServiceTest`: fan-out invariant (four modules, in `ACTIVITY_MODULES` order), sort-by-date-modified-descending, limit respected, upstream error envelope propagation, missing-timestamp rows dropped — mirrored for Activities and Contacts. Together they lock down the widget contract so the fan-out module list and the sort semantics cannot regress silently on a future refactor.
+
 ## 2.4.0 – 2026-07-23
 
 Adds a per-user opt-out that lets the Calendar widget stop rendering SuiteCRM Tasks alongside Meetings and Calls. Rationale: reps who use the standalone "My open Tasks" widget introduced in 2.2.0 would otherwise see a dated Task twice on the dashboard, once in the schedule frame and once in the workload frame. The new toggle hands ownership of Tasks over to the workload widget for the users who want that split, while leaving 2.3.x behaviour unchanged for anyone who has never touched the setting.

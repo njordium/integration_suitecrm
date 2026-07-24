@@ -703,6 +703,176 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	// ---------------------------------------------------------------------
+	// getRecentActivities() (iter 83) — fan-out to Calls/Meetings/Tasks/Notes,
+	// sort merged rows by date_modified DESC, tag with type + modified_ts.
+	// ---------------------------------------------------------------------
+
+	public function testGetRecentActivitiesFansOutAcrossFourActivityModules(): void {
+		$endpointsHit = [];
+		$requestStub = function ($url, $token, $userId, $endpoint) use (&$endpointsHit) {
+			foreach (['Meetings', 'Calls', 'Tasks', 'Notes'] as $module) {
+				if (str_contains($endpoint, 'module/' . $module)) {
+					$endpointsHit[] = $module;
+					break;
+				}
+			}
+			return ['data' => []];
+		};
+		$service = $this->makeService($requestStub);
+		$service->getRecentActivities('http://scrm.example', 'tok', 'alice', 20);
+		$this->assertSame(['Meetings', 'Calls', 'Tasks', 'Notes'], $endpointsHit, 'Activities widget must query exactly the four canonical activity modules, in ACTIVITY_MODULES order');
+	}
+
+	public function testGetRecentActivitiesMergesAndSortsByDateModifiedDescending(): void {
+		$requestStub = function ($url, $token, $userId, $endpoint) {
+			if (str_contains($endpoint, 'module/Meetings')) {
+				return ['data' => [[
+					'id' => 'meeting-old',
+					'attributes' => ['name' => 'Old meeting', 'date_modified' => (new \DateTime('-3 days'))->format('Y-m-d\TH:i:s')],
+				]]];
+			}
+			if (str_contains($endpoint, 'module/Calls')) {
+				return ['data' => [[
+					'id' => 'call-newest',
+					'attributes' => ['name' => 'Newest call', 'date_modified' => (new \DateTime('-1 hour'))->format('Y-m-d\TH:i:s')],
+				]]];
+			}
+			if (str_contains($endpoint, 'module/Tasks')) {
+				return ['data' => [[
+					'id' => 'task-middle',
+					'attributes' => ['name' => 'Middle task', 'date_modified' => (new \DateTime('-1 day'))->format('Y-m-d\TH:i:s')],
+				]]];
+			}
+			return ['data' => []];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getRecentActivities('http://scrm.example', 'tok', 'alice', 20);
+
+		$this->assertCount(3, $results);
+		$this->assertSame('call-newest', $results[0]['id'], 'newest by date_modified must sort first');
+		$this->assertSame('task-middle', $results[1]['id']);
+		$this->assertSame('meeting-old', $results[2]['id']);
+		// Every row must carry the type tag and modified_ts so the frontend
+		// can build the DetailView deep link and the fromNow() label.
+		$this->assertSame('call', $results[0]['type']);
+		$this->assertIsInt($results[0]['modified_ts']);
+	}
+
+	public function testGetRecentActivitiesRespectsLimit(): void {
+		$requestStub = function ($url, $token, $userId, $endpoint) {
+			if (str_contains($endpoint, 'module/Meetings')) {
+				$rows = [];
+				for ($i = 0; $i < 15; $i++) {
+					$rows[] = [
+						'id' => 'meeting-' . $i,
+						'attributes' => ['name' => 'Meeting ' . $i, 'date_modified' => (new \DateTime('-' . $i . ' hours'))->format('Y-m-d\TH:i:s')],
+					];
+				}
+				return ['data' => $rows];
+			}
+			return ['data' => []];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getRecentActivities('http://scrm.example', 'tok', 'alice', 5);
+		$this->assertCount(5, $results, 'limit must cap the merged result set');
+	}
+
+	public function testGetRecentActivitiesPropagatesUpstreamError(): void {
+		$requestStub = function ($url, $token, $userId, $endpoint) {
+			if (str_contains($endpoint, 'module/Meetings')) {
+				return ['error' => 'boom'];
+			}
+			return ['data' => []];
+		};
+		$service = $this->makeService($requestStub);
+		$result = $service->getRecentActivities('http://scrm.example', 'tok', 'alice', 20);
+		$this->assertSame(['error' => 'boom'], $result, 'error envelope must bubble up to the controller so the widget can render 401');
+	}
+
+	public function testGetRecentActivitiesSkipsRowsWithMissingDateModified(): void {
+		// A row lacking date_modified can't be sorted or displayed and
+		// would otherwise get an epoch-zero timestamp that would pin it
+		// last with a nonsensical "56 years ago" subline.
+		$requestStub = function ($url, $token, $userId, $endpoint) {
+			if (str_contains($endpoint, 'module/Meetings')) {
+				return ['data' => [
+					['id' => 'meeting-good', 'attributes' => ['name' => 'Good', 'date_modified' => (new \DateTime('-1 hour'))->format('Y-m-d\TH:i:s')]],
+					['id' => 'meeting-broken', 'attributes' => ['name' => 'No date']],
+				]];
+			}
+			return ['data' => []];
+		};
+		$service = $this->makeService($requestStub);
+		$results = $service->getRecentActivities('http://scrm.example', 'tok', 'alice', 20);
+		$ids = array_map(fn ($r) => $r['id'], $results);
+		$this->assertSame(['meeting-good'], $ids, 'row without date_modified must be dropped, not surfaced with epoch-zero');
+	}
+
+	// ---------------------------------------------------------------------
+	// getRecentContacts() (iter 84) — single-module query, sort by
+	// date_entered DESC, tag with type='contact' + entered_ts.
+	// ---------------------------------------------------------------------
+
+	public function testGetRecentContactsQueriesOnlyContactsModule(): void {
+		$endpointsHit = [];
+		$requestStub = function ($url, $token, $userId, $endpoint) use (&$endpointsHit) {
+			$endpointsHit[] = $endpoint;
+			return ['data' => []];
+		};
+		$service = $this->makeService($requestStub);
+		$service->getRecentContacts('http://scrm.example', 'tok', 'alice', 20);
+		$this->assertCount(1, $endpointsHit, 'Contacts widget must be a single-module fetch, no fan-out');
+		$this->assertStringContainsString('module/Contacts', $endpointsHit[0]);
+		$this->assertStringContainsString('filter[date_entered][gt]', urldecode($endpointsHit[0]));
+	}
+
+	public function testGetRecentContactsSortsByDateEnteredDescending(): void {
+		$requestStub = fn (...$args) => ['data' => [
+			['id' => 'contact-old',   'attributes' => ['first_name' => 'Anna',  'last_name' => 'Old',   'date_entered' => (new \DateTime('-30 days'))->format('Y-m-d\TH:i:s')]],
+			['id' => 'contact-newest','attributes' => ['first_name' => 'Bob',   'last_name' => 'New',   'date_entered' => (new \DateTime('-1 hour'))->format('Y-m-d\TH:i:s')]],
+			['id' => 'contact-mid',   'attributes' => ['first_name' => 'Chris', 'last_name' => 'Mid',   'date_entered' => (new \DateTime('-5 days'))->format('Y-m-d\TH:i:s')]],
+		]];
+		$service = $this->makeService($requestStub);
+		$results = $service->getRecentContacts('http://scrm.example', 'tok', 'alice', 20);
+		$this->assertCount(3, $results);
+		$this->assertSame('contact-newest', $results[0]['id'], 'newest by date_entered must sort first');
+		$this->assertSame('contact-mid', $results[1]['id']);
+		$this->assertSame('contact-old', $results[2]['id']);
+		$this->assertSame('contact', $results[0]['type']);
+		$this->assertIsInt($results[0]['entered_ts']);
+	}
+
+	public function testGetRecentContactsRespectsLimit(): void {
+		$rows = [];
+		for ($i = 0; $i < 15; $i++) {
+			$rows[] = [
+				'id' => 'contact-' . $i,
+				'attributes' => ['first_name' => 'C', 'last_name' => (string) $i, 'date_entered' => (new \DateTime('-' . $i . ' hours'))->format('Y-m-d\TH:i:s')],
+			];
+		}
+		$service = $this->makeService(fn (...$args) => ['data' => $rows]);
+		$results = $service->getRecentContacts('http://scrm.example', 'tok', 'alice', 5);
+		$this->assertCount(5, $results);
+	}
+
+	public function testGetRecentContactsPropagatesUpstreamError(): void {
+		$service = $this->makeService(fn (...$args) => ['error' => 'boom']);
+		$result = $service->getRecentContacts('http://scrm.example', 'tok', 'alice', 20);
+		$this->assertSame(['error' => 'boom'], $result);
+	}
+
+	public function testGetRecentContactsSkipsRowsWithMissingDateEntered(): void {
+		$requestStub = fn (...$args) => ['data' => [
+			['id' => 'contact-good', 'attributes' => ['first_name' => 'Good', 'last_name' => 'Row', 'date_entered' => (new \DateTime('-1 hour'))->format('Y-m-d\TH:i:s')]],
+			['id' => 'contact-broken', 'attributes' => ['first_name' => 'Broken', 'last_name' => 'Row']],
+		]];
+		$service = $this->makeService($requestStub);
+		$results = $service->getRecentContacts('http://scrm.example', 'tok', 'alice', 20);
+		$ids = array_map(fn ($r) => $r['id'], $results);
+		$this->assertSame(['contact-good'], $ids);
+	}
+
+	// ---------------------------------------------------------------------
 	// Reflection helpers for the private const.
 	// ---------------------------------------------------------------------
 

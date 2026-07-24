@@ -16,8 +16,10 @@ use OCP\AppFramework\Bootstrap\IBootstrap;
 
 use OCP\AppFramework\Http\Events\BeforeTemplateRenderedEvent;
 
+use OCA\SuiteCRM\Dashboard\SuiteCRMActivitiesWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMCalendarWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMCasesWidget;
+use OCA\SuiteCRM\Dashboard\SuiteCRMContactsWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMPipelineWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMTasksWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMWidget;
@@ -45,6 +47,8 @@ class Application extends App implements IBootstrap {
 		$context->registerDashboardWidget(SuiteCRMCasesWidget::class);
 		$context->registerDashboardWidget(SuiteCRMTasksWidget::class);
 		$context->registerDashboardWidget(SuiteCRMPipelineWidget::class);
+		$context->registerDashboardWidget(SuiteCRMActivitiesWidget::class);
+		$context->registerDashboardWidget(SuiteCRMContactsWidget::class);
 		$context->registerSearchProvider(SuiteCRMSearchProvider::class);
 		$context->registerReferenceProvider(SuiteCRMReferenceProvider::class);
 		$context->registerNotifierService(Notifier::class);

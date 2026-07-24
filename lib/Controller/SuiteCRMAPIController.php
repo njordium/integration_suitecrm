@@ -199,6 +199,57 @@ class SuiteCRMAPIController extends Controller {
 	}
 
 	/**
+	 * "SuiteCRM Activities" widget backing endpoint.
+	 *
+	 * Recently-modified Calls, Meetings, Tasks, and Notes across the
+	 * tenant, subject to SuiteCRM ACL against the current user's OAuth
+	 * token. Same 400-when-no-token / 401-on-upstream-error / 200-on-ok
+	 * shape as {@see getUpcoming()} so the Vue widget can reuse the
+	 * error handling.
+	 *
+	 * @param int $limit Cap on total merged results.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/recent-activities')]
+	public function getRecentActivities(int $limit = 20): DataResponse {
+		if ($this->accessToken === '' || $this->userId === null) {
+			return new DataResponse('', 400);
+		}
+		$result = $this->suitecrmAPIService->getRecentActivities(
+			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit
+		);
+		if (!isset($result['error'])) {
+			return new DataResponse($result);
+		}
+		return new DataResponse($result, 401);
+	}
+
+	/**
+	 * "SuiteCRM Contacts" widget backing endpoint.
+	 *
+	 * Most recently added Contacts visible to the current user. Same
+	 * 400/401/200 contract as the other widget endpoints. The lookback
+	 * window and sort key live in the service; the controller is a
+	 * thin auth + delegation layer.
+	 *
+	 * @param int $limit Cap on total results.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/recent-contacts')]
+	public function getRecentContacts(int $limit = 20): DataResponse {
+		if ($this->accessToken === '' || $this->userId === null) {
+			return new DataResponse('', 400);
+		}
+		$result = $this->suitecrmAPIService->getRecentContacts(
+			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit
+		);
+		if (!isset($result['error'])) {
+			return new DataResponse($result);
+		}
+		return new DataResponse($result, 401);
+	}
+
+	/**
 	 * Follow-up Task creation endpoint.
 	 *
 	 * Create a follow-up SuiteCRM Task linked back to a source record
