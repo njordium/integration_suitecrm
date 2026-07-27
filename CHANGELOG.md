@@ -6,6 +6,35 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 3.0.0 – 2026-07-27
+
+Renames the Nextcloud app id from `njordium_suitecrm` back to `integration_suitecrm`. This is the only breaking change in the release. Every setting on your existing 2.x install, admin OAuth config (instance URL, client ID/secret, authorize path), every per-user OAuth token, every widget preference (`pipeline_mode`, `quick_actions_enabled`, `calendar_show_tasks`) carries across automatically via a Repair step that runs on `occ upgrade`. Users do not need to re-authorise SuiteCRM.
+
+**Why the rename.** When the fork first shipped in 2.0.0, Julien Veyssier's original `integration_suitecrm` App Store record was stale and blocked our updates from reaching his ~200 existing installs. The pragmatic response was to rename the fork's app id to `njordium_suitecrm` so we could ship on the App Store under our own record. In July 2026, Julien transferred ownership of the original record to this fork (see nextcloud/app-certificate-requests#1104 and #1114), which removed the original blocker. 3.0.0 restores the canonical `integration_suitecrm` app id so:
+
+- Julien's existing 1.x installs get updates seamlessly from the App Store, no manual reinstall.
+- There's one canonical id on the store, no user confusion about which of two records to install.
+- The GitHub org stays `njordium/integration_suitecrm` — the App Store app id and the GitHub org name are decoupled.
+
+See [`docs/upgrade-2.x-to-3.0.md`](docs/upgrade-2.x-to-3.0.md) for the end-to-end upgrade walkthrough, rollback procedure, and post-upgrade verification steps.
+
+### Changed
+
+- **App id renamed** from `njordium_suitecrm` back to `integration_suitecrm`. The install folder is now `custom_apps/integration_suitecrm/`; the old `custom_apps/njordium_suitecrm/` will no longer be recognised. Every HTTP route the frontend calls (`/apps/integration_suitecrm/*`) and every internal string reference has been updated in a single atomic pass across 35 files.
+- **`occ` command name** is now `occ integration_suitecrm:test-connection`. The 2.x form `occ njordium_suitecrm:test-connection` no longer resolves.
+- **OAuth redirect URL** on the SuiteCRM OAuth2 client must be updated from `<nextcloud>/apps/njordium_suitecrm/oauth-callback` to `<nextcloud>/apps/integration_suitecrm/oauth-callback`. Byte-for-byte match required. Same manual step users hit on the 1.9 to 2.0 upgrade; instructions in `docs/upgrade-2.x-to-3.0.md`.
+- **Webpack bundle filenames** flipped from `njordium_suitecrm-*.js` back to `integration_suitecrm-*.js`. Direct-install admins with cached JS in a reverse proxy should invalidate the cache on upgrade.
+- **`Migration\CopyLegacyAppConfig`** SQL body unchanged, `LEGACY_APP_ID` constant flipped from `integration_suitecrm` (2.0.0) to `njordium_suitecrm` (3.0.0). The class continues to run on every `occ upgrade` as a post-migration Repair step. On a fresh install (no rows to copy) it's a silent no-op.
+
+### Migration path
+
+- **From 2.x (any 2.0-2.6 release)** to 3.0.0: `occ upgrade` runs `Migration\CopyLegacyAppConfig` which copies every `oc_appconfig` row where `appid='njordium_suitecrm'` and every `oc_preferences` row for the same app id into `appid='integration_suitecrm'`. Legacy rows are left in place so rollback stays trivial. Encrypted OAuth tokens survive the copy because they live in `oc_preferences` under app id-scoped rows.
+- **From 1.9.x directly to 3.0.0**: `oc_appconfig` and `oc_preferences` rows are already under `integration_suitecrm` (that was Julien's app id), so the Repair step is a silent no-op and the deployment picks the settings up under the same id automatically.
+
+### Rollback
+
+If 3.0.0 misbehaves, rollback to 2.6.0 is safe because the migration is copy-only, not move: `occ app:disable integration_suitecrm && occ app:enable njordium_suitecrm && occ upgrade` restores every setting. Detailed steps in `docs/upgrade-2.x-to-3.0.md`.
+
 ## 2.6.0 – 2026-07-24
 
 Adds two more dashboard widgets that mirror the "My Accounts" and "My Leads" panels on SuiteCRM's own home page: **SuiteCRM Accounts** and **SuiteCRM Leads**. Both follow the same single-module recently-added shape established by the Contacts widget in 2.5.0, so the discovery cluster now covers all three person/organisation record types (Contacts at order 70, Accounts at 80, Leads at 90). Users enable exactly the cuts they care about, matching how SuiteCRM's own dashboard splits them into separate panels rather than mixing them behind a scope toggle.

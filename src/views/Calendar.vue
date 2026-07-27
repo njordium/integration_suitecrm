@@ -9,7 +9,7 @@
 				<template #action>
 					<div v-if="state === 'no-token' || state === 'error'" class="connect-button">
 						<a class="button" :href="settingsUrl">
-							{{ t('njordium_suitecrm', 'Connect to SuiteCRM') }}
+							{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
 						</a>
 					</div>
 				</template>
@@ -76,11 +76,11 @@ export default {
 
 		emptyContentMessage() {
 			if (this.state === 'no-token') {
-				return t('njordium_suitecrm', 'No SuiteCRM account connected')
+				return t('integration_suitecrm', 'No SuiteCRM account connected')
 			} else if (this.state === 'error') {
-				return t('njordium_suitecrm', 'Error connecting to SuiteCRM')
+				return t('integration_suitecrm', 'Error connecting to SuiteCRM')
 			} else if (this.state === 'ok') {
-				return t('njordium_suitecrm', 'No upcoming SuiteCRM events')
+				return t('integration_suitecrm', 'No upcoming SuiteCRM events')
 			}
 			return ''
 		},
@@ -116,7 +116,7 @@ export default {
 
 		async launchLoop() {
 			try {
-				const response = await axios.get(generateUrl('/apps/njordium_suitecrm/url'))
+				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
 				this.suitecrmUrl = response.data.replace(/\/+$/, '')
 			} catch {
 				// URL probe is best-effort; the widget still works, just without
@@ -127,7 +127,7 @@ export default {
 		},
 
 		fetchEvents() {
-			axios.get(generateUrl('/apps/njordium_suitecrm/upcoming')).then((response) => {
+			axios.get(generateUrl('/apps/integration_suitecrm/upcoming')).then((response) => {
 				this.events = response.data
 				this.state = 'ok'
 			}).catch((error) => {
@@ -135,7 +135,7 @@ export default {
 				if (error.response && error.response.status === 400) {
 					this.state = 'no-token'
 				} else if (error.response && error.response.status === 401) {
-					showError(t('njordium_suitecrm', 'Failed to get SuiteCRM upcoming events'))
+					showError(t('integration_suitecrm', 'Failed to get SuiteCRM upcoming events'))
 					this.state = 'error'
 				}
 			})
@@ -151,16 +151,16 @@ export default {
 
 		getAvatarUrl(e) {
 			if (e.type === 'call') {
-				return imagePath('njordium_suitecrm', 'call.png')
+				return imagePath('integration_suitecrm', 'call.png')
 			}
 			if (e.type === 'meeting') {
-				return imagePath('njordium_suitecrm', 'meeting.png')
+				return imagePath('integration_suitecrm', 'meeting.png')
 			}
 			return ''
 		},
 
 		getMainText(e) {
-			return e.attributes?.name || t('njordium_suitecrm', '(no title)')
+			return e.attributes?.name || t('integration_suitecrm', '(no title)')
 		},
 
 		getSubline(e) {

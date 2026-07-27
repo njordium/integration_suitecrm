@@ -9,7 +9,7 @@
 				<template #action>
 					<div v-if="state === 'no-token' || state === 'error'" class="connect-button">
 						<a class="button" :href="settingsUrl">
-							{{ t('njordium_suitecrm', 'Connect to SuiteCRM') }}
+							{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
 						</a>
 					</div>
 				</template>
@@ -73,7 +73,7 @@ export default {
 			return this.tasks.map((t) => ({
 				id: t.id,
 				targetUrl: this.getTaskTarget(t),
-				avatarUrl: imagePath('njordium_suitecrm', 'app.svg'),
+				avatarUrl: imagePath('integration_suitecrm', 'app.svg'),
 				avatarUsername: this.getMainText(t),
 				mainText: this.getMainText(t),
 				subText: this.getSubline(t),
@@ -82,11 +82,11 @@ export default {
 
 		emptyContentMessage() {
 			if (this.state === 'no-token') {
-				return t('njordium_suitecrm', 'No SuiteCRM account connected')
+				return t('integration_suitecrm', 'No SuiteCRM account connected')
 			} else if (this.state === 'error') {
-				return t('njordium_suitecrm', 'Error connecting to SuiteCRM')
+				return t('integration_suitecrm', 'Error connecting to SuiteCRM')
 			} else if (this.state === 'ok') {
-				return t('njordium_suitecrm', 'No open SuiteCRM Tasks')
+				return t('integration_suitecrm', 'No open SuiteCRM Tasks')
 			}
 			return ''
 		},
@@ -122,7 +122,7 @@ export default {
 
 		async launchLoop() {
 			try {
-				const response = await axios.get(generateUrl('/apps/njordium_suitecrm/url'))
+				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
 				this.suitecrmUrl = response.data.replace(/\/+$/, '')
 			} catch {
 				// URL probe is best-effort; the widget still works, just without
@@ -133,7 +133,7 @@ export default {
 		},
 
 		fetchTasks() {
-			axios.get(generateUrl('/apps/njordium_suitecrm/my-tasks')).then((response) => {
+			axios.get(generateUrl('/apps/integration_suitecrm/my-tasks')).then((response) => {
 				this.tasks = response.data
 				this.state = 'ok'
 			}).catch((error) => {
@@ -141,7 +141,7 @@ export default {
 				if (error.response && error.response.status === 400) {
 					this.state = 'no-token'
 				} else if (error.response && error.response.status === 401) {
-					showError(t('njordium_suitecrm', 'Failed to get SuiteCRM open Tasks'))
+					showError(t('integration_suitecrm', 'Failed to get SuiteCRM open Tasks'))
 					this.state = 'error'
 				}
 			})
@@ -155,7 +155,7 @@ export default {
 		},
 
 		getMainText(task) {
-			return task.attributes?.name || t('njordium_suitecrm', '(no title)')
+			return task.attributes?.name || t('integration_suitecrm', '(no title)')
 		},
 
 		getSubline(task) {
@@ -167,7 +167,7 @@ export default {
 			if (task.due_ts) {
 				parts.push(moment.unix(task.due_ts).fromNow())
 			} else {
-				parts.push(t('njordium_suitecrm', 'no due date'))
+				parts.push(t('integration_suitecrm', 'no due date'))
 			}
 			return parts.join(' · ')
 		},

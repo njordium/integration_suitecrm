@@ -9,7 +9,7 @@
 				<template #action>
 					<div v-if="state === 'no-token' || state === 'error'" class="connect-button">
 						<a class="button" :href="settingsUrl">
-							{{ t('njordium_suitecrm', 'Connect to SuiteCRM') }}
+							{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
 						</a>
 					</div>
 				</template>
@@ -73,7 +73,7 @@ export default {
 			return this.activities.map((a) => ({
 				id: a.id,
 				targetUrl: this.getActivityTarget(a),
-				avatarUrl: imagePath('njordium_suitecrm', 'app.svg'),
+				avatarUrl: imagePath('integration_suitecrm', 'app.svg'),
 				avatarUsername: this.getMainText(a),
 				mainText: this.getMainText(a),
 				subText: this.getSubline(a),
@@ -82,11 +82,11 @@ export default {
 
 		emptyContentMessage() {
 			if (this.state === 'no-token') {
-				return t('njordium_suitecrm', 'No SuiteCRM account connected')
+				return t('integration_suitecrm', 'No SuiteCRM account connected')
 			} else if (this.state === 'error') {
-				return t('njordium_suitecrm', 'Error connecting to SuiteCRM')
+				return t('integration_suitecrm', 'Error connecting to SuiteCRM')
 			} else if (this.state === 'ok') {
-				return t('njordium_suitecrm', 'No recent SuiteCRM activity')
+				return t('integration_suitecrm', 'No recent SuiteCRM activity')
 			}
 			return ''
 		},
@@ -122,7 +122,7 @@ export default {
 
 		async launchLoop() {
 			try {
-				const response = await axios.get(generateUrl('/apps/njordium_suitecrm/url'))
+				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
 				this.suitecrmUrl = response.data.replace(/\/+$/, '')
 			} catch {
 				// URL probe is best-effort; widget still works, just without
@@ -133,7 +133,7 @@ export default {
 		},
 
 		fetchActivities() {
-			axios.get(generateUrl('/apps/njordium_suitecrm/recent-activities')).then((response) => {
+			axios.get(generateUrl('/apps/integration_suitecrm/recent-activities')).then((response) => {
 				this.activities = response.data
 				this.state = 'ok'
 			}).catch((error) => {
@@ -141,7 +141,7 @@ export default {
 				if (error.response && error.response.status === 400) {
 					this.state = 'no-token'
 				} else if (error.response && error.response.status === 401) {
-					showError(t('njordium_suitecrm', 'Failed to get SuiteCRM recent activity'))
+					showError(t('integration_suitecrm', 'Failed to get SuiteCRM recent activity'))
 					this.state = 'error'
 				}
 			})
@@ -167,16 +167,16 @@ export default {
 
 		typeLabel(type) {
 			switch (type) {
-				case 'meeting': return t('njordium_suitecrm', 'Meeting')
-				case 'call': return t('njordium_suitecrm', 'Call')
-				case 'task': return t('njordium_suitecrm', 'Task')
-				case 'note': return t('njordium_suitecrm', 'Note')
+				case 'meeting': return t('integration_suitecrm', 'Meeting')
+				case 'call': return t('integration_suitecrm', 'Call')
+				case 'task': return t('integration_suitecrm', 'Task')
+				case 'note': return t('integration_suitecrm', 'Note')
 				default: return type
 			}
 		},
 
 		getMainText(activity) {
-			return activity.attributes?.name || t('njordium_suitecrm', '(no title)')
+			return activity.attributes?.name || t('integration_suitecrm', '(no title)')
 		},
 
 		getSubline(activity) {

@@ -1,7 +1,7 @@
 <template>
 	<div v-if="connected" class="suitecrm-fab">
 		<NcActions
-			:menuTitle="t('njordium_suitecrm', 'Log to SuiteCRM')"
+			:menuTitle="t('integration_suitecrm', 'Log to SuiteCRM')"
 			:open="menuOpen"
 			container=".suitecrm-fab"
 			@update:open="menuOpen = $event">
@@ -12,19 +12,19 @@
 				<template #icon>
 					<MessageTextOutlineIcon :size="20" />
 				</template>
-				{{ t('njordium_suitecrm', 'Log Talk conversation …') }}
+				{{ t('integration_suitecrm', 'Log Talk conversation …') }}
 			</NcActionButton>
 			<NcActionButton @click="openDeck">
 				<template #icon>
 					<CardsOutlineIcon :size="20" />
 				</template>
-				{{ t('njordium_suitecrm', 'Link Deck card …') }}
+				{{ t('integration_suitecrm', 'Link Deck card …') }}
 			</NcActionButton>
 			<NcActionButton @click="openEmail">
 				<template #icon>
 					<EmailOutlineIcon :size="20" />
 				</template>
-				{{ t('njordium_suitecrm', 'Convert email to Case …') }}
+				{{ t('integration_suitecrm', 'Convert email to Case …') }}
 			</NcActionButton>
 			<NcActionCaption :name="shortcutHint" />
 		</NcActions>
@@ -110,7 +110,7 @@ export default {
 			// User-agent-aware label so Mac users see Cmd, others see Ctrl.
 			const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform)
 			const prefix = isMac ? '⌘' : 'Ctrl'
-			return t('njordium_suitecrm', 'Shortcut: {p}+Shift+K', { p: prefix })
+			return t('integration_suitecrm', 'Shortcut: {p}+Shift+K', { p: prefix })
 		},
 	},
 
@@ -132,7 +132,7 @@ export default {
 				// the user is linked, and either a 400 or an empty string
 				// otherwise. That's the same probe the calendar widget
 				// uses to decide whether to launch its polling loop.
-				const response = await axios.get(generateUrl('/apps/njordium_suitecrm/url'))
+				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
 				this.connected = !!response.data && response.data.length > 0
 			} catch {
 				this.connected = false

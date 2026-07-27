@@ -21,7 +21,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
 /**
- * `occ njordium_suitecrm:test-connection`
+ * `occ integration_suitecrm:test-connection`
  *
  * One-shot diagnostic that walks admins through every layer that has
  * bitten users during setup. Each check prints PASS / FAIL / WARN with
@@ -39,7 +39,7 @@ class TestConnection extends Command {
 	}
 
 	protected function configure(): void {
-		$this->setName('njordium_suitecrm:test-connection')
+		$this->setName('integration_suitecrm:test-connection')
 			->setDescription('Verify Nextcloud can reach the configured SuiteCRM instance and OAuth endpoints')
 			->addOption(
 				'push-test',
@@ -68,7 +68,7 @@ class TestConnection extends Command {
 
 		if ($url === '') {
 			$this->fail($output, 'Admin config: oauth_instance_url is empty', [
-				'Set it via: occ config:app:set njordium_suitecrm oauth_instance_url --value="https://your-suitecrm.example.com"',
+				'Set it via: occ config:app:set integration_suitecrm oauth_instance_url --value="https://your-suitecrm.example.com"',
 				'Or via Settings → Administration → Connected accounts → SuiteCRM integration',
 			]);
 			return Command::FAILURE;
@@ -77,7 +77,7 @@ class TestConnection extends Command {
 
 		if ($clientId === '') {
 			$this->fail($output, 'Admin config: client_id is empty', [
-				'Set via admin UI or: occ config:app:set njordium_suitecrm client_id --value="<your-client-id>"',
+				'Set via admin UI or: occ config:app:set integration_suitecrm client_id --value="<your-client-id>"',
 			]);
 			$anyFail = true;
 		} else {
@@ -190,7 +190,7 @@ class TestConnection extends Command {
 			// older builds use 302; the SPA-mounted variant sometimes returns 200 with
 			// a login form. All three are valid signals that the authorize endpoint
 			// exists and would redirect a real user through the OAuth consent flow.
-			// Live-verified via `occ njordium_suitecrm:test-connection` against
+			// Live-verified via `occ integration_suitecrm:test-connection` against
 			// SuiteCRM 8.10.1; the 307-case was caught in a regression audit.
 			if (in_array($status, [200, 302, 303, 307, 308], true)) {
 				$this->pass($output, sprintf('Authorize endpoint (%s): HTTP %d (OK)', $authorizePath, $status));
@@ -199,7 +199,7 @@ class TestConnection extends Command {
 					'This path is not exposed by your SuiteCRM build.',
 					'For SuiteCRM 8.10.x fresh installs: /Api/authorize',
 					'For 8.x upgraded from 7.x or older: /legacy/oauth2/authorize',
-					sprintf('Change with: occ config:app:set njordium_suitecrm oauth_authorize_path --value="/legacy/oauth2/authorize"'),
+					sprintf('Change with: occ config:app:set integration_suitecrm oauth_authorize_path --value="/legacy/oauth2/authorize"'),
 				]);
 				$anyFail = true;
 			} else {
@@ -343,7 +343,7 @@ class TestConnection extends Command {
 					'attributes' => [
 						'name' => 'occ push-test',
 						'description' => sprintf(
-							'Throwaway record created by `occ njordium_suitecrm:test-connection --push-test` at %s. Safe to delete.',
+							'Throwaway record created by `occ integration_suitecrm:test-connection --push-test` at %s. Safe to delete.',
 							$now,
 						),
 						'status' => 'Not Started',

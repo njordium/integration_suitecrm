@@ -7,19 +7,19 @@
 		@closing="$emit('close')">
 		<div class="task-followup-modal">
 			<p v-if="sourceLabel" class="task-followup-modal__source">
-				{{ t('njordium_suitecrm', 'Linked to') }}: <strong>{{ sourceLabel }}</strong>
+				{{ t('integration_suitecrm', 'Linked to') }}: <strong>{{ sourceLabel }}</strong>
 			</p>
 
 			<NcTextField
 				ref="nameField"
 				v-model="name"
-				:label="t('njordium_suitecrm', 'Task name')"
-				:placeholder="t('njordium_suitecrm', 'Follow up …')"
+				:label="t('integration_suitecrm', 'Task name')"
+				:placeholder="t('integration_suitecrm', 'Follow up …')"
 				:disabled="submitting"
 				required />
 
 			<label class="task-followup-modal__label">
-				{{ t('njordium_suitecrm', 'Due date (optional)') }}
+				{{ t('integration_suitecrm', 'Due date (optional)') }}
 				<input
 					v-model="dateDue"
 					type="date"
@@ -28,7 +28,7 @@
 			</label>
 
 			<label class="task-followup-modal__label">
-				{{ t('njordium_suitecrm', 'Priority') }}
+				{{ t('integration_suitecrm', 'Priority') }}
 				<NcSelect
 					v-model="priority"
 					:options="priorityOptions"
@@ -38,13 +38,13 @@
 			</label>
 
 			<label class="task-followup-modal__label">
-				{{ t('njordium_suitecrm', 'Notes (optional)') }}
+				{{ t('integration_suitecrm', 'Notes (optional)') }}
 				<textarea
 					v-model="description"
 					:disabled="submitting"
 					rows="3"
 					class="task-followup-modal__textarea"
-					:placeholder="t('njordium_suitecrm', 'Details, agenda items, action items …')" />
+					:placeholder="t('integration_suitecrm', 'Details, agenda items, action items …')" />
 			</label>
 		</div>
 
@@ -53,7 +53,7 @@
 				variant="tertiary"
 				:disabled="submitting"
 				@click="$emit('close')">
-				{{ t('njordium_suitecrm', 'Cancel') }}
+				{{ t('integration_suitecrm', 'Cancel') }}
 			</NcButton>
 			<NcButton
 				variant="primary"
@@ -62,7 +62,7 @@
 				<template v-if="submitting" #icon>
 					<NcLoadingIcon :size="20" />
 				</template>
-				{{ submitting ? t('njordium_suitecrm', 'Creating …') : t('njordium_suitecrm', 'Create Task') }}
+				{{ submitting ? t('integration_suitecrm', 'Creating …') : t('integration_suitecrm', 'Create Task') }}
 			</NcButton>
 		</template>
 	</NcDialog>
@@ -73,7 +73,7 @@
  * TaskFollowupModal.
  *
  * Prompts the user for a follow-up SuiteCRM Task's name, optional due
- * date, priority, and notes; POSTs to `/apps/njordium_suitecrm/task-followup`;
+ * date, priority, and notes; POSTs to `/apps/integration_suitecrm/task-followup`;
  * emits `created` on success. Meant to be rendered per widget (dashboard
  * events + calendar), each of which passes its own {sourceModule,
  * sourceId, sourceLabel} to prefill the link.
@@ -140,9 +140,9 @@ export default {
 			priority: 'Medium',
 			submitting: false,
 			priorityOptions: [
-				{ label: t('njordium_suitecrm', 'High'), value: 'High' },
-				{ label: t('njordium_suitecrm', 'Medium'), value: 'Medium' },
-				{ label: t('njordium_suitecrm', 'Low'), value: 'Low' },
+				{ label: t('integration_suitecrm', 'High'), value: 'High' },
+				{ label: t('integration_suitecrm', 'Medium'), value: 'Medium' },
+				{ label: t('integration_suitecrm', 'Low'), value: 'Low' },
 			],
 		}
 	},
@@ -150,8 +150,8 @@ export default {
 	computed: {
 		dialogTitle() {
 			return this.sourceLabel
-				? t('njordium_suitecrm', 'Create follow-up Task')
-				: t('njordium_suitecrm', 'Create SuiteCRM Task')
+				? t('integration_suitecrm', 'Create follow-up Task')
+				: t('integration_suitecrm', 'Create SuiteCRM Task')
 		},
 
 		canSubmit() {
@@ -181,7 +181,7 @@ export default {
 			this.submitting = true
 			try {
 				const response = await axios.post(
-					generateUrl('/apps/njordium_suitecrm/task-followup'),
+					generateUrl('/apps/integration_suitecrm/task-followup'),
 					{
 						sourceModule: this.sourceModule,
 						sourceId: this.sourceId,
@@ -194,14 +194,14 @@ export default {
 					},
 				)
 				const recordId = response?.data?.data?.id ?? null
-				showSuccess(t('njordium_suitecrm', 'Follow-up Task created in SuiteCRM'))
+				showSuccess(t('integration_suitecrm', 'Follow-up Task created in SuiteCRM'))
 				this.$emit('created', { id: recordId })
 				this.$emit('close')
 			} catch (err) {
 				const backendError = err?.response?.data?.error
 				const message = backendError
-					? t('njordium_suitecrm', 'Could not create Task: {msg}', { msg: backendError })
-					: t('njordium_suitecrm', 'Could not create Task in SuiteCRM')
+					? t('integration_suitecrm', 'Could not create Task: {msg}', { msg: backendError })
+					: t('integration_suitecrm', 'Could not create Task in SuiteCRM')
 				showError(message)
 			} finally {
 				this.submitting = false

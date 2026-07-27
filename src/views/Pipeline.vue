@@ -9,7 +9,7 @@
 				<template #action>
 					<div v-if="state === 'no-token' || state === 'error'" class="connect-button">
 						<a class="button" :href="settingsUrl">
-							{{ t('njordium_suitecrm', 'Connect to SuiteCRM') }}
+							{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
 						</a>
 					</div>
 				</template>
@@ -65,7 +65,7 @@ export default {
 		// context; wrap in try/catch and fall back to the default.
 		let mode = 'closing_quarter'
 		try {
-			const config = loadState('njordium_suitecrm', 'user-config')
+			const config = loadState('integration_suitecrm', 'user-config')
 			if (config?.pipeline_mode) {
 				mode = config.pipeline_mode
 			}
@@ -92,7 +92,7 @@ export default {
 			return this.opportunities.map((opp) => ({
 				id: opp.id,
 				targetUrl: this.getOpportunityTarget(opp),
-				avatarUrl: imagePath('njordium_suitecrm', 'app.svg'),
+				avatarUrl: imagePath('integration_suitecrm', 'app.svg'),
 				avatarUsername: this.getMainText(opp),
 				mainText: this.getMainText(opp),
 				subText: this.getSubline(opp),
@@ -101,14 +101,14 @@ export default {
 
 		emptyContentMessage() {
 			if (this.state === 'no-token') {
-				return t('njordium_suitecrm', 'No SuiteCRM account connected')
+				return t('integration_suitecrm', 'No SuiteCRM account connected')
 			} else if (this.state === 'error') {
-				return t('njordium_suitecrm', 'Error connecting to SuiteCRM')
+				return t('integration_suitecrm', 'Error connecting to SuiteCRM')
 			} else if (this.state === 'ok') {
 				if (this.mode === 'top_value' || this.mode === 'weighted') {
-					return t('njordium_suitecrm', 'No open SuiteCRM Opportunities')
+					return t('integration_suitecrm', 'No open SuiteCRM Opportunities')
 				}
-				return t('njordium_suitecrm', 'No SuiteCRM Opportunities closing this quarter')
+				return t('integration_suitecrm', 'No SuiteCRM Opportunities closing this quarter')
 			}
 			return ''
 		},
@@ -144,7 +144,7 @@ export default {
 
 		async launchLoop() {
 			try {
-				const response = await axios.get(generateUrl('/apps/njordium_suitecrm/url'))
+				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
 				this.suitecrmUrl = response.data.replace(/\/+$/, '')
 			} catch {
 				// best-effort URL probe
@@ -154,7 +154,7 @@ export default {
 		},
 
 		fetchOpportunities() {
-			const url = generateUrl('/apps/njordium_suitecrm/my-pipeline?mode={mode}', { mode: this.mode })
+			const url = generateUrl('/apps/integration_suitecrm/my-pipeline?mode={mode}', { mode: this.mode })
 			axios.get(url).then((response) => {
 				this.opportunities = response.data
 				this.state = 'ok'
@@ -163,7 +163,7 @@ export default {
 				if (error.response && error.response.status === 400) {
 					this.state = 'no-token'
 				} else if (error.response && error.response.status === 401) {
-					showError(t('njordium_suitecrm', 'Failed to get SuiteCRM pipeline'))
+					showError(t('integration_suitecrm', 'Failed to get SuiteCRM pipeline'))
 					this.state = 'error'
 				}
 			})
@@ -177,7 +177,7 @@ export default {
 		},
 
 		getMainText(opp) {
-			return opp.attributes?.name || t('njordium_suitecrm', '(no title)')
+			return opp.attributes?.name || t('integration_suitecrm', '(no title)')
 		},
 
 		formatMoney(amount) {
@@ -195,7 +195,7 @@ export default {
 			const probability = opp.probability_num || 0
 			if (this.mode === 'weighted') {
 				const weighted = opp.weighted_num || 0
-				parts.push(t('njordium_suitecrm', '{sym}{w} weighted (of {sym}{a} at {p}%)', {
+				parts.push(t('integration_suitecrm', '{sym}{w} weighted (of {sym}{a} at {p}%)', {
 					sym: symbol,
 					w: this.formatMoney(weighted),
 					a: this.formatMoney(amount),
@@ -204,12 +204,12 @@ export default {
 			} else if (this.mode === 'top_value') {
 				parts.push(`${symbol}${this.formatMoney(amount)}`)
 				if (probability > 0) {
-					parts.push(t('njordium_suitecrm', '{p}% probability', { p: Math.round(probability) }))
+					parts.push(t('integration_suitecrm', '{p}% probability', { p: Math.round(probability) }))
 				}
 			} else {
 				if (opp.close_ts) {
 					const closeDate = new Date(opp.close_ts * 1000).toISOString().slice(0, 10)
-					parts.push(t('njordium_suitecrm', 'closes {d}', { d: closeDate }))
+					parts.push(t('integration_suitecrm', 'closes {d}', { d: closeDate }))
 				}
 				parts.push(`${symbol}${this.formatMoney(amount)}`)
 			}

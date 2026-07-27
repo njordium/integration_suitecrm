@@ -9,7 +9,7 @@
 				<template #action>
 					<div v-if="state === 'no-token' || state === 'error'" class="connect-button">
 						<a class="button" :href="settingsUrl">
-							{{ t('njordium_suitecrm', 'Connect to SuiteCRM') }}
+							{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
 						</a>
 					</div>
 				</template>
@@ -76,7 +76,7 @@ export default {
 			return this.cases.map((c) => ({
 				id: c.id,
 				targetUrl: this.getCaseTarget(c),
-				avatarUrl: imagePath('njordium_suitecrm', 'app.svg'),
+				avatarUrl: imagePath('integration_suitecrm', 'app.svg'),
 				avatarUsername: this.getMainText(c),
 				mainText: this.getMainText(c),
 				subText: this.getSubline(c),
@@ -85,11 +85,11 @@ export default {
 
 		emptyContentMessage() {
 			if (this.state === 'no-token') {
-				return t('njordium_suitecrm', 'No SuiteCRM account connected')
+				return t('integration_suitecrm', 'No SuiteCRM account connected')
 			} else if (this.state === 'error') {
-				return t('njordium_suitecrm', 'Error connecting to SuiteCRM')
+				return t('integration_suitecrm', 'Error connecting to SuiteCRM')
 			} else if (this.state === 'ok') {
-				return t('njordium_suitecrm', 'No open SuiteCRM Cases')
+				return t('integration_suitecrm', 'No open SuiteCRM Cases')
 			}
 			return ''
 		},
@@ -125,7 +125,7 @@ export default {
 
 		async launchLoop() {
 			try {
-				const response = await axios.get(generateUrl('/apps/njordium_suitecrm/url'))
+				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
 				this.suitecrmUrl = response.data.replace(/\/+$/, '')
 			} catch {
 				// URL probe is best-effort; the widget still works, just without
@@ -136,7 +136,7 @@ export default {
 		},
 
 		fetchCases() {
-			axios.get(generateUrl('/apps/njordium_suitecrm/my-cases')).then((response) => {
+			axios.get(generateUrl('/apps/integration_suitecrm/my-cases')).then((response) => {
 				this.cases = response.data
 				this.state = 'ok'
 			}).catch((error) => {
@@ -144,7 +144,7 @@ export default {
 				if (error.response && error.response.status === 400) {
 					this.state = 'no-token'
 				} else if (error.response && error.response.status === 401) {
-					showError(t('njordium_suitecrm', 'Failed to get SuiteCRM open Cases'))
+					showError(t('integration_suitecrm', 'Failed to get SuiteCRM open Cases'))
 					this.state = 'error'
 				}
 			})
@@ -158,7 +158,7 @@ export default {
 		},
 
 		getMainText(c) {
-			const name = c.attributes?.name || t('njordium_suitecrm', '(no title)')
+			const name = c.attributes?.name || t('integration_suitecrm', '(no title)')
 			const caseNumber = c.attributes?.case_number
 			return caseNumber ? `#${caseNumber} · ${name}` : name
 		},
@@ -175,9 +175,9 @@ export default {
 			}
 			const ageDays = c.age_days ?? 0
 			if (ageDays > 0) {
-				parts.push(n('njordium_suitecrm', '%n day open', '%n days open', ageDays))
+				parts.push(n('integration_suitecrm', '%n day open', '%n days open', ageDays))
 			} else {
-				parts.push(t('njordium_suitecrm', 'opened today'))
+				parts.push(t('integration_suitecrm', 'opened today'))
 			}
 			return parts.join(' · ')
 		},

@@ -1,51 +1,51 @@
 <template>
 	<NcDialog
 		v-if="open"
-		:name="t('njordium_suitecrm', 'Link Nextcloud Deck card to SuiteCRM')"
+		:name="t('integration_suitecrm', 'Link Nextcloud Deck card to SuiteCRM')"
 		:noClose="submitting"
 		size="normal"
 		@closing="$emit('close')">
 		<div class="link-deck-card-modal">
 			<label class="link-deck-card-modal__label">
-				{{ t('njordium_suitecrm', 'Deck card URL') }}
+				{{ t('integration_suitecrm', 'Deck card URL') }}
 				<NcTextField
 					v-model="deckCardUrl"
-					:placeholder="t('njordium_suitecrm', 'Open a Deck card, copy the URL, paste it here …')"
+					:placeholder="t('integration_suitecrm', 'Open a Deck card, copy the URL, paste it here …')"
 					:disabled="submitting" />
 			</label>
 
 			<p v-if="parsedDeckCard" class="link-deck-card-modal__parsed">
 				<CheckCircleIcon :size="16" />
-				{{ t('njordium_suitecrm', 'Card') }}:
+				{{ t('integration_suitecrm', 'Card') }}:
 				<code>{{ parsedDeckCard.cardId }}</code>
-				({{ t('njordium_suitecrm', 'board {b}', { b: parsedDeckCard.boardId }) }})
+				({{ t('integration_suitecrm', 'board {b}', { b: parsedDeckCard.boardId }) }})
 			</p>
 			<p v-else-if="deckCardUrl" class="link-deck-card-modal__error">
 				<AlertCircleIcon :size="16" />
-				{{ t('njordium_suitecrm', 'Not a recognised Deck card URL. Expected the form /apps/deck/#/board/<id>/card/<id>.') }}
+				{{ t('integration_suitecrm', 'Not a recognised Deck card URL. Expected the form /apps/deck/#/board/<id>/card/<id>.') }}
 			</p>
 
 			<label class="link-deck-card-modal__label">
-				{{ t('njordium_suitecrm', 'Deck card title (optional)') }}
+				{{ t('integration_suitecrm', 'Deck card title (optional)') }}
 				<NcTextField
 					v-model="deckCardTitle"
-					:placeholder="t('njordium_suitecrm', 'Human-readable label for the SuiteCRM Note …')"
+					:placeholder="t('integration_suitecrm', 'Human-readable label for the SuiteCRM Note …')"
 					:disabled="submitting" />
 			</label>
 
 			<SuiteCRMRecordPicker
 				v-model="targetRecord"
-				:label="t('njordium_suitecrm', 'Attach Note to (SuiteCRM record URL)')"
+				:label="t('integration_suitecrm', 'Attach Note to (SuiteCRM record URL)')"
 				:disabled="submitting" />
 
 			<label class="link-deck-card-modal__label">
-				{{ t('njordium_suitecrm', 'Extra note (optional)') }}
+				{{ t('integration_suitecrm', 'Extra note (optional)') }}
 				<textarea
 					v-model="extraNote"
 					:disabled="submitting"
 					rows="2"
 					class="link-deck-card-modal__textarea"
-					:placeholder="t('njordium_suitecrm', 'Why this card is relevant …')" />
+					:placeholder="t('integration_suitecrm', 'Why this card is relevant …')" />
 			</label>
 
 			<NcNoteCard v-if="postWarning" type="warning">
@@ -53,7 +53,7 @@
 			</NcNoteCard>
 
 			<p class="link-deck-card-modal__hint">
-				{{ t('njordium_suitecrm', 'A Note is created on the SuiteCRM record with the Deck card URL, and a matching comment is added to the Deck card pointing back at the SuiteCRM record. If commenting on the Deck card fails, the SuiteCRM Note is still created and reported.') }}
+				{{ t('integration_suitecrm', 'A Note is created on the SuiteCRM record with the Deck card URL, and a matching comment is added to the Deck card pointing back at the SuiteCRM record. If commenting on the Deck card fails, the SuiteCRM Note is still created and reported.') }}
 			</p>
 		</div>
 
@@ -62,7 +62,7 @@
 				variant="tertiary"
 				:disabled="submitting"
 				@click="$emit('close')">
-				{{ t('njordium_suitecrm', 'Cancel') }}
+				{{ t('integration_suitecrm', 'Cancel') }}
 			</NcButton>
 			<NcButton
 				variant="primary"
@@ -71,7 +71,7 @@
 				<template v-if="submitting" #icon>
 					<NcLoadingIcon :size="20" />
 				</template>
-				{{ submitting ? t('njordium_suitecrm', 'Linking …') : t('njordium_suitecrm', 'Link') }}
+				{{ submitting ? t('integration_suitecrm', 'Linking …') : t('integration_suitecrm', 'Link') }}
 			</NcButton>
 		</template>
 	</NcDialog>
@@ -84,7 +84,7 @@
  * Creates a bidirectional link between a Nextcloud Deck card and a
  * SuiteCRM record. Two-part submit:
  *
- *   1. POST /apps/njordium_suitecrm/link-deck-card creates a Note on
+ *   1. POST /apps/integration_suitecrm/link-deck-card creates a Note on
  *      the SuiteCRM record referencing the Deck card URL (this is the
  *      side we can guarantee, same failure envelope as the other
  *      write endpoints).
@@ -188,7 +188,7 @@ export default {
 				// Step 1: SuiteCRM-side Note. If this fails there's no
 				// point commenting on the Deck card, the link would be
 				// half-dead.
-				const suitecrmUrl = generateUrl('/apps/njordium_suitecrm/link-deck-card')
+				const suitecrmUrl = generateUrl('/apps/integration_suitecrm/link-deck-card')
 				const suitecrmPayload = {
 					deckCardUrl: this.deckCardUrl.trim(),
 					deckCardTitle: this.deckCardTitle.trim(),
@@ -211,19 +211,19 @@ export default {
 				}
 				try {
 					await axios.post(commentUrl, commentPayload, commentConfig)
-					showSuccess(t('njordium_suitecrm', 'Deck card and SuiteCRM record linked both ways'))
+					showSuccess(t('integration_suitecrm', 'Deck card and SuiteCRM record linked both ways'))
 				} catch (deckErr) {
 					// Deck comment failed. Report as a warning; the
 					// SuiteCRM side is fine.
 					const status = deckErr?.response?.status
 					if (status === 404) {
-						this.postWarning = t('njordium_suitecrm', 'SuiteCRM Note created, but Deck is not installed on this server so no card comment was added.')
+						this.postWarning = t('integration_suitecrm', 'SuiteCRM Note created, but Deck is not installed on this server so no card comment was added.')
 					} else if (status === 403) {
-						this.postWarning = t('njordium_suitecrm', 'SuiteCRM Note created, but you do not have permission to comment on that Deck card.')
+						this.postWarning = t('integration_suitecrm', 'SuiteCRM Note created, but you do not have permission to comment on that Deck card.')
 					} else {
-						this.postWarning = t('njordium_suitecrm', 'SuiteCRM Note created, but the Deck-card comment failed. Nextcloud log should have details.')
+						this.postWarning = t('integration_suitecrm', 'SuiteCRM Note created, but the Deck-card comment failed. Nextcloud log should have details.')
 					}
-					showSuccess(t('njordium_suitecrm', 'SuiteCRM Note created (Deck comment failed, see the panel above)'))
+					showSuccess(t('integration_suitecrm', 'SuiteCRM Note created (Deck comment failed, see the panel above)'))
 				}
 
 				this.$emit('created', { noteId })
@@ -233,8 +233,8 @@ export default {
 			} catch (err) {
 				const backendError = err?.response?.data?.error
 				const msg = backendError
-					? t('njordium_suitecrm', 'Could not create SuiteCRM Note: {msg}', { msg: backendError })
-					: t('njordium_suitecrm', 'Could not create SuiteCRM Note')
+					? t('integration_suitecrm', 'Could not create SuiteCRM Note: {msg}', { msg: backendError })
+					: t('integration_suitecrm', 'Could not create SuiteCRM Note')
 				showError(msg)
 			} finally {
 				this.submitting = false
@@ -250,9 +250,9 @@ export default {
 			const label = this.targetRecord.module + ' ' + this.targetRecord.id
 			if (this.extraNote.trim() !== '') {
 				const params = { label, note: this.extraNote.trim() }
-				return t('njordium_suitecrm', 'Linked to SuiteCRM {label}, {note}', params)
+				return t('integration_suitecrm', 'Linked to SuiteCRM {label}, {note}', params)
 			}
-			return t('njordium_suitecrm', 'Linked to SuiteCRM {label}', { label })
+			return t('integration_suitecrm', 'Linked to SuiteCRM {label}', { label })
 		},
 	},
 }

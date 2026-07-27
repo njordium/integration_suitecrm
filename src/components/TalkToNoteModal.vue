@@ -1,7 +1,7 @@
 <template>
 	<NcDialog
 		v-if="open"
-		:name="t('njordium_suitecrm', 'Log Talk conversation to SuiteCRM')"
+		:name="t('integration_suitecrm', 'Log Talk conversation to SuiteCRM')"
 		:noClose="submitting"
 		size="normal"
 		@closing="$emit('close')">
@@ -11,23 +11,23 @@
 			</NcNoteCard>
 
 			<label class="talk-to-note-modal__label">
-				{{ t('njordium_suitecrm', 'Talk conversation') }}
+				{{ t('integration_suitecrm', 'Talk conversation') }}
 				<NcSelect
 					v-model="selectedConversation"
 					:options="conversationOptions"
 					:reduce="option => option.value"
 					:loading="loadingConversations"
 					:disabled="submitting"
-					:placeholder="t('njordium_suitecrm', 'Pick a conversation …')" />
+					:placeholder="t('integration_suitecrm', 'Pick a conversation …')" />
 			</label>
 
 			<SuiteCRMRecordPicker
 				v-model="selectedRecord"
-				:label="t('njordium_suitecrm', 'Attach Note to (SuiteCRM record URL)')"
+				:label="t('integration_suitecrm', 'Attach Note to (SuiteCRM record URL)')"
 				:disabled="submitting" />
 
 			<label class="talk-to-note-modal__label">
-				{{ t('njordium_suitecrm', 'How many recent messages to include') }}
+				{{ t('integration_suitecrm', 'How many recent messages to include') }}
 				<NcSelect
 					v-model="messageLimit"
 					:options="messageLimitOptions"
@@ -37,7 +37,7 @@
 			</label>
 
 			<p class="talk-to-note-modal__hint">
-				{{ t('njordium_suitecrm', 'The selected messages become the body of a SuiteCRM Note attached to the record above. System messages (joins, leaves, permission changes) are excluded, only user messages are included.') }}
+				{{ t('integration_suitecrm', 'The selected messages become the body of a SuiteCRM Note attached to the record above. System messages (joins, leaves, permission changes) are excluded, only user messages are included.') }}
 			</p>
 		</div>
 
@@ -46,7 +46,7 @@
 				variant="tertiary"
 				:disabled="submitting"
 				@click="$emit('close')">
-				{{ t('njordium_suitecrm', 'Cancel') }}
+				{{ t('integration_suitecrm', 'Cancel') }}
 			</NcButton>
 			<NcButton
 				variant="primary"
@@ -55,7 +55,7 @@
 				<template v-if="submitting" #icon>
 					<NcLoadingIcon :size="20" />
 				</template>
-				{{ submitting ? t('njordium_suitecrm', 'Creating Note …') : t('njordium_suitecrm', 'Create Note') }}
+				{{ submitting ? t('integration_suitecrm', 'Creating Note …') : t('integration_suitecrm', 'Create Note') }}
 			</NcButton>
 		</template>
 	</NcDialog>
@@ -141,7 +141,7 @@ export default {
 
 		messageLimitOptions() {
 			return MESSAGE_LIMIT_OPTIONS.map((n) => ({
-				label: t('njordium_suitecrm', 'Last {n} messages', { n }),
+				label: t('integration_suitecrm', 'Last {n} messages', { n }),
 				value: n,
 			}))
 		},
@@ -181,9 +181,9 @@ export default {
 				const status = err?.response?.status
 				if (status === 404) {
 					// NC Talk not installed on this instance.
-					this.loadError = t('njordium_suitecrm', 'Nextcloud Talk is not installed on this server, or is not available to your account.')
+					this.loadError = t('integration_suitecrm', 'Nextcloud Talk is not installed on this server, or is not available to your account.')
 				} else {
-					this.loadError = t('njordium_suitecrm', 'Could not load Talk conversations. Check the Nextcloud log for details.')
+					this.loadError = t('integration_suitecrm', 'Could not load Talk conversations. Check the Nextcloud log for details.')
 				}
 				this.conversations = []
 			} finally {
@@ -208,15 +208,15 @@ export default {
 
 		formatTranscript(conversationName, messages) {
 			if (messages.length === 0) {
-				return t('njordium_suitecrm', 'Talk conversation: {name}\n\n(No user messages found in the selected range.)', { name: conversationName })
+				return t('integration_suitecrm', 'Talk conversation: {name}\n\n(No user messages found in the selected range.)', { name: conversationName })
 			}
-			const header = t('njordium_suitecrm', 'Talk conversation: {name}\nMessages: {count}', {
+			const header = t('integration_suitecrm', 'Talk conversation: {name}\nMessages: {count}', {
 				name: conversationName,
 				count: messages.length,
 			})
 			const body = messages.map((m) => {
 				const when = new Date(m.timestamp * 1000).toISOString().replace('T', ' ').slice(0, 16)
-				const who = m.actorDisplayName || m.actorId || t('njordium_suitecrm', 'Unknown speaker')
+				const who = m.actorDisplayName || m.actorId || t('integration_suitecrm', 'Unknown speaker')
 				return '**' + who + '**, ' + when + '\n> ' + (m.message || '').replace(/\n/g, '\n> ')
 			}).join('\n\n')
 			return header + '\n\n' + body
@@ -230,9 +230,9 @@ export default {
 			try {
 				const messages = await this.fetchMessages(this.selectedConversation, this.messageLimit)
 				const description = this.formatTranscript(this.selectedConversationLabel, messages)
-				const name = t('njordium_suitecrm', 'Talk conversation: {name}', { name: this.selectedConversationLabel })
+				const name = t('integration_suitecrm', 'Talk conversation: {name}', { name: this.selectedConversationLabel })
 
-				const url = generateUrl('/apps/njordium_suitecrm/log-note')
+				const url = generateUrl('/apps/integration_suitecrm/log-note')
 				const payload = {
 					targetModule: this.selectedRecord.module,
 					targetId: this.selectedRecord.id,
@@ -241,14 +241,14 @@ export default {
 				}
 				const response = await axios.post(url, payload)
 				const recordId = response?.data?.data?.id ?? null
-				showSuccess(t('njordium_suitecrm', 'Note created in SuiteCRM'))
+				showSuccess(t('integration_suitecrm', 'Note created in SuiteCRM'))
 				this.$emit('created', { id: recordId })
 				this.$emit('close')
 			} catch (err) {
 				const backendError = err?.response?.data?.error
 				const msg = backendError
-					? t('njordium_suitecrm', 'Could not create Note: {msg}', { msg: backendError })
-					: t('njordium_suitecrm', 'Could not create Note in SuiteCRM')
+					? t('integration_suitecrm', 'Could not create Note: {msg}', { msg: backendError })
+					: t('integration_suitecrm', 'Could not create Note in SuiteCRM')
 				showError(msg)
 			} finally {
 				this.submitting = false

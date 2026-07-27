@@ -1,40 +1,40 @@
 <template>
 	<NcDialog
 		v-if="open"
-		:name="t('njordium_suitecrm', 'Convert email to SuiteCRM Case')"
+		:name="t('integration_suitecrm', 'Convert email to SuiteCRM Case')"
 		:noClose="submitting"
 		size="normal"
 		@closing="$emit('close')">
 		<div class="email-to-case-modal">
 			<label class="email-to-case-modal__label">
-				{{ t('njordium_suitecrm', 'Subject') }}
+				{{ t('integration_suitecrm', 'Subject') }}
 				<NcTextField
 					v-model="subject"
-					:placeholder="t('njordium_suitecrm', 'Case name, usually the email subject')"
+					:placeholder="t('integration_suitecrm', 'Case name, usually the email subject')"
 					:disabled="submitting"
 					required />
 			</label>
 
 			<label class="email-to-case-modal__label">
-				{{ t('njordium_suitecrm', 'Email body') }}
+				{{ t('integration_suitecrm', 'Email body') }}
 				<textarea
 					v-model="body"
 					:disabled="submitting"
 					rows="8"
 					class="email-to-case-modal__textarea"
-					:placeholder="t('njordium_suitecrm', 'Paste the full message text …')" />
+					:placeholder="t('integration_suitecrm', 'Paste the full message text …')" />
 			</label>
 
 			<div class="email-to-case-modal__row">
 				<label class="email-to-case-modal__label email-to-case-modal__col">
-					{{ t('njordium_suitecrm', 'Sender name (optional)') }}
+					{{ t('integration_suitecrm', 'Sender name (optional)') }}
 					<NcTextField
 						v-model="senderName"
 						:disabled="submitting" />
 				</label>
 
 				<label class="email-to-case-modal__label email-to-case-modal__col">
-					{{ t('njordium_suitecrm', 'Sender email (optional)') }}
+					{{ t('integration_suitecrm', 'Sender email (optional)') }}
 					<NcTextField
 						v-model="senderEmail"
 						:disabled="submitting" />
@@ -43,7 +43,7 @@
 
 			<div class="email-to-case-modal__row">
 				<label class="email-to-case-modal__label email-to-case-modal__col">
-					{{ t('njordium_suitecrm', 'Email date (optional)') }}
+					{{ t('integration_suitecrm', 'Email date (optional)') }}
 					<input
 						v-model="emailDate"
 						type="date"
@@ -52,7 +52,7 @@
 				</label>
 
 				<label class="email-to-case-modal__label email-to-case-modal__col">
-					{{ t('njordium_suitecrm', 'Priority') }}
+					{{ t('integration_suitecrm', 'Priority') }}
 					<NcSelect
 						v-model="priority"
 						:options="priorityOptions"
@@ -63,7 +63,7 @@
 			</div>
 
 			<p class="email-to-case-modal__hint">
-				{{ t('njordium_suitecrm', 'A SuiteCRM Case is created with the subject as name and the email body as description. The From/Date headers appear at the top of the description only if you supply them, so paste-only submissions stay clean.') }}
+				{{ t('integration_suitecrm', 'A SuiteCRM Case is created with the subject as name and the email body as description. The From/Date headers appear at the top of the description only if you supply them, so paste-only submissions stay clean.') }}
 			</p>
 		</div>
 
@@ -72,7 +72,7 @@
 				variant="tertiary"
 				:disabled="submitting"
 				@click="$emit('close')">
-				{{ t('njordium_suitecrm', 'Cancel') }}
+				{{ t('integration_suitecrm', 'Cancel') }}
 			</NcButton>
 			<NcButton
 				variant="primary"
@@ -81,7 +81,7 @@
 				<template v-if="submitting" #icon>
 					<NcLoadingIcon :size="20" />
 				</template>
-				{{ submitting ? t('njordium_suitecrm', 'Creating Case …') : t('njordium_suitecrm', 'Create Case') }}
+				{{ submitting ? t('integration_suitecrm', 'Creating Case …') : t('integration_suitecrm', 'Create Case') }}
 			</NcButton>
 		</template>
 	</NcDialog>
@@ -147,9 +147,9 @@ export default {
 			priority: 'Medium',
 			submitting: false,
 			priorityOptions: [
-				{ label: t('njordium_suitecrm', 'High'), value: 'High' },
-				{ label: t('njordium_suitecrm', 'Medium'), value: 'Medium' },
-				{ label: t('njordium_suitecrm', 'Low'), value: 'Low' },
+				{ label: t('integration_suitecrm', 'High'), value: 'High' },
+				{ label: t('integration_suitecrm', 'Medium'), value: 'Medium' },
+				{ label: t('integration_suitecrm', 'Low'), value: 'Low' },
 			],
 		}
 	},
@@ -180,7 +180,7 @@ export default {
 			}
 			this.submitting = true
 			try {
-				const url = generateUrl('/apps/njordium_suitecrm/email-to-case')
+				const url = generateUrl('/apps/integration_suitecrm/email-to-case')
 				const payload = {
 					subject: this.subject.trim(),
 					body: this.body,
@@ -191,14 +191,14 @@ export default {
 				}
 				const response = await axios.post(url, payload)
 				const recordId = response?.data?.data?.id ?? null
-				showSuccess(t('njordium_suitecrm', 'SuiteCRM Case created'))
+				showSuccess(t('integration_suitecrm', 'SuiteCRM Case created'))
 				this.$emit('created', { id: recordId })
 				this.$emit('close')
 			} catch (err) {
 				const backendError = err?.response?.data?.error
 				const msg = backendError
-					? t('njordium_suitecrm', 'Could not create Case: {msg}', { msg: backendError })
-					: t('njordium_suitecrm', 'Could not create Case in SuiteCRM')
+					? t('integration_suitecrm', 'Could not create Case: {msg}', { msg: backendError })
+					: t('integration_suitecrm', 'Could not create Case in SuiteCRM')
 				showError(msg)
 			} finally {
 				this.submitting = false

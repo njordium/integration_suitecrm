@@ -7,40 +7,32 @@ namespace OCA\SuiteCRM\Tests\Migration;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Structural regression coverage for the 2.0.0 Migration Repair step
- * {@see \OCA\SuiteCRM\Migration\CopyLegacyAppConfig}.
+ * Structural regression coverage for the 3.0.0 Migration Repair step
+ * {@see \OCA\SuiteCRM\Migration\CopyLegacyAppConfig}, updated for the
+ * app id rename back from `njordium_suitecrm` to `integration_suitecrm`
+ * after Julien's App Store transfer.
  *
- * These are file-content assertions rather than runtime unit tests
- * because the fork's `composer.json` does not pull in `doctrine/dbal`
- * (only the `nextcloud/ocp` interface stubs), and PHPUnit's
- * `createMock(IDBConnection::class)` triggers autoload of
- * `OCP\DB\QueryBuilder\IQueryBuilder`, which resolves a
- * `Doctrine\DBAL\ParameterType` class-level constant at load time,
- * that class is not on the test classpath, so the mock generator dies
- * before the test body runs.
+ * The step is the same class that shipped in 2.0.0, with `LEGACY_APP_ID`
+ * flipped from `integration_suitecrm` (Julien's original) to
+ * `njordium_suitecrm` (the intermediate name used through 2.x). Same
+ * SQL body, opposite source. Tests below assert on the current
+ * (`3.0.0`) direction of the migration; the previous direction is
+ * documented in the git history and in CHANGELOG entries for 2.0.0.
  *
- * File-content assertions are weaker than behaviour tests but catch
- * the highest-value regression classes for a one-shot migration:
- *
- *   - the legacy app id string drifts (would silently skip migration)
- *   - the class stops implementing `IRepairStep` (NC's DI would fail
- *     to register the step)
- *   - `getName()` or `run()` disappears
- *   - the Repair step is dropped from `appinfo/info.xml`, so it
- *     stops running on `occ upgrade`
- *
- * Actual copy semantics, rows are moved, target keys are preserved
- * on collision, empty state is a no-op, are exercised live during
- * the 2.0.0 upgrade smoke test on the test Nextcloud instance. The
- * `occ upgrade` run emits a summary line with concrete row counts
- * that we verify against seeded fixtures on the real database.
+ * File-content assertions rather than runtime unit tests, same reason
+ * as the 2.0.0 version: the fork's `composer.json` does not pull in
+ * `doctrine/dbal` (only the `nextcloud/ocp` interface stubs), so
+ * PHPUnit's `createMock(IDBConnection::class)` would trigger an
+ * unloadable class autoload chain. The high-value invariants (constant
+ * string, `IRepairStep` contract, required methods, info.xml
+ * registration) are all detectable at the source-file level.
  *
  * @Code Changes by: Kim Haverblad, 2026
  */
 class CopyLegacyAppConfigTest extends TestCase {
 
-	private const LEGACY_APP_ID = 'integration_suitecrm';
-	private const NEW_APP_ID = 'njordium_suitecrm';
+	private const LEGACY_APP_ID = 'njordium_suitecrm';
+	private const NEW_APP_ID = 'integration_suitecrm';
 
 	private string $sutPath;
 	private string $infoXmlPath;
@@ -80,16 +72,16 @@ class CopyLegacyAppConfigTest extends TestCase {
 	}
 
 	public function testLegacyAppIdConstantIsCorrect(): void {
-		// If someone edits LEGACY_APP_ID away from 'integration_suitecrm'
-		// the migration silently stops finding any row to copy on
-		// upgraded instances. Guard the exact string.
+		// If someone edits LEGACY_APP_ID away from 'njordium_suitecrm'
+		// the migration silently stops finding any 2.x-era row to copy
+		// on upgraded instances. Guard the exact string.
 		$body = (string)file_get_contents($this->sutPath);
 		$this->assertMatchesRegularExpression(
 			"/const\s+LEGACY_APP_ID\s*=\s*'" . self::LEGACY_APP_ID . "'/",
 			$body,
 			'LEGACY_APP_ID const must be "' . self::LEGACY_APP_ID . '", the '
-			. 'app id used on Julien\'s original App Store record and '
-			. 'every 1.x deployment of this fork.',
+			. 'app id the fork used through the 2.x series before the '
+			. 'canonical id was restored in 3.0.0.',
 		);
 	}
 
@@ -116,15 +108,18 @@ class CopyLegacyAppConfigTest extends TestCase {
 	}
 
 	public function testMigrationDoesNotDeleteLegacyRows(): void {
-		// 2.0.0 leaves legacy rows in place so a rollback to 1.9.x is
-		// trivial. The `->delete()` call is deferred to a follow-up
-		// 2.1.0 repair step once 2.0.0 has been stable in production.
+		// 3.0.0 leaves 2.x rows in place so a rollback to 2.6.0 is
+		// trivial: `occ app:disable integration_suitecrm && occ
+		// app:enable njordium_suitecrm` restores every setting.
+		// Deletion of the njordium_suitecrm rows is deferred to a
+		// follow-up repair step once 3.0.0 has been stable.
 		$body = (string)file_get_contents($this->sutPath);
 		$this->assertStringNotContainsString(
 			'->delete(',
 			$body,
-			'2.0.0 Migration must NOT delete legacy rows, that would '
-			. 'break the rollback path. Deletion is scheduled for 2.1.0.',
+			'3.0.0 Migration must NOT delete legacy rows, that would '
+			. 'break the rollback path. Deletion is scheduled for a '
+			. 'later release once 3.0.0 has been stable in production.',
 		);
 	}
 
@@ -163,7 +158,7 @@ class CopyLegacyAppConfigTest extends TestCase {
 		$this->assertMatchesRegularExpression(
 			'|<id>\s*' . preg_quote(self::NEW_APP_ID, '|') . '\s*</id>|',
 			$infoXml,
-			'appinfo/info.xml <id> must be "' . self::NEW_APP_ID . '" for 2.0.0.',
+			'appinfo/info.xml <id> must be "' . self::NEW_APP_ID . '" for 3.0.0.',
 		);
 	}
 }

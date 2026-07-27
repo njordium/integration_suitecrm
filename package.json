@@ -1,6 +1,6 @@
 {
-	"name": "njordium_suitecrm",
-	"version": "2.6.0",
+	"name": "integration_suitecrm",
+	"version": "3.0.0",
 	"description": "SuiteCRM integration",
 	"main": "index.js",
 	"directories": {

@@ -1,23 +1,23 @@
 <template>
 	<div class="suitecrm-record-picker">
 		<label class="suitecrm-record-picker__label">
-			{{ label || t('njordium_suitecrm', 'SuiteCRM record URL') }}
+			{{ label || t('integration_suitecrm', 'SuiteCRM record URL') }}
 		</label>
 
 		<NcTextField
 			v-model="urlInput"
-			:placeholder="t('njordium_suitecrm', 'Paste a SuiteCRM record URL …')"
+			:placeholder="t('integration_suitecrm', 'Paste a SuiteCRM record URL …')"
 			:disabled="disabled" />
 
 		<p v-if="parsed" class="suitecrm-record-picker__parsed">
 			<CheckCircleIcon :size="16" class="suitecrm-record-picker__icon-ok" />
-			{{ t('njordium_suitecrm', 'Selected') }}:
+			{{ t('integration_suitecrm', 'Selected') }}:
 			<strong>{{ parsed.module }}</strong>
 			<code>{{ parsed.id }}</code>
 		</p>
 		<p v-else-if="urlInput && !parsed" class="suitecrm-record-picker__error">
 			<AlertCircleIcon :size="16" class="suitecrm-record-picker__icon-error" />
-			{{ t('njordium_suitecrm', 'Not a recognised SuiteCRM record URL. Expected a URL containing module= and record= parameters (open a record in SuiteCRM and copy the browser URL).') }}
+			{{ t('integration_suitecrm', 'Not a recognised SuiteCRM record URL. Expected a URL containing module= and record= parameters (open a record in SuiteCRM and copy the browser URL).') }}
 		</p>
 	</div>
 </template>

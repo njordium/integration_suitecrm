@@ -9,7 +9,7 @@
 				<template #action>
 					<div v-if="state === 'no-token' || state === 'error'" class="connect-button">
 						<a class="button" :href="settingsUrl">
-							{{ t('njordium_suitecrm', 'Connect to SuiteCRM') }}
+							{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
 						</a>
 					</div>
 				</template>
@@ -71,7 +71,7 @@ export default {
 			return this.leads.map((l) => ({
 				id: l.id,
 				targetUrl: this.getLeadTarget(l),
-				avatarUrl: imagePath('njordium_suitecrm', 'app.svg'),
+				avatarUrl: imagePath('integration_suitecrm', 'app.svg'),
 				avatarUsername: this.getMainText(l),
 				mainText: this.getMainText(l),
 				subText: this.getSubline(l),
@@ -80,11 +80,11 @@ export default {
 
 		emptyContentMessage() {
 			if (this.state === 'no-token') {
-				return t('njordium_suitecrm', 'No SuiteCRM account connected')
+				return t('integration_suitecrm', 'No SuiteCRM account connected')
 			} else if (this.state === 'error') {
-				return t('njordium_suitecrm', 'Error connecting to SuiteCRM')
+				return t('integration_suitecrm', 'Error connecting to SuiteCRM')
 			} else if (this.state === 'ok') {
-				return t('njordium_suitecrm', 'No recently added SuiteCRM Leads')
+				return t('integration_suitecrm', 'No recently added SuiteCRM Leads')
 			}
 			return ''
 		},
@@ -120,7 +120,7 @@ export default {
 
 		async launchLoop() {
 			try {
-				const response = await axios.get(generateUrl('/apps/njordium_suitecrm/url'))
+				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
 				this.suitecrmUrl = response.data.replace(/\/+$/, '')
 			} catch {
 				// best-effort URL probe
@@ -130,7 +130,7 @@ export default {
 		},
 
 		fetchLeads() {
-			axios.get(generateUrl('/apps/njordium_suitecrm/recent-leads')).then((response) => {
+			axios.get(generateUrl('/apps/integration_suitecrm/recent-leads')).then((response) => {
 				this.leads = response.data
 				this.state = 'ok'
 			}).catch((error) => {
@@ -138,7 +138,7 @@ export default {
 				if (error.response && error.response.status === 400) {
 					this.state = 'no-token'
 				} else if (error.response && error.response.status === 401) {
-					showError(t('njordium_suitecrm', 'Failed to get SuiteCRM Leads'))
+					showError(t('integration_suitecrm', 'Failed to get SuiteCRM Leads'))
 					this.state = 'error'
 				}
 			})
@@ -160,7 +160,7 @@ export default {
 			if (attrs.email1) {
 				return attrs.email1
 			}
-			return t('njordium_suitecrm', '(no name)')
+			return t('integration_suitecrm', '(no name)')
 		},
 
 		getSubline(lead) {

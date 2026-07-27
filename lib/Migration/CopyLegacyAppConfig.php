@@ -17,26 +17,30 @@ use OCP\Migration\IOutput;
 use OCP\Migration\IRepairStep;
 
 /**
- * Copies app config + per-user preferences from the legacy app id
- * `integration_suitecrm` (the fork's pre-2.0 name, also the id under
- * which Julien's original app was published to the Nextcloud App Store)
- * to the new fork-owned id `njordium_suitecrm`.
+ * Copies app config + per-user preferences from the intermediate
+ * `njordium_suitecrm` app id (used through the 2.x series) back to the
+ * canonical `integration_suitecrm` app id.
  *
- * The rename is a 2.0.0 breaking change. Existing 1.9.x deployments
- * carry all their OAuth tokens, admin config (instance URL, client
- * ID/secret, authorize path) and per-user prefs under the old app id.
- * Without this repair step, upgrading to 2.0.0 would strand every
- * admin- and user-side setting: the rows would still be in the
+ * Background: the fork was renamed from `integration_suitecrm` to
+ * `njordium_suitecrm` in 2.0.0 because Julien's original App Store
+ * record was stale and blocking updates. In July 2026 Julien
+ * transferred ownership of the original record to this fork, so 3.0.0
+ * renames the app id back to `integration_suitecrm`. See #1114 on
+ * nextcloud/app-certificate-requests for the transfer and
+ * docs/upgrade-2.x-to-3.0.md for the user-facing guide.
+ *
+ * Any deployment on the 2.x series carries all OAuth tokens, admin
+ * config (instance URL, client ID/secret, authorize path) and per-user
+ * prefs under `njordium_suitecrm`. Without this repair step, upgrading
+ * to 3.0.0 would strand every setting: the rows would still be in the
  * database, but the running app code would look them up under the new
- * app id and see nothing.
+ * (well, restored) app id and see nothing.
  *
- * This step is idempotent by design. If a target row already exists
- * under the new app id (either from a fresh 2.0.0 install or a re-run
- * of `occ upgrade`), the legacy row is skipped, not overwritten.
- * Legacy rows are NOT deleted here; that is deferred to a follow-up
- * 2.1.0 repair step so 2.0.0 → 1.9.x rollback stays trivial: an admin
- * can `occ app:disable njordium_suitecrm && occ app:enable
- * integration_suitecrm` and every setting is back where it was.
+ * Idempotent by design. If a target row already exists under
+ * `integration_suitecrm` (fresh 3.0.0 install, re-run of
+ * `occ upgrade`, or a 1.9.x deployment whose rows never moved to
+ * `njordium_suitecrm`), the legacy row is skipped, not overwritten.
+ * Legacy rows are not deleted so rollback stays trivial.
  *
  * Registered under `<repair-steps><post-migration>` in appinfo/info.xml
  * so it runs on every `occ upgrade` invocation after the schema
@@ -45,7 +49,7 @@ use OCP\Migration\IRepairStep;
  */
 class CopyLegacyAppConfig implements IRepairStep {
 
-	private const LEGACY_APP_ID = 'integration_suitecrm';
+	private const LEGACY_APP_ID = 'njordium_suitecrm';
 
 	public function __construct(
 		private IDBConnection $db,
