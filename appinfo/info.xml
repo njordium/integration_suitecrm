@@ -3,11 +3,35 @@
       xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
 	<id>integration_suitecrm</id>
 	<name>SuiteCRM integration</name>
-	<summary>Integration of SuiteCRM 8.x Customer Relationship Management application</summary>
-	<description><![CDATA[SuiteCRM 8.x integration provides a dashboard widget displaying your important notifications,
-	a search provider for content and notifications for activity in SuiteCRM 8.x.
-	SuiteCRM 7.x is no longer supported.]]></description>
-	<version>3.0.0</version>
+	<summary>Dashboard widgets, search and notifications for SuiteCRM 8.x inside Nextcloud. Calls, Meetings, Tasks, Cases, Opportunities, Activities, Contacts, Accounts and Leads.</summary>
+	<description><![CDATA[Bring SuiteCRM into your Nextcloud dashboard, search bar and notifications area. Signs in once with OAuth2 against a SuiteCRM 8.x instance and then keeps the two systems talking in the background.
+
+## Dashboard widgets
+
+Nine widgets, grouped by intent so the dashboard reads like your day rather than a list of modules.
+
+**Schedule.** SuiteCRM Calendar (upcoming Calls and Meetings, with an optional per-user toggle for open Tasks) and SuiteCRM Tasks (open Tasks assigned to you, sorted by due date).
+
+**Workload.** SuiteCRM Cases (open Cases, filtered by SuiteCRM role ACL) and SuiteCRM Pipeline (open Opportunities grouped by sales stage with weighted amounts).
+
+**Activity.** SuiteCRM Activities (recent Calls, Meetings, Tasks and Notes across modules, sorted by date_modified so "recent" means "recently touched").
+
+**Discovery.** SuiteCRM Contacts, SuiteCRM Accounts and SuiteCRM Leads (recently added records within your ACL, sorted date_entered DESC).
+
+**Quick Actions.** A floating action button on any Nextcloud page for creating a Call, Meeting, Task, Note or Contact without leaving the current view. Toggleable per user.
+
+## Search and notifications
+
+Full-text search across Accounts, Contacts, Opportunities, Cases, Leads, Calls, Meetings, Tasks and Notes, surfaced through Nextcloud's unified search. Background job polls SuiteCRM alerts and pushes them into your Nextcloud notifications area.
+
+## Requirements
+
+SuiteCRM 8.10.x or later with the v8 REST/JSON:API enabled. SuiteCRM 7.x is no longer supported.
+
+## Upgrading from 2.x
+
+The 3.0.0 release restored the original `integration_suitecrm` app id after the App Store record transfer. A repair step copies admin config and per-user OAuth tokens forward from the 2.x `njordium_suitecrm` install automatically on `occ upgrade`. See `docs/upgrade-2.x-to-3.0.md` in the repository for the manual rollback path if needed.]]></description>
+	<version>3.0.1</version>
 	<licence>AGPL-3.0-or-later</licence>
 	<author>Julien Veyssier</author>
 	<author homepage="https://njordium.com">Kim Haverblad</author>
@@ -20,7 +44,19 @@
 	<website>https://github.com/njordium/integration_suitecrm</website>
 	<bugs>https://github.com/njordium/integration_suitecrm/issues</bugs>
 	<repository type="git">https://github.com/njordium/integration_suitecrm</repository>
-	<screenshot>https://github.com/njordium/integration_suitecrm/raw/master/img/screenshot1.jpg</screenshot>
+	<!--
+		Screenshots are pulled by the App Store from the raw GitHub URL at
+		release time. Add one <screenshot> element per image, in the order
+		you want them to appear in the store gallery (the first one is the
+		hero shot on the listing card). Optional `small-thumbnail` gives
+		the App Store a lighter image for card previews.
+
+		To add more shots: drop the PNG in `img/`, commit it to master,
+		and add a <screenshot> line here. On the next release the App
+		Store fetches it. No cache-buster needed, the store re-reads on
+		every release upload.
+	-->
+	<screenshot small-thumbnail="https://raw.githubusercontent.com/njordium/integration_suitecrm/master/img/screenshot.png">https://raw.githubusercontent.com/njordium/integration_suitecrm/master/img/screenshot.png</screenshot>
 	<dependencies>
 		<php min-version="8.2"/>
 		<nextcloud min-version="30" max-version="34"/>

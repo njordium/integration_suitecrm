@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 3.0.1 – 2026-07-29
+
+App Store metadata refresh. No functional changes to the app itself; ship this to update the description, summary and screenshot references that appear on `apps.nextcloud.com/apps/integration_suitecrm`. The store re-parses `appinfo/info.xml` on every release upload, so a metadata-only patch is the standard path to update the public listing.
+
+### Changed
+
+- **`appinfo/info.xml` `<summary>`** rewritten from the generic "Integration of SuiteCRM 8.x" placeholder inherited from Julien's 1.x line to a widget-aware one-liner that names the nine modules the app surfaces.
+- **`appinfo/info.xml` `<description>`** rewritten as a Markdown block grouped by intent (Schedule, Workload, Activity, Discovery, Quick Actions), matching the README's structure. Adds the search / notifications paragraph, the SuiteCRM 8.10.x requirement note, and the 2.x-to-3.0.0 upgrade pointer.
+- **`appinfo/info.xml` `<screenshot>`** URL corrected from the never-existed `img/screenshot1.jpg` (a Julien-era placeholder) to the actual `img/screenshot.png` file in the repo. Now includes an inline comment documenting the multi-screenshot pattern so future screenshots can be added by dropping a PNG in `img/` and adding one `<screenshot>` line per image.
+
+### Notes for maintainers
+
+To update the App Store listing text or screenshots in future, edit `appinfo/info.xml`, bump `<version>` and `package.json`, tag, and upload the resulting tarball at `apps.nextcloud.com/developer/apps/releases/new`. There is no separate "edit description" form on the App Store; the store reads whatever ships inside the tarball at upload time.
+
 ## 3.0.0 – 2026-07-27
 
 Renames the Nextcloud app id from `njordium_suitecrm` back to `integration_suitecrm`. This is the only breaking change in the release. Every setting on your existing 2.x install, admin OAuth config (instance URL, client ID/secret, authorize path), every per-user OAuth token, every widget preference (`pipeline_mode`, `quick_actions_enabled`, `calendar_show_tasks`) carries across automatically via a Repair step that runs on `occ upgrade`. Users do not need to re-authorise SuiteCRM.
