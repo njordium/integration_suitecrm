@@ -6,6 +6,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 3.0.2 – 2026-07-29
+
+App Store metadata refresh, take two. The 3.0.1 upload was rejected by the App Store validator with `Element 'summary': [facet 'maxLength'] The value has a length of '166'; this exceeds the allowed maximum length of '128'.`, so this release trims `<summary>` under the 128-character cap while keeping the widget-count and coverage cue that made the new listing useful in the first place.
+
+### Changed
+
+- **`appinfo/info.xml` `<summary>`** shortened from 166 to 117 characters to satisfy the App Store's `apps/info.xsd` `maxLength` facet on `<summary>`. New form drops the module enumeration and keeps the "nine widgets" specificity: "Nine dashboard widgets, unified search and notifications for SuiteCRM 8.x. Calendar, tasks, cases, pipeline and more." The full nine-widget breakdown is still in `<description>`, which the schema does not cap.
+
+### Notes for maintainers
+
+The `apps/info.xsd` caps to remember when editing the top of `appinfo/info.xml`:
+- `<name>` max 40 characters
+- `<summary>` max 128 characters
+- `<description>` no practical cap (Markdown-friendly, use it for the full pitch)
+
+Add a `wc -c` check on the summary line to `release-nc-app.sh` phase 1 to catch this locally next time.
+
 ## 3.0.1 – 2026-07-29
 
 App Store metadata refresh. No functional changes to the app itself; ship this to update the description, summary and screenshot references that appear on `apps.nextcloud.com/apps/integration_suitecrm`. The store re-parses `appinfo/info.xml` on every release upload, so a metadata-only patch is the standard path to update the public listing.
