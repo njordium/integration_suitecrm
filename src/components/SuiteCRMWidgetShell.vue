@@ -30,7 +30,8 @@
 			{{ error }}
 		</div>
 		<div v-else-if="!hasItems" class="scw-status">
-			{{ emptyText }}
+			<CheckCircleOutlineIcon :size="40" class="scw-status__icon" />
+			<span>{{ emptyText }}</span>
 		</div>
 		<template v-else>
 			<slot />
@@ -116,6 +117,7 @@ import NcActions from '@nextcloud/vue/components/NcActions'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcModal from '@nextcloud/vue/components/NcModal'
+import CheckCircleOutlineIcon from 'vue-material-design-icons/CheckCircleOutline.vue'
 import CogIcon from 'vue-material-design-icons/Cog.vue'
 import ContentSaveIcon from 'vue-material-design-icons/ContentSave.vue'
 import OpenInNewIcon from 'vue-material-design-icons/OpenInNew.vue'
@@ -131,6 +133,7 @@ export default {
 		NcButton,
 		NcLoadingIcon,
 		NcModal,
+		CheckCircleOutlineIcon,
 		CogIcon,
 		ContentSaveIcon,
 		OpenInNewIcon,
@@ -237,6 +240,10 @@ export default {
 	padding: 24px 4px;
 	color: var(--color-text-maxcontrast);
 	text-align: center;
+}
+
+.scw-status__icon {
+	opacity: 0.5;
 }
 
 .scw-error { color: var(--color-error); }
