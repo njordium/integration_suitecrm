@@ -209,7 +209,9 @@ export default {
 				return loc ? `${label} · ${loc}` : label
 			}
 			if (e.type === 'call') {
-				return `📞 ${label}`
+				// Row-level PhoneOutlineIcon already signals the type;
+				// the leading 📞 in the subline was redundant.
+				return label
 			}
 			if (e.type === 'task') {
 				const prio = e.attributes?.priority
