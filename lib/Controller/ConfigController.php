@@ -76,6 +76,15 @@ class ConfigController extends Controller {
                 'contacts_refresh_seconds',
                 'accounts_refresh_seconds',
                 'leads_refresh_seconds',
+                // "Only records assigned to me" toggle per widget. Only the
+                // "recently added" widgets expose this: the others already
+                // filter to the current user's SuiteCRM assigned_user_id
+                // unconditionally. Stored as '1'/'0'; default on missing
+                // row is '0' (show everyone's recently added records).
+                'activities_only_mine',
+                'contacts_only_mine',
+                'accounts_only_mine',
+                'leads_only_mine',
         ];
 
         /**
@@ -138,6 +147,10 @@ class ConfigController extends Controller {
                         $raw = $this->config->getUserValue($this->userId, Application::APP_ID, $key, (string)$default);
                         return ctype_digit($raw) ? (int)$raw : $default;
                 };
+                $boolKey = function (string $key, bool $default): bool {
+                        $raw = $this->config->getUserValue($this->userId, Application::APP_ID, $key, $default ? '1' : '0');
+                        return $raw === '1';
+                };
                 return new DataResponse([
                         'events_refresh_seconds' => $intKey('events_refresh_seconds', 300),
                         'calendar_refresh_seconds' => $intKey('calendar_refresh_seconds', 300),
@@ -148,6 +161,10 @@ class ConfigController extends Controller {
                         'contacts_refresh_seconds' => $intKey('contacts_refresh_seconds', 300),
                         'accounts_refresh_seconds' => $intKey('accounts_refresh_seconds', 300),
                         'leads_refresh_seconds' => $intKey('leads_refresh_seconds', 300),
+                        'activities_only_mine' => $boolKey('activities_only_mine', false),
+                        'contacts_only_mine' => $boolKey('contacts_only_mine', false),
+                        'accounts_only_mine' => $boolKey('accounts_only_mine', false),
+                        'leads_only_mine' => $boolKey('leads_only_mine', false),
                         'calendar_show_tasks' => $this->config->getUserValue(
                                 $this->userId, Application::APP_ID, 'calendar_show_tasks', '1',
                         ) !== '0',

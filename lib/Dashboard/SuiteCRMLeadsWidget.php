@@ -41,7 +41,7 @@ use OCA\SuiteCRM\Service\TokenStorage;
  * ("New / Web") from an already-worked cold call ("In Process /
  * Cold Call") at a glance without opening the record.
  */
-class SuiteCRMLeadsWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWidget {
+class SuiteCRMLeadsWidget implements IWidget, IIconWidget {
 
 	public function __construct(
 		private IL10N $l10n,

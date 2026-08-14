@@ -52,6 +52,16 @@
 					<h4>{{ t('integration_suitecrm', 'Refresh frequency') }}</h4>
 					<RefreshIntervalPicker v-model="draftRefreshSeconds" />
 				</section>
+				<section v-if="showOnlyMineToggle" class="scw-modal__section">
+					<h4>{{ t('integration_suitecrm', 'Show') }}</h4>
+					<label class="scw-toggle">
+						<input
+							type="checkbox"
+							:checked="draftOnlyMine"
+							@change="draftOnlyMine = $event.target.checked">
+						<span>{{ onlyMineLabel }}</span>
+					</label>
+				</section>
 				<slot
 					name="settings"
 					:draft="draftExtras"
@@ -142,6 +152,18 @@ export default {
 		// Rendered via the `settings` slot; snapshotted into the modal draft on
 		// open so cancelling does not persist mid-edit values.
 		extras: { type: Object, default: () => ({}) },
+		// "Only records assigned to me" toggle. Opted into by widgets whose
+		// backing endpoint accepts an `only_mine` filter (Contacts, Accounts,
+		// Leads, Activities — the "recently added" widgets). Widgets that
+		// already always filter to the current user (Cases, Tasks, Pipeline,
+		// Calendar, Events) do not surface this toggle; adding a "show all"
+		// inverse there is a separate feature.
+		showOnlyMineToggle: { type: Boolean, default: false },
+		onlyMine: { type: Boolean, default: false },
+		onlyMineLabel: {
+			type: String,
+			default: () => t('integration_suitecrm', 'Only records assigned to me'),
+		},
 	},
 
 	emits: ['refresh', 'save'],
@@ -150,6 +172,7 @@ export default {
 		return {
 			showSettings: false,
 			draftRefreshSeconds: 300,
+			draftOnlyMine: false,
 			draftExtras: {},
 			settingsUrl: generateUrl('/settings/user/connected-accounts'),
 		}
@@ -158,6 +181,7 @@ export default {
 	methods: {
 		openSettings() {
 			this.draftRefreshSeconds = this.refreshSeconds
+			this.draftOnlyMine = this.onlyMine
 			// Deep-copy so the modal edits don't leak into the parent
 			// widget's committed state until Save fires.
 			this.draftExtras = JSON.parse(JSON.stringify(this.extras || {}))
@@ -175,6 +199,7 @@ export default {
 		onSave() {
 			this.$emit('save', {
 				refreshSeconds: this.draftRefreshSeconds,
+				onlyMine: this.draftOnlyMine,
 				extras: this.draftExtras,
 				close: () => { this.showSettings = false },
 			})
@@ -247,5 +272,18 @@ export default {
 	h4 { margin: 0 0 8px; font-size: 14px; }
 	&__section { display: flex; flex-direction: column; gap: 8px; }
 	&__actions { display: flex; justify-content: flex-end; gap: 8px; }
+}
+
+.scw-toggle {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 0;
+	cursor: pointer;
+
+	input[type="checkbox"] {
+		margin: 0;
+		flex-shrink: 0;
+	}
 }
 </style>

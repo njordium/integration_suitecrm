@@ -8,6 +8,8 @@
 		:showMoreUrl="showMoreUrl"
 		:settingsTitle="t('integration_suitecrm', 'SuiteCRM: Contacts — settings')"
 		:refreshSeconds="refreshSeconds"
+		:showOnlyMineToggle="true"
+		:onlyMine="onlyMine"
 		:saving="saving"
 		@refresh="fetchContacts"
 		@save="onSaveSettings">
@@ -58,6 +60,7 @@ export default {
 			contacts: [],
 			state: 'loading',
 			refreshSeconds: 300,
+			onlyMine: false,
 			saving: false,
 		}
 	},
@@ -82,6 +85,9 @@ export default {
 					this.refreshSeconds = seconds
 					this.autoRefresh.setIntervalMs(seconds * 1000)
 				}
+				if (typeof response.data?.contacts_only_mine === 'boolean') {
+					this.onlyMine = response.data.contacts_only_mine
+				}
 			} catch {
 				// best-effort — widget still functions at defaults
 			}
@@ -97,7 +103,8 @@ export default {
 		},
 
 		fetchContacts() {
-			axios.get(generateUrl('/apps/integration_suitecrm/recent-contacts')).then((response) => {
+			const url = generateUrl('/apps/integration_suitecrm/recent-contacts?onlyMine={m}', { m: this.onlyMine ? '1' : '0' })
+			axios.get(url).then((response) => {
 				this.contacts = response.data
 				this.state = 'ok'
 			}).catch((error) => {
@@ -110,14 +117,21 @@ export default {
 			})
 		},
 
-		async onSaveSettings({ refreshSeconds, close }) {
+		async onSaveSettings({ refreshSeconds, onlyMine, close }) {
 			this.saving = true
 			try {
 				await axios.put(generateUrl('/apps/integration_suitecrm/config'), {
-					values: { contacts_refresh_seconds: String(refreshSeconds) },
+					values: {
+						contacts_refresh_seconds: String(refreshSeconds),
+						contacts_only_mine: onlyMine ? '1' : '0',
+					},
 				})
 				this.refreshSeconds = refreshSeconds
 				this.autoRefresh.setIntervalMs(refreshSeconds * 1000)
+				if (onlyMine !== this.onlyMine) {
+					this.onlyMine = onlyMine
+					this.fetchContacts()
+				}
 				close()
 				showSuccess(t('integration_suitecrm', 'Widget settings saved.'))
 			} catch {

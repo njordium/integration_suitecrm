@@ -41,7 +41,7 @@ use OCA\SuiteCRM\Service\TokenStorage;
  * "who's newly in the CRM" Contacts widget, matching the mental
  * hierarchy of daily-glance material.
  */
-class SuiteCRMActivitiesWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWidget {
+class SuiteCRMActivitiesWidget implements IWidget, IIconWidget {
 
 	public function __construct(
 		private IL10N $l10n,

@@ -45,7 +45,7 @@ use OCA\SuiteCRM\Service\TokenStorage;
  * "My open Tasks" and "My pipeline" widgets so it pays to keep the
  * pattern strictly parallel here.
  */
-class SuiteCRMCasesWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWidget {
+class SuiteCRMCasesWidget implements IWidget, IIconWidget {
 
 	public function __construct(
 		private IL10N $l10n,

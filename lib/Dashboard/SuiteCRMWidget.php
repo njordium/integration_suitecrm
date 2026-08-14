@@ -43,7 +43,7 @@ use OCA\SuiteCRM\Service\TokenStorage;
  * connect. V1's getItems() is kept unchanged so any older NC that only
  * knows about V1 still gets the item list.
  */
-class SuiteCRMWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWidget {
+class SuiteCRMWidget implements IWidget, IIconWidget {
 
 	public function __construct(
 		private IL10N $l10n,

@@ -39,7 +39,7 @@ use OCA\SuiteCRM\Service\TokenStorage;
  * discovery-oriented, so it sits after the workload/schedule/activity
  * cluster.
  */
-class SuiteCRMContactsWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWidget {
+class SuiteCRMContactsWidget implements IWidget, IIconWidget {
 
 	public function __construct(
 		private IL10N $l10n,

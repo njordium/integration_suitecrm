@@ -43,7 +43,7 @@ use OCA\SuiteCRM\Service\TokenStorage;
  * stack, since pipeline value tends to be a strategic morning check
  * rather than an operational one.
  */
-class SuiteCRMPipelineWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWidget {
+class SuiteCRMPipelineWidget implements IWidget, IIconWidget {
 
 	public function __construct(
 		private IL10N $l10n,

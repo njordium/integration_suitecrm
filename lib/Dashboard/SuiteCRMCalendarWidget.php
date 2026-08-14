@@ -43,7 +43,7 @@ use OCA\SuiteCRM\Service\TokenStorage;
  * placeholder. See the companion note on {@see SuiteCRMWidget} for the
  * fallback reasoning.
  */
-class SuiteCRMCalendarWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWidget {
+class SuiteCRMCalendarWidget implements IWidget, IIconWidget {
 
 	/**
 	 * Default horizon (in days) for upcoming events. Matches the historical

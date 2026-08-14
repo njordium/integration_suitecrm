@@ -40,7 +40,7 @@ use OCA\SuiteCRM\Service\TokenStorage;
  * scanning down sees Cases (external escalations) before Tasks
  * (internal workload).
  */
-class SuiteCRMTasksWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWidget {
+class SuiteCRMTasksWidget implements IWidget, IIconWidget {
 
 	public function __construct(
 		private IL10N $l10n,

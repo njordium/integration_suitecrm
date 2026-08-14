@@ -252,12 +252,12 @@ class SuiteCRMAPIController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/recent-activities')]
-	public function getRecentActivities(int $limit = 20): DataResponse {
+	public function getRecentActivities(int $limit = 20, bool $onlyMine = false): DataResponse {
 		if ($this->accessToken === '' || $this->userId === null) {
 			return new DataResponse('', 400);
 		}
 		$result = $this->suitecrmAPIService->getRecentActivities(
-			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit
+			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit, 30, $onlyMine
 		);
 		if (!isset($result['error'])) {
 			return new DataResponse($result);
@@ -277,12 +277,12 @@ class SuiteCRMAPIController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/recent-contacts')]
-	public function getRecentContacts(int $limit = 20): DataResponse {
+	public function getRecentContacts(int $limit = 20, bool $onlyMine = false): DataResponse {
 		if ($this->accessToken === '' || $this->userId === null) {
 			return new DataResponse('', 400);
 		}
 		$result = $this->suitecrmAPIService->getRecentContacts(
-			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit
+			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit, 90, $onlyMine
 		);
 		if (!isset($result['error'])) {
 			return new DataResponse($result);
@@ -296,12 +296,12 @@ class SuiteCRMAPIController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/recent-accounts')]
-	public function getRecentAccounts(int $limit = 20): DataResponse {
+	public function getRecentAccounts(int $limit = 20, bool $onlyMine = false): DataResponse {
 		if ($this->accessToken === '' || $this->userId === null) {
 			return new DataResponse('', 400);
 		}
 		$result = $this->suitecrmAPIService->getRecentAccounts(
-			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit
+			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit, 90, $onlyMine
 		);
 		if (!isset($result['error'])) {
 			return new DataResponse($result);
@@ -315,12 +315,12 @@ class SuiteCRMAPIController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/recent-leads')]
-	public function getRecentLeads(int $limit = 20): DataResponse {
+	public function getRecentLeads(int $limit = 20, bool $onlyMine = false): DataResponse {
 		if ($this->accessToken === '' || $this->userId === null) {
 			return new DataResponse('', 400);
 		}
 		$result = $this->suitecrmAPIService->getRecentLeads(
-			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit
+			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit, 90, $onlyMine
 		);
 		if (!isset($result['error'])) {
 			return new DataResponse($result);

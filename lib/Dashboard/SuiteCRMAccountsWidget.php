@@ -35,7 +35,7 @@ use OCA\SuiteCRM\Service\TokenStorage;
  * at 70, Leads at 90). Users enable exactly the discovery cuts they
  * care about.
  */
-class SuiteCRMAccountsWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWidget {
+class SuiteCRMAccountsWidget implements IWidget, IIconWidget {
 
 	public function __construct(
 		private IL10N $l10n,

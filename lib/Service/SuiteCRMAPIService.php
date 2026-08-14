@@ -894,9 +894,17 @@ class SuiteCRMAPIService {
 	 *               module (the calendar widget uses the same fail-fast
 	 *               strategy, {@see getUpcoming()}).
 	 */
-	public function getRecentActivities(string $url, string $accessToken, string $userId, int $limit = 20, int $lookbackDays = 30): array {
+	public function getRecentActivities(string $url, string $accessToken, string $userId, int $limit = 20, int $lookbackDays = 30, bool $onlyMine = false): array {
 		$now = new DateTime();
 		$lookback = (clone $now)->sub(new DateInterval('P' . $lookbackDays . 'D'));
+		// When the widget's "Only records assigned to me" toggle is on
+		// (see SuiteCRMWidgetShell), scope the query to the caller's
+		// SuiteCRM user via the assigned_user_id filter. Empty user_id
+		// pref (never linked) silently disables the filter — better
+		// than an empty result set the user cannot troubleshoot.
+		$scrmUserId = $onlyMine
+			? (string) $this->config->getUserValue($userId, Application::APP_ID, 'user_id')
+			: '';
 
 		$combined = [];
 		foreach (self::ACTIVITY_MODULES as $moduleDef) {
@@ -905,6 +913,9 @@ class SuiteCRMAPIService {
 				urlencode('filter[' . $moduleDef['date_attr'] . '][gt]') . '=' . urlencode($lookback->format('Y-m-d\TH:i:s')),
 				'filter[operator]=and',
 			];
+			if ($scrmUserId !== '') {
+				$filters[] = urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId);
+			}
 			$response = $this->request(
 				$url, $accessToken, $userId,
 				'module/' . $moduleDef['module'] . '?' . implode('&', $filters)
@@ -950,15 +961,21 @@ class SuiteCRMAPIService {
 	 *               and `entered_ts` (int Unix timestamp). On upstream
 	 *               API failure, returns the SuiteCRM error payload.
 	 */
-	public function getRecentContacts(string $url, string $accessToken, string $userId, int $limit = 20, int $lookbackDays = 90): array {
+	public function getRecentContacts(string $url, string $accessToken, string $userId, int $limit = 20, int $lookbackDays = 90, bool $onlyMine = false): array {
 		$now = new DateTime();
 		$lookback = (clone $now)->sub(new DateInterval('P' . $lookbackDays . 'D'));
+		$scrmUserId = $onlyMine
+			? (string) $this->config->getUserValue($userId, Application::APP_ID, 'user_id')
+			: '';
 
 		$filters = [
 			'fields[Contacts]=first_name,last_name,account_name,phone_work,email1,date_entered,assigned_user_name',
 			urlencode('filter[date_entered][gt]') . '=' . urlencode($lookback->format('Y-m-d\TH:i:s')),
 			'filter[operator]=and',
 		];
+		if ($scrmUserId !== '') {
+			$filters[] = urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId);
+		}
 		$response = $this->request(
 			$url, $accessToken, $userId,
 			'module/Contacts?' . implode('&', $filters)
@@ -998,15 +1015,21 @@ class SuiteCRMAPIService {
 	 *               and `entered_ts` (int Unix timestamp). On upstream
 	 *               API failure, returns the SuiteCRM error payload.
 	 */
-	public function getRecentAccounts(string $url, string $accessToken, string $userId, int $limit = 20, int $lookbackDays = 90): array {
+	public function getRecentAccounts(string $url, string $accessToken, string $userId, int $limit = 20, int $lookbackDays = 90, bool $onlyMine = false): array {
 		$now = new DateTime();
 		$lookback = (clone $now)->sub(new DateInterval('P' . $lookbackDays . 'D'));
+		$scrmUserId = $onlyMine
+			? (string) $this->config->getUserValue($userId, Application::APP_ID, 'user_id')
+			: '';
 
 		$filters = [
 			'fields[Accounts]=name,industry,phone_office,website,date_entered,assigned_user_name',
 			urlencode('filter[date_entered][gt]') . '=' . urlencode($lookback->format('Y-m-d\TH:i:s')),
 			'filter[operator]=and',
 		];
+		if ($scrmUserId !== '') {
+			$filters[] = urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId);
+		}
 		$response = $this->request(
 			$url, $accessToken, $userId,
 			'module/Accounts?' . implode('&', $filters)
@@ -1052,15 +1075,21 @@ class SuiteCRMAPIService {
 	 *               and `entered_ts` (int Unix timestamp). On upstream
 	 *               API failure, returns the SuiteCRM error payload.
 	 */
-	public function getRecentLeads(string $url, string $accessToken, string $userId, int $limit = 20, int $lookbackDays = 90): array {
+	public function getRecentLeads(string $url, string $accessToken, string $userId, int $limit = 20, int $lookbackDays = 90, bool $onlyMine = false): array {
 		$now = new DateTime();
 		$lookback = (clone $now)->sub(new DateInterval('P' . $lookbackDays . 'D'));
+		$scrmUserId = $onlyMine
+			? (string) $this->config->getUserValue($userId, Application::APP_ID, 'user_id')
+			: '';
 
 		$filters = [
 			'fields[Leads]=first_name,last_name,account_name,phone_work,email1,lead_source,status,date_entered,assigned_user_name',
 			urlencode('filter[date_entered][gt]') . '=' . urlencode($lookback->format('Y-m-d\TH:i:s')),
 			'filter[operator]=and',
 		];
+		if ($scrmUserId !== '') {
+			$filters[] = urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId);
+		}
 		$response = $this->request(
 			$url, $accessToken, $userId,
 			'module/Leads?' . implode('&', $filters)
