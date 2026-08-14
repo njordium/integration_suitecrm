@@ -1,4 +1,8 @@
-js/
+# js/ is committed on release commits so `git checkout v<tag>` on a
+# deploy host (docksrv-int and friends) yields a ready-to-serve app
+# without needing node/npm on the host. Same convention as the sibling
+# integration_forgejo_gitea app. Regenerate with `npm run build`
+# before any commit tagged for release.
 .code-workspace
 .DS_Store
 .idea/
