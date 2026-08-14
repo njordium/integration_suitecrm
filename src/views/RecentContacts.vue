@@ -13,6 +13,7 @@
 		@save="onSaveSettings">
 		<ul class="scw-list">
 			<li v-for="c in contacts" :key="c.id" class="scw-item">
+				<span class="scw-item__icon"><AccountOutlineIcon :size="18" /></span>
 				<a
 					:href="getContactTarget(c)"
 					target="_blank"
@@ -35,13 +36,14 @@ import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import moment from '@nextcloud/moment'
 import { generateUrl } from '@nextcloud/router'
+import AccountOutlineIcon from 'vue-material-design-icons/AccountOutline.vue'
 import SuiteCRMWidgetShell from '../components/SuiteCRMWidgetShell.vue'
 import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 export default {
 	name: 'SuiteCRMContacts',
 
-	components: { SuiteCRMWidgetShell },
+	components: { SuiteCRMWidgetShell, AccountOutlineIcon },
 
 	setup() {
 		const bridge = { fetchLater: () => null }

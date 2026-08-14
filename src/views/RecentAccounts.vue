@@ -13,6 +13,7 @@
 		@save="onSaveSettings">
 		<ul class="scw-list">
 			<li v-for="a in accounts" :key="a.id" class="scw-item">
+				<span class="scw-item__icon"><OfficeBuildingIcon :size="18" /></span>
 				<a
 					:href="getAccountTarget(a)"
 					target="_blank"
@@ -35,13 +36,14 @@ import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import moment from '@nextcloud/moment'
 import { generateUrl } from '@nextcloud/router'
+import OfficeBuildingIcon from 'vue-material-design-icons/OfficeBuilding.vue'
 import SuiteCRMWidgetShell from '../components/SuiteCRMWidgetShell.vue'
 import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 export default {
 	name: 'SuiteCRMAccounts',
 
-	components: { SuiteCRMWidgetShell },
+	components: { SuiteCRMWidgetShell, OfficeBuildingIcon },
 
 	setup() {
 		const bridge = { fetchLater: () => null }

@@ -31,6 +31,7 @@
 
 		<ul class="scw-list">
 			<li v-for="opp in opportunities" :key="opp.id" class="scw-item">
+				<span class="scw-item__icon"><TrendingUpIcon :size="18" /></span>
 				<a
 					:href="getOpportunityTarget(opp)"
 					target="_blank"
@@ -63,13 +64,14 @@
 import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { generateUrl } from '@nextcloud/router'
+import TrendingUpIcon from 'vue-material-design-icons/TrendingUp.vue'
 import SuiteCRMWidgetShell from '../components/SuiteCRMWidgetShell.vue'
 import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 export default {
 	name: 'SuiteCRMPipeline',
 
-	components: { SuiteCRMWidgetShell },
+	components: { SuiteCRMWidgetShell, TrendingUpIcon },
 
 	setup() {
 		const bridge = { fetchLater: () => null }

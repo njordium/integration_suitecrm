@@ -13,6 +13,7 @@
 		@save="onSaveSettings">
 		<ul class="scw-list">
 			<li v-for="task in tasks" :key="task.id" class="scw-item">
+				<span class="scw-item__icon"><FormatListChecksIcon :size="18" /></span>
 				<a
 					:href="getTaskTarget(task)"
 					target="_blank"
@@ -40,13 +41,14 @@ import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import moment from '@nextcloud/moment'
 import { generateUrl } from '@nextcloud/router'
+import FormatListChecksIcon from 'vue-material-design-icons/FormatListChecks.vue'
 import SuiteCRMWidgetShell from '../components/SuiteCRMWidgetShell.vue'
 import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 export default {
 	name: 'SuiteCRMTasks',
 
-	components: { SuiteCRMWidgetShell },
+	components: { SuiteCRMWidgetShell, FormatListChecksIcon },
 
 	setup() {
 		const bridge = { fetchLater: () => null }

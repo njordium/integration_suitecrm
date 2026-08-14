@@ -13,6 +13,9 @@
 		@save="onSaveSettings">
 		<ul class="scw-list">
 			<li v-for="a in activities" :key="a.id" class="scw-item">
+				<span class="scw-item__icon">
+					<component :is="iconForType(a.type)" :size="18" />
+				</span>
 				<a
 					:href="getActivityTarget(a)"
 					target="_blank"
@@ -35,13 +38,25 @@ import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import moment from '@nextcloud/moment'
 import { generateUrl } from '@nextcloud/router'
+import CalendarClockIcon from 'vue-material-design-icons/CalendarClock.vue'
+import FormatListChecksIcon from 'vue-material-design-icons/FormatListChecks.vue'
+import NoteIcon from 'vue-material-design-icons/Note.vue'
+import PhoneOutlineIcon from 'vue-material-design-icons/PhoneOutline.vue'
+import PulseIcon from 'vue-material-design-icons/Pulse.vue'
 import SuiteCRMWidgetShell from '../components/SuiteCRMWidgetShell.vue'
 import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 export default {
 	name: 'SuiteCRMActivities',
 
-	components: { SuiteCRMWidgetShell },
+	components: {
+		SuiteCRMWidgetShell,
+		CalendarClockIcon,
+		FormatListChecksIcon,
+		NoteIcon,
+		PhoneOutlineIcon,
+		PulseIcon,
+	},
 
 	setup() {
 		const bridge = { fetchLater: () => null }
@@ -140,6 +155,16 @@ export default {
 				case 'task': return 'Tasks'
 				case 'note': return 'Notes'
 				default: return 'Home'
+			}
+		},
+
+		iconForType(type) {
+			switch (type) {
+				case 'meeting': return 'CalendarClockIcon'
+				case 'call': return 'PhoneOutlineIcon'
+				case 'task': return 'FormatListChecksIcon'
+				case 'note': return 'NoteIcon'
+				default: return 'PulseIcon'
 			}
 		},
 

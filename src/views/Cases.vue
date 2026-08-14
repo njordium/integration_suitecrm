@@ -13,6 +13,7 @@
 		@save="onSaveSettings">
 		<ul class="scw-list">
 			<li v-for="c in cases" :key="c.id" class="scw-item">
+				<span class="scw-item__icon"><BriefcaseIcon :size="18" /></span>
 				<a
 					:href="getCaseTarget(c)"
 					target="_blank"
@@ -49,6 +50,7 @@
 import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { generateUrl } from '@nextcloud/router'
+import BriefcaseIcon from 'vue-material-design-icons/Briefcase.vue'
 import SuiteCRMWidgetShell from '../components/SuiteCRMWidgetShell.vue'
 import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
@@ -57,6 +59,7 @@ export default {
 
 	components: {
 		SuiteCRMWidgetShell,
+		BriefcaseIcon,
 	},
 
 	setup() {

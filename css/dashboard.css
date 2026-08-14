@@ -92,3 +92,28 @@
 	object-fit: cover;
 	margin: 8px 6px 0 6px;
 }
+
+/*
+ * Per-widget semantic icon slot. Sits where a per-row avatar
+ * would go and carries a Material Design icon (Account, Domain,
+ * Briefcase, TrendingUp, etc.) picked by each widget for the
+ * kind of record it lists — the SuiteCRM brand logo repeated on
+ * every row was visually noisy, so widgets now signal their
+ * content type with a domain-appropriate icon instead.
+ */
+.scw-item__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	flex-shrink: 0;
+	border-radius: 50%;
+	margin: 6px 4px 0 6px;
+	background: var(--color-primary-element-light, rgba(0, 130, 201, 0.12));
+	color: var(--color-primary-element, #0082c9);
+}
+
+.scw-item__icon :deep(svg) {
+	fill: currentColor;
+}

@@ -27,11 +27,9 @@
 
 		<ul class="scw-list">
 			<li v-for="e in events" :key="e.id" class="scw-item">
-				<img
-					v-if="getAvatarUrl(e)"
-					:src="getAvatarUrl(e)"
-					:alt="e.type"
-					class="scw-item__avatar">
+				<span class="scw-item__icon">
+					<component :is="iconForType(e.type)" :size="18" />
+				</span>
 				<a
 					:href="getEventTarget(e)"
 					target="_blank"
@@ -61,7 +59,11 @@
 import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import moment from '@nextcloud/moment'
-import { generateUrl, imagePath } from '@nextcloud/router'
+import { generateUrl } from '@nextcloud/router'
+import CalendarClockIcon from 'vue-material-design-icons/CalendarClock.vue'
+import CalendarMonthIcon from 'vue-material-design-icons/CalendarMonth.vue'
+import FormatListChecksIcon from 'vue-material-design-icons/FormatListChecks.vue'
+import PhoneOutlineIcon from 'vue-material-design-icons/PhoneOutline.vue'
 import SuiteCRMWidgetShell from '../components/SuiteCRMWidgetShell.vue'
 import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
@@ -74,7 +76,13 @@ const TYPE_MODULE = {
 export default {
 	name: 'SuiteCRMCalendar',
 
-	components: { SuiteCRMWidgetShell },
+	components: {
+		SuiteCRMWidgetShell,
+		CalendarClockIcon,
+		CalendarMonthIcon,
+		FormatListChecksIcon,
+		PhoneOutlineIcon,
+	},
 
 	setup() {
 		const bridge = { fetchLater: () => null }
@@ -180,14 +188,13 @@ export default {
 			return this.suitecrmUrl + '/index.php?module=' + module + '&action=DetailView&record=' + e.id
 		},
 
-		getAvatarUrl(e) {
-			if (e.type === 'call') {
-				return imagePath('integration_suitecrm', 'call.png')
+		iconForType(type) {
+			switch (type) {
+				case 'meeting': return 'CalendarClockIcon'
+				case 'call': return 'PhoneOutlineIcon'
+				case 'task': return 'FormatListChecksIcon'
+				default: return 'CalendarMonthIcon'
 			}
-			if (e.type === 'meeting') {
-				return imagePath('integration_suitecrm', 'meeting.png')
-			}
-			return imagePath('integration_suitecrm', 'app-color.svg')
 		},
 
 		getMainText(e) {

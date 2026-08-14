@@ -13,11 +13,9 @@
 		@save="onSaveSettings">
 		<ul class="scw-list">
 			<li v-for="n in notifications" :key="getUniqueKey(n)" class="scw-item">
-				<img
-					v-if="getAvatarUrl(n)"
-					:src="getAvatarUrl(n)"
-					:alt="n.attributes?.related_event_module || ''"
-					class="scw-item__avatar">
+				<span class="scw-item__icon">
+					<component :is="iconForModule(n.attributes?.related_event_module)" :size="18" />
+				</span>
 				<a
 					:href="getNotificationTarget(n)"
 					target="_blank"
@@ -39,14 +37,22 @@
 import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import moment from '@nextcloud/moment'
-import { generateUrl, imagePath } from '@nextcloud/router'
+import { generateUrl } from '@nextcloud/router'
+import BellRingIcon from 'vue-material-design-icons/BellRing.vue'
+import CalendarClockIcon from 'vue-material-design-icons/CalendarClock.vue'
+import PhoneOutlineIcon from 'vue-material-design-icons/PhoneOutline.vue'
 import SuiteCRMWidgetShell from '../components/SuiteCRMWidgetShell.vue'
 import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 export default {
 	name: 'SuiteCRMDashboard',
 
-	components: { SuiteCRMWidgetShell },
+	components: {
+		SuiteCRMWidgetShell,
+		BellRingIcon,
+		CalendarClockIcon,
+		PhoneOutlineIcon,
+	},
 
 	setup() {
 		const bridge = { fetchLater: () => null }
@@ -143,14 +149,14 @@ export default {
 			return n.id
 		},
 
-		getAvatarUrl(n) {
-			if (n.attributes.related_event_module === 'Calls') {
-				return imagePath('integration_suitecrm', 'call.png')
+		iconForModule(module) {
+			if (module === 'Calls') {
+				return 'PhoneOutlineIcon'
 			}
-			if (n.attributes.related_event_module === 'Meetings') {
-				return imagePath('integration_suitecrm', 'meeting.png')
+			if (module === 'Meetings') {
+				return 'CalendarClockIcon'
 			}
-			return imagePath('integration_suitecrm', 'app-color.svg')
+			return 'BellRingIcon'
 		},
 
 		getSubline(n) {
