@@ -106,12 +106,18 @@ class CopyLegacyAppConfig implements IRepairStep {
 	 */
 	private function copyAppConfig(): int {
 		$qb = $this->db->getQueryBuilder();
-		// Select `sensitive` alongside key/value so we can propagate the
-		// column instead of dropping it. Pre-NC-31 the column was
-		// nullable; a null / missing value coerces to false via the
-		// (int) cast and the SENSITIVE_APPCONFIG_KEYS whitelist backfills
-		// the known-sensitive keys either way.
-		$legacy = $qb->select('configkey', 'configvalue', 'sensitive')
+		// SELECT only key/value — the `sensitive` column was added to
+		// oc_appconfig in Nextcloud 31; on NC 30 selecting it errors
+		// with "Column not found: 1054 Unknown column 'sensitive'" and
+		// the whole migration aborts before copying any row (the failure
+		// mode caught on the 3.1.0 deploy to a NC 30 install).
+		//
+		// The SENSITIVE_APPCONFIG_KEYS whitelist below is enough for
+		// this app's real-world protection surface: on every supported
+		// NC version we know client_secret is the only sensitive key
+		// and it lands under the new app id with sensitive:true because
+		// setValueString() sets the flag explicitly on the write.
+		$legacy = $qb->select('configkey', 'configvalue')
 			->from('appconfig')
 			->where($qb->expr()->eq('appid', $qb->createNamedParameter(self::LEGACY_APP_ID)))
 			->executeQuery();
@@ -122,8 +128,7 @@ class CopyLegacyAppConfig implements IRepairStep {
 			if ($this->appConfigExists(Application::APP_ID, $key)) {
 				continue;
 			}
-			$sensitive = ((int)($row['sensitive'] ?? 0) === 1)
-				|| in_array($key, self::SENSITIVE_APPCONFIG_KEYS, true);
+			$sensitive = in_array($key, self::SENSITIVE_APPCONFIG_KEYS, true);
 			// Route through IAppConfig::setValueString rather than a raw
 			// INSERT so the `lazy` and `sensitive` columns get set
 			// through the same code path admins hit when they update
