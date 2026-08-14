@@ -90,6 +90,22 @@ class SuiteCRMAPIController extends Controller {
 	}
 
 	/**
+	 * Clamp a widget-supplied `limit` into a sane range before it is
+	 * passed to the SuiteCRM API. The UI picker exposes 5–50 (see
+	 * SuiteCRMWidgetShell.vue `maxItemsOptions`), so 100 is the
+	 * defence-in-depth ceiling that a tampered client would hit —
+	 * enough headroom to allow the largest picker option, small enough
+	 * that a malicious user can't ask the widget endpoint for tens of
+	 * thousands of rows in a single call.
+	 */
+	private function clampLimit(int $limit, int $default = 20): int {
+		if ($limit <= 0) {
+			return $default;
+		}
+		return min(100, $limit);
+	}
+
+	/**
 	 * Return a whitelisted `image/*` mime type by inspecting the first
 	 * few bytes of the payload, or null if the bytes do not look like
 	 * any of the supported image types. Deliberately narrow — SuiteCRM
@@ -128,6 +144,9 @@ class SuiteCRMAPIController extends Controller {
 		if ($this->accessToken === '') {
 			return new DataResponse('', 400);
 		}
+		if ($limit !== null) {
+			$limit = $this->clampLimit($limit);
+		}
 		$result = $this->suitecrmAPIService->getReminders(
 			$this->suitecrmUrl, $this->accessToken, $this->userId, null, null, $eventSinceTimestamp, null, $limit
 		);
@@ -151,6 +170,7 @@ class SuiteCRMAPIController extends Controller {
 		if ($this->accessToken === '' || $this->userId === null) {
 			return new DataResponse('', 400);
 		}
+		$limit = $this->clampLimit($limit);
 		$result = $this->suitecrmAPIService->getUpcoming(
 			$this->suitecrmUrl, $this->accessToken, $this->userId, $horizonDays, $limit, 30, $onlyMine
 		);
@@ -179,6 +199,7 @@ class SuiteCRMAPIController extends Controller {
 		if ($this->accessToken === '' || $this->userId === null) {
 			return new DataResponse('', 400);
 		}
+		$limit = $this->clampLimit($limit);
 		$result = $this->suitecrmAPIService->getMyPipeline(
 			$this->suitecrmUrl, $this->accessToken, $this->userId, $mode, $limit, $onlyMine
 		);
@@ -205,6 +226,7 @@ class SuiteCRMAPIController extends Controller {
 		if ($this->accessToken === '' || $this->userId === null) {
 			return new DataResponse('', 400);
 		}
+		$limit = $this->clampLimit($limit);
 		$result = $this->suitecrmAPIService->getMyTasks(
 			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit, $onlyMine
 		);
@@ -230,6 +252,7 @@ class SuiteCRMAPIController extends Controller {
 		if ($this->accessToken === '' || $this->userId === null) {
 			return new DataResponse('', 400);
 		}
+		$limit = $this->clampLimit($limit);
 		$result = $this->suitecrmAPIService->getMyCases(
 			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit, $onlyMine
 		);
@@ -256,6 +279,7 @@ class SuiteCRMAPIController extends Controller {
 		if ($this->accessToken === '' || $this->userId === null) {
 			return new DataResponse('', 400);
 		}
+		$limit = $this->clampLimit($limit);
 		$result = $this->suitecrmAPIService->getRecentActivities(
 			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit, 30, $onlyMine
 		);
@@ -281,6 +305,7 @@ class SuiteCRMAPIController extends Controller {
 		if ($this->accessToken === '' || $this->userId === null) {
 			return new DataResponse('', 400);
 		}
+		$limit = $this->clampLimit($limit);
 		$result = $this->suitecrmAPIService->getRecentContacts(
 			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit, 90, $onlyMine
 		);
@@ -300,6 +325,7 @@ class SuiteCRMAPIController extends Controller {
 		if ($this->accessToken === '' || $this->userId === null) {
 			return new DataResponse('', 400);
 		}
+		$limit = $this->clampLimit($limit);
 		$result = $this->suitecrmAPIService->getRecentAccounts(
 			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit, 90, $onlyMine
 		);
@@ -319,6 +345,7 @@ class SuiteCRMAPIController extends Controller {
 		if ($this->accessToken === '' || $this->userId === null) {
 			return new DataResponse('', 400);
 		}
+		$limit = $this->clampLimit($limit);
 		$result = $this->suitecrmAPIService->getRecentLeads(
 			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit, 90, $onlyMine
 		);

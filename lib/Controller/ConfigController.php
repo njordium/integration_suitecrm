@@ -93,6 +93,20 @@ class ConfigController extends Controller {
                 'cases_only_mine',
                 'tasks_only_mine',
                 'pipeline_only_mine',
+                // Per-widget "Records to show" cap. Picker options in the
+                // shell modal: 5/10/15/20/25/50. Missing row reads back as
+                // 20 (matches the historical fetch limit). Doubles as the
+                // fetch `limit` sent to the SuiteCRM API so we don't ask
+                // for records we'd immediately drop client-side.
+                'events_max_items',
+                'calendar_max_items',
+                'tasks_max_items',
+                'cases_max_items',
+                'pipeline_max_items',
+                'activities_max_items',
+                'contacts_max_items',
+                'accounts_max_items',
+                'leads_max_items',
         ];
 
         /**
@@ -177,6 +191,15 @@ class ConfigController extends Controller {
                         'cases_only_mine' => $boolKey('cases_only_mine', true),
                         'tasks_only_mine' => $boolKey('tasks_only_mine', true),
                         'pipeline_only_mine' => $boolKey('pipeline_only_mine', true),
+                        'events_max_items' => $intKey('events_max_items', 20),
+                        'calendar_max_items' => $intKey('calendar_max_items', 20),
+                        'tasks_max_items' => $intKey('tasks_max_items', 20),
+                        'cases_max_items' => $intKey('cases_max_items', 20),
+                        'pipeline_max_items' => $intKey('pipeline_max_items', 20),
+                        'activities_max_items' => $intKey('activities_max_items', 20),
+                        'contacts_max_items' => $intKey('contacts_max_items', 20),
+                        'accounts_max_items' => $intKey('accounts_max_items', 20),
+                        'leads_max_items' => $intKey('leads_max_items', 20),
                         'calendar_show_tasks' => $this->config->getUserValue(
                                 $this->userId, Application::APP_ID, 'calendar_show_tasks', '1',
                         ) !== '0',

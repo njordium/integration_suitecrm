@@ -10,6 +10,7 @@
 		:refreshSeconds="refreshSeconds"
 		:showOnlyMineToggle="true"
 		:onlyMine="onlyMine"
+		:maxItems="maxItems"
 		:extras="{ calendar_show_tasks: calendarShowTasks }"
 		:saving="saving"
 		@refresh="fetchEvents"
@@ -28,7 +29,7 @@
 		</template>
 
 		<ul class="scw-list">
-			<li v-for="e in events" :key="e.id" class="scw-item">
+			<li v-for="e in events.slice(0, maxItems)" :key="e.id" class="scw-item">
 				<span class="scw-item__icon">
 					<component :is="iconForType(e.type)" :size="18" />
 				</span>
@@ -100,6 +101,7 @@ export default {
 			state: 'loading',
 			refreshSeconds: 300,
 			onlyMine: true,
+			maxItems: 20,
 			saving: false,
 			calendarShowTasks: true,
 		}
@@ -131,6 +133,10 @@ export default {
 				if (typeof response.data?.calendar_only_mine === 'boolean') {
 					this.onlyMine = response.data.calendar_only_mine
 				}
+				const maxN = Number(response.data?.calendar_max_items)
+				if (!Number.isNaN(maxN) && maxN > 0) {
+					this.maxItems = maxN
+				}
 			} catch {
 				// best-effort — widget still functions at defaults
 			}
@@ -146,7 +152,10 @@ export default {
 		},
 
 		fetchEvents() {
-			const url = generateUrl('/apps/integration_suitecrm/upcoming?onlyMine={m}', { m: this.onlyMine ? '1' : '0' })
+			const url = generateUrl('/apps/integration_suitecrm/upcoming?onlyMine={m}&limit={l}', {
+				m: this.onlyMine ? '1' : '0',
+				l: String(this.maxItems),
+			})
 			axios.get(url).then((response) => {
 				this.events = response.data
 				this.state = 'ok'
@@ -160,13 +169,14 @@ export default {
 			})
 		},
 
-		async onSaveSettings({ refreshSeconds, onlyMine, extras, close }) {
+		async onSaveSettings({ refreshSeconds, onlyMine, maxItems, extras, close }) {
 			this.saving = true
 			try {
 				const values = {
 					calendar_refresh_seconds: String(refreshSeconds),
 					calendar_show_tasks: extras?.calendar_show_tasks ? '1' : '0',
 					calendar_only_mine: onlyMine ? '1' : '0',
+					calendar_max_items: String(maxItems),
 				}
 				await axios.put(generateUrl('/apps/integration_suitecrm/config'), { values })
 				this.refreshSeconds = refreshSeconds
@@ -179,6 +189,10 @@ export default {
 				}
 				if (onlyMine !== this.onlyMine) {
 					this.onlyMine = onlyMine
+					needRefetch = true
+				}
+				if (maxItems !== this.maxItems) {
+					this.maxItems = maxItems
 					needRefetch = true
 				}
 				if (needRefetch) {

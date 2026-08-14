@@ -10,11 +10,12 @@
 		:refreshSeconds="refreshSeconds"
 		:showOnlyMineToggle="true"
 		:onlyMine="onlyMine"
+		:maxItems="maxItems"
 		:saving="saving"
 		@refresh="fetchTasks"
 		@save="onSaveSettings">
 		<ul class="scw-list">
-			<li v-for="task in tasks" :key="task.id" class="scw-item">
+			<li v-for="task in tasks.slice(0, maxItems)" :key="task.id" class="scw-item">
 				<span class="scw-item__icon"><FormatListChecksIcon :size="18" /></span>
 				<a
 					:href="getTaskTarget(task)"
@@ -66,6 +67,7 @@ export default {
 			state: 'loading',
 			refreshSeconds: 300,
 			onlyMine: true,
+			maxItems: 20,
 			saving: false,
 		}
 	},
@@ -93,6 +95,10 @@ export default {
 				if (typeof response.data?.tasks_only_mine === 'boolean') {
 					this.onlyMine = response.data.tasks_only_mine
 				}
+				const maxN = Number(response.data?.tasks_max_items)
+				if (!Number.isNaN(maxN) && maxN > 0) {
+					this.maxItems = maxN
+				}
 			} catch {
 				// best-effort — widget still functions at defaults
 			}
@@ -108,7 +114,10 @@ export default {
 		},
 
 		fetchTasks() {
-			const url = generateUrl('/apps/integration_suitecrm/my-tasks?onlyMine={m}', { m: this.onlyMine ? '1' : '0' })
+			const url = generateUrl('/apps/integration_suitecrm/my-tasks?onlyMine={m}&limit={l}', {
+				m: this.onlyMine ? '1' : '0',
+				l: String(this.maxItems),
+			})
 			axios.get(url).then((response) => {
 				this.tasks = response.data
 				this.state = 'ok'
@@ -122,19 +131,28 @@ export default {
 			})
 		},
 
-		async onSaveSettings({ refreshSeconds, onlyMine, close }) {
+		async onSaveSettings({ refreshSeconds, onlyMine, maxItems, close }) {
 			this.saving = true
 			try {
 				await axios.put(generateUrl('/apps/integration_suitecrm/config'), {
 					values: {
 						tasks_refresh_seconds: String(refreshSeconds),
 						tasks_only_mine: onlyMine ? '1' : '0',
+						tasks_max_items: String(maxItems),
 					},
 				})
 				this.refreshSeconds = refreshSeconds
 				this.autoRefresh.setIntervalMs(refreshSeconds * 1000)
+				let needRefetch = false
 				if (onlyMine !== this.onlyMine) {
 					this.onlyMine = onlyMine
+					needRefetch = true
+				}
+				if (maxItems !== this.maxItems) {
+					this.maxItems = maxItems
+					needRefetch = true
+				}
+				if (needRefetch) {
 					this.fetchTasks()
 				}
 				close()

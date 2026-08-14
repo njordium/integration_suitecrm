@@ -10,11 +10,12 @@
 		:refreshSeconds="refreshSeconds"
 		:showOnlyMineToggle="true"
 		:onlyMine="onlyMine"
+		:maxItems="maxItems"
 		:saving="saving"
 		@refresh="fetchCases"
 		@save="onSaveSettings">
 		<ul class="scw-list">
-			<li v-for="c in cases" :key="c.id" class="scw-item">
+			<li v-for="c in cases.slice(0, maxItems)" :key="c.id" class="scw-item">
 				<span class="scw-item__icon"><BriefcaseIcon :size="18" /></span>
 				<a
 					:href="getCaseTarget(c)"
@@ -78,6 +79,7 @@ export default {
 			state: 'loading',
 			refreshSeconds: 300,
 			onlyMine: true,
+			maxItems: 20,
 			saving: false,
 		}
 	},
@@ -105,6 +107,10 @@ export default {
 				if (typeof response.data?.cases_only_mine === 'boolean') {
 					this.onlyMine = response.data.cases_only_mine
 				}
+				const maxN = Number(response.data?.cases_max_items)
+				if (!Number.isNaN(maxN) && maxN > 0) {
+					this.maxItems = maxN
+				}
 			} catch {
 				// Config fetch is best-effort; widget still functions at default cadence.
 			}
@@ -121,7 +127,10 @@ export default {
 		},
 
 		fetchCases() {
-			const url = generateUrl('/apps/integration_suitecrm/my-cases?onlyMine={m}', { m: this.onlyMine ? '1' : '0' })
+			const url = generateUrl('/apps/integration_suitecrm/my-cases?onlyMine={m}&limit={l}', {
+				m: this.onlyMine ? '1' : '0',
+				l: String(this.maxItems),
+			})
 			axios.get(url).then((response) => {
 				this.cases = response.data
 				this.state = 'ok'
@@ -135,19 +144,28 @@ export default {
 			})
 		},
 
-		async onSaveSettings({ refreshSeconds, onlyMine, close }) {
+		async onSaveSettings({ refreshSeconds, onlyMine, maxItems, close }) {
 			this.saving = true
 			try {
 				await axios.put(generateUrl('/apps/integration_suitecrm/config'), {
 					values: {
 						cases_refresh_seconds: String(refreshSeconds),
 						cases_only_mine: onlyMine ? '1' : '0',
+						cases_max_items: String(maxItems),
 					},
 				})
 				this.refreshSeconds = refreshSeconds
 				this.autoRefresh.setIntervalMs(refreshSeconds * 1000)
+				let needRefetch = false
 				if (onlyMine !== this.onlyMine) {
 					this.onlyMine = onlyMine
+					needRefetch = true
+				}
+				if (maxItems !== this.maxItems) {
+					this.maxItems = maxItems
+					needRefetch = true
+				}
+				if (needRefetch) {
 					this.fetchCases()
 				}
 				close()

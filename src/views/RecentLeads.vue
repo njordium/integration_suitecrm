@@ -10,11 +10,12 @@
 		:refreshSeconds="refreshSeconds"
 		:showOnlyMineToggle="true"
 		:onlyMine="onlyMine"
+		:maxItems="maxItems"
 		:saving="saving"
 		@refresh="fetchLeads"
 		@save="onSaveSettings">
 		<ul class="scw-list">
-			<li v-for="l in leads" :key="l.id" class="scw-item">
+			<li v-for="l in leads.slice(0, maxItems)" :key="l.id" class="scw-item">
 				<span class="scw-item__icon"><HandshakeIcon :size="18" /></span>
 				<a
 					:href="getLeadTarget(l)"
@@ -61,6 +62,7 @@ export default {
 			state: 'loading',
 			refreshSeconds: 300,
 			onlyMine: false,
+			maxItems: 20,
 			saving: false,
 		}
 	},
@@ -88,6 +90,10 @@ export default {
 				if (typeof response.data?.leads_only_mine === 'boolean') {
 					this.onlyMine = response.data.leads_only_mine
 				}
+				const maxN = Number(response.data?.leads_max_items)
+				if (!Number.isNaN(maxN) && maxN > 0) {
+					this.maxItems = maxN
+				}
 			} catch {
 				// best-effort — widget still functions at defaults
 			}
@@ -103,7 +109,10 @@ export default {
 		},
 
 		fetchLeads() {
-			const url = generateUrl('/apps/integration_suitecrm/recent-leads?onlyMine={m}', { m: this.onlyMine ? '1' : '0' })
+			const url = generateUrl('/apps/integration_suitecrm/recent-leads?onlyMine={m}&limit={l}', {
+				m: this.onlyMine ? '1' : '0',
+				l: String(this.maxItems),
+			})
 			axios.get(url).then((response) => {
 				this.leads = response.data
 				this.state = 'ok'
@@ -117,19 +126,28 @@ export default {
 			})
 		},
 
-		async onSaveSettings({ refreshSeconds, onlyMine, close }) {
+		async onSaveSettings({ refreshSeconds, onlyMine, maxItems, close }) {
 			this.saving = true
 			try {
 				await axios.put(generateUrl('/apps/integration_suitecrm/config'), {
 					values: {
 						leads_refresh_seconds: String(refreshSeconds),
 						leads_only_mine: onlyMine ? '1' : '0',
+						leads_max_items: String(maxItems),
 					},
 				})
 				this.refreshSeconds = refreshSeconds
 				this.autoRefresh.setIntervalMs(refreshSeconds * 1000)
+				let needRefetch = false
 				if (onlyMine !== this.onlyMine) {
 					this.onlyMine = onlyMine
+					needRefetch = true
+				}
+				if (maxItems !== this.maxItems) {
+					this.maxItems = maxItems
+					needRefetch = true
+				}
+				if (needRefetch) {
 					this.fetchLeads()
 				}
 				close()

@@ -170,7 +170,7 @@ class SuiteCRMSearchProvider implements IProvider {
 		if ($module === null) {
 			return '';
 		}
-		return $url . '/index.php?module=' . $module . '&action=DetailView&record=' . $entry['id'];
+		return $url . '/index.php?module=' . rawurlencode($module) . '&action=DetailView&record=' . rawurlencode((string) ($entry['id'] ?? ''));
 	}
 
 	private function formatDate(?string $iso): string {

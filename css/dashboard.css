@@ -40,22 +40,15 @@
 	flex-direction: column;
 	gap: 2px;
 	/*
-	 * Cap visible items to 7 per widget. Items past position 7 are
-	 * hidden by the nth-child rule below; the trailing "Show all"
-	 * link is the escape hatch to SuiteCRM's full listing page.
-	 * Same pattern as integration_forgejo_gitea's MAX_VISIBLE_ITEMS
-	 * — keeps the widget card a bounded, predictable height so rows
-	 * never get half-clipped by an internal scroll region, and every
-	 * widget in the dashboard grid reads as visually consistent.
-	 *
-	 * DOM-level hide (not v-if or array slice) so this stays a
-	 * single CSS edit that applies to every widget without touching
-	 * each Vue template.
+	 * Visible count is now user-controlled per widget via the
+	 * "Records to show" picker in the 3-dot settings modal (default
+	 * 20). Cap the list at max-height:400 so long selections scroll
+	 * inside the widget instead of pushing "Show all" past the card
+	 * edge, and add a subtle scrollbar so users notice more items
+	 * are available.
 	 */
-}
-
-.scw-list .scw-item:nth-child(n+8) {
-	display: none;
+	max-height: 400px;
+	overflow-y: auto;
 }
 
 .scw-item {

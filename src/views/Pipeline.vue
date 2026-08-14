@@ -10,6 +10,7 @@
 		:refreshSeconds="refreshSeconds"
 		:showOnlyMineToggle="true"
 		:onlyMine="onlyMine"
+		:maxItems="maxItems"
 		:extras="{ pipeline_mode: mode }"
 		:saving="saving"
 		@refresh="fetchOpportunities"
@@ -32,7 +33,7 @@
 		</template>
 
 		<ul class="scw-list">
-			<li v-for="opp in opportunities" :key="opp.id" class="scw-item">
+			<li v-for="opp in opportunities.slice(0, maxItems)" :key="opp.id" class="scw-item">
 				<span class="scw-item__icon"><TrendingUpIcon :size="18" /></span>
 				<a
 					:href="getOpportunityTarget(opp)"
@@ -89,6 +90,7 @@ export default {
 			state: 'loading',
 			refreshSeconds: 300,
 			onlyMine: true,
+			maxItems: 20,
 			saving: false,
 			mode: 'closing_quarter',
 		}
@@ -135,6 +137,10 @@ export default {
 				if (typeof response.data?.pipeline_only_mine === 'boolean') {
 					this.onlyMine = response.data.pipeline_only_mine
 				}
+				const maxN = Number(response.data?.pipeline_max_items)
+				if (!Number.isNaN(maxN) && maxN > 0) {
+					this.maxItems = maxN
+				}
 			} catch {
 				// best-effort — widget still functions at defaults
 			}
@@ -150,9 +156,10 @@ export default {
 		},
 
 		fetchOpportunities() {
-			const url = generateUrl('/apps/integration_suitecrm/my-pipeline?mode={mode}&onlyMine={m}', {
+			const url = generateUrl('/apps/integration_suitecrm/my-pipeline?mode={mode}&onlyMine={m}&limit={l}', {
 				mode: this.mode,
 				m: this.onlyMine ? '1' : '0',
+				l: String(this.maxItems),
 			})
 			axios.get(url).then((response) => {
 				this.opportunities = response.data
@@ -167,12 +174,13 @@ export default {
 			})
 		},
 
-		async onSaveSettings({ refreshSeconds, onlyMine, extras, close }) {
+		async onSaveSettings({ refreshSeconds, onlyMine, maxItems, extras, close }) {
 			this.saving = true
 			try {
 				const values = {
 					pipeline_refresh_seconds: String(refreshSeconds),
 					pipeline_only_mine: onlyMine ? '1' : '0',
+					pipeline_max_items: String(maxItems),
 				}
 				if (extras?.pipeline_mode) {
 					values.pipeline_mode = String(extras.pipeline_mode)
@@ -187,6 +195,10 @@ export default {
 				}
 				if (onlyMine !== this.onlyMine) {
 					this.onlyMine = onlyMine
+					needRefetch = true
+				}
+				if (maxItems !== this.maxItems) {
+					this.maxItems = maxItems
 					needRefetch = true
 				}
 				if (needRefetch) {

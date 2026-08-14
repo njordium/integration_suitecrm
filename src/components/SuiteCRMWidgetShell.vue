@@ -53,6 +53,17 @@
 					<h4>{{ t('integration_suitecrm', 'Refresh frequency') }}</h4>
 					<RefreshIntervalPicker v-model="draftRefreshSeconds" />
 				</section>
+				<section class="scw-modal__section">
+					<h4>{{ t('integration_suitecrm', 'Records to show') }}</h4>
+					<NcSelect
+						:modelValue="selectedMaxItems"
+						:options="maxItemsOptions"
+						:clearable="false"
+						:searchable="false"
+						label="label"
+						class="scw-max-items"
+						@update:modelValue="onMaxItemsChange" />
+				</section>
 				<section v-if="showOnlyMineToggle" class="scw-modal__section">
 					<h4>{{ t('integration_suitecrm', 'Show') }}</h4>
 					<label class="scw-toggle">
@@ -117,6 +128,7 @@ import NcActions from '@nextcloud/vue/components/NcActions'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcModal from '@nextcloud/vue/components/NcModal'
+import NcSelect from '@nextcloud/vue/components/NcSelect'
 import CheckCircleOutlineIcon from 'vue-material-design-icons/CheckCircleOutline.vue'
 import CogIcon from 'vue-material-design-icons/Cog.vue'
 import ContentSaveIcon from 'vue-material-design-icons/ContentSave.vue'
@@ -133,6 +145,7 @@ export default {
 		NcButton,
 		NcLoadingIcon,
 		NcModal,
+		NcSelect,
 		CheckCircleOutlineIcon,
 		CogIcon,
 		ContentSaveIcon,
@@ -167,6 +180,14 @@ export default {
 			type: String,
 			default: () => t('integration_suitecrm', 'Only records assigned to me'),
 		},
+
+		// Client-controlled cap on how many rows the widget renders.
+		// Also becomes the fetch `limit` so the API isn't asked for
+		// data we'd immediately drop. 5, 10, 15, 20, 25, 50 are the
+		// picker options; server-side hard-cap of 100 in the sensible
+		// backend limit checks (widgets can't request more than 100
+		// even if a client is tampered with the value).
+		maxItems: { type: Number, default: 20 },
 	},
 
 	emits: ['refresh', 'save'],
@@ -176,15 +197,33 @@ export default {
 			showSettings: false,
 			draftRefreshSeconds: 300,
 			draftOnlyMine: false,
+			draftMaxItems: 20,
 			draftExtras: {},
 			settingsUrl: generateUrl('/settings/user/connected-accounts'),
 		}
+	},
+
+	computed: {
+		maxItemsOptions() {
+			return [5, 10, 15, 20, 25, 50].map((n) => ({
+				value: n,
+				label: n === 1
+					? t('integration_suitecrm', '1 record')
+					: t('integration_suitecrm', '{n} records', { n }),
+			}))
+		},
+
+		selectedMaxItems() {
+			return this.maxItemsOptions.find((o) => o.value === this.draftMaxItems)
+				|| this.maxItemsOptions.find((o) => o.value === 20)
+		},
 	},
 
 	methods: {
 		openSettings() {
 			this.draftRefreshSeconds = this.refreshSeconds
 			this.draftOnlyMine = this.onlyMine
+			this.draftMaxItems = this.maxItems
 			// Deep-copy so the modal edits don't leak into the parent
 			// widget's committed state until Save fires.
 			this.draftExtras = JSON.parse(JSON.stringify(this.extras || {}))
@@ -199,10 +238,17 @@ export default {
 			this.draftExtras = { ...this.draftExtras, [key]: value }
 		},
 
+		onMaxItemsChange(v) {
+			if (v && typeof v === 'object' && 'value' in v) {
+				this.draftMaxItems = v.value
+			}
+		},
+
 		onSave() {
 			this.$emit('save', {
 				refreshSeconds: this.draftRefreshSeconds,
 				onlyMine: this.draftOnlyMine,
+				maxItems: this.draftMaxItems,
 				extras: this.draftExtras,
 				close: () => { this.showSettings = false },
 			})
@@ -298,5 +344,9 @@ export default {
 		margin: 0;
 		flex-shrink: 0;
 	}
+}
+
+.scw-max-items {
+	width: 100%;
 }
 </style>

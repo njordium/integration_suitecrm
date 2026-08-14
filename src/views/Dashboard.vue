@@ -8,11 +8,12 @@
 		:showMoreUrl="showMoreUrl"
 		:settingsTitle="t('integration_suitecrm', 'SuiteCRM: Events — settings')"
 		:refreshSeconds="refreshSeconds"
+		:maxItems="maxItems"
 		:saving="saving"
 		@refresh="fetchNotifications"
 		@save="onSaveSettings">
 		<ul class="scw-list">
-			<li v-for="n in notifications" :key="getUniqueKey(n)" class="scw-item">
+			<li v-for="n in notifications.slice(0, maxItems)" :key="getUniqueKey(n)" class="scw-item">
 				<span class="scw-item__icon">
 					<component :is="iconForModule(n.attributes?.related_event_module)" :size="18" />
 				</span>
@@ -67,6 +68,7 @@ export default {
 			notifications: [],
 			state: 'loading',
 			refreshSeconds: 300,
+			maxItems: 20,
 			saving: false,
 		}
 	},
@@ -91,6 +93,10 @@ export default {
 					this.refreshSeconds = seconds
 					this.autoRefresh.setIntervalMs(seconds * 1000)
 				}
+				const maxN = Number(response.data?.events_max_items)
+				if (!Number.isNaN(maxN) && maxN > 0) {
+					this.maxItems = maxN
+				}
 			} catch {
 				// best-effort — widget still functions at defaults
 			}
@@ -106,7 +112,7 @@ export default {
 		},
 
 		fetchNotifications() {
-			const req = { params: { eventSinceTimestamp: moment().unix() } }
+			const req = { params: { eventSinceTimestamp: moment().unix(), limit: this.maxItems } }
 			axios.get(generateUrl('/apps/integration_suitecrm/reminders'), req).then((response) => {
 				this.notifications = response.data || []
 				this.state = 'ok'
@@ -120,14 +126,21 @@ export default {
 			})
 		},
 
-		async onSaveSettings({ refreshSeconds, close }) {
+		async onSaveSettings({ refreshSeconds, maxItems, close }) {
 			this.saving = true
 			try {
 				await axios.put(generateUrl('/apps/integration_suitecrm/config'), {
-					values: { events_refresh_seconds: String(refreshSeconds) },
+					values: {
+						events_refresh_seconds: String(refreshSeconds),
+						events_max_items: String(maxItems),
+					},
 				})
 				this.refreshSeconds = refreshSeconds
 				this.autoRefresh.setIntervalMs(refreshSeconds * 1000)
+				if (maxItems !== this.maxItems) {
+					this.maxItems = maxItems
+					this.fetchNotifications()
+				}
 				close()
 				showSuccess(t('integration_suitecrm', 'Widget settings saved.'))
 			} catch {
