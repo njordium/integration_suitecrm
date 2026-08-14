@@ -40,18 +40,14 @@
 	flex-direction: column;
 	gap: 2px;
 	/*
-	 * Visible count is now user-controlled per widget via the
-	 * "Records to show" picker in the 3-dot settings modal (default
-	 * 20). Cap the list at max-height:320 — below 400px because the
-	 * trailing "Show all" link + widget-card padding + toolbar was
-	 * pushing the total above the dashboard row height on some
-	 * layouts, clipping "Show all" at the card edge. 320px leaves
-	 * ~60px of headroom for the more-link, toolbar, and margins.
-	 * Overflow-y:auto keeps the subtle scrollbar so users notice
-	 * more items are available.
+	 * Widget grows naturally with the user's chosen "Records to
+	 * show" count (5-50). No max-height cap on the list because a
+	 * cap only left dead space inside the card whenever the picker
+	 * value was small, and clipped "Show all" whenever it was
+	 * large. Letting the widget's natural height set the card size
+	 * eliminates both — Show all is always right below the last row
+	 * with the widget's own 4px bottom padding as the margin.
 	 */
-	max-height: 320px;
-	overflow-y: auto;
 }
 
 .scw-item {
