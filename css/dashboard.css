@@ -40,16 +40,16 @@
 	flex-direction: column;
 	gap: 2px;
 	/*
-	 * flex:1 1 0 + min-height:0 lets the list take the leftover
-	 * vertical space inside the .scw-widget (max-height 480px) AND
-	 * still shrink below its natural content height. Without the
-	 * min-height:0 override the list expands to fit every row and
-	 * pushes the trailing "Show all" link below the widget's
-	 * clipping edge — the overflow bug on wide widgets like
-	 * SuiteCRM: Activities with 8+ rows.
+	 * Cap the visible list at ~400px and let it scroll internally.
+	 * Simpler than fighting the flex layout, and keeps the trailing
+	 * "Show all" link anchored below the list without pushing the
+	 * widget card past its natural size. Previous attempt used
+	 * flex:1 1 0 + min-height:0 to let the list absorb whatever
+	 * vertical space the widget had; that collapsed to zero height
+	 * because .scw-widget only sets max-height, no explicit height,
+	 * so the flex grow target was undefined.
 	 */
-	flex: 1 1 0;
-	min-height: 0;
+	max-height: 400px;
 	overflow-y: auto;
 }
 

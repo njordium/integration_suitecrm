@@ -218,8 +218,12 @@ export default {
 	gap: 4px;
 	padding: 4px 0;
 	font-size: 13px;
-	max-height: 480px;
-	overflow: hidden;
+	/*
+	 * No max-height / overflow on the widget itself — the internal
+	 * .scw-list handles its own scrolling at max-height 400px (see
+	 * css/dashboard.css). Widget grows with toolbar + list + more-link
+	 * to a natural, bounded size.
+	 */
 }
 
 .scw-toolbar {
