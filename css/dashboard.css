@@ -40,7 +40,7 @@
 	flex-direction: column;
 	gap: 2px;
 	/*
-	 * Cap visible items to 8 per widget. Items past position 8 are
+	 * Cap visible items to 7 per widget. Items past position 7 are
 	 * hidden by the nth-child rule below; the trailing "Show all"
 	 * link is the escape hatch to SuiteCRM's full listing page.
 	 * Same pattern as integration_forgejo_gitea's MAX_VISIBLE_ITEMS
@@ -54,7 +54,7 @@
 	 */
 }
 
-.scw-list .scw-item:nth-child(n+9) {
+.scw-list .scw-item:nth-child(n+8) {
 	display: none;
 }
 
