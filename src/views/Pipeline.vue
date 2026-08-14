@@ -8,6 +8,8 @@
 		:showMoreUrl="showMoreUrl"
 		:settingsTitle="t('integration_suitecrm', 'SuiteCRM: Pipeline — settings')"
 		:refreshSeconds="refreshSeconds"
+		:showOnlyMineToggle="true"
+		:onlyMine="onlyMine"
 		:extras="{ pipeline_mode: mode }"
 		:saving="saving"
 		@refresh="fetchOpportunities"
@@ -86,6 +88,7 @@ export default {
 			opportunities: [],
 			state: 'loading',
 			refreshSeconds: 300,
+			onlyMine: true,
 			saving: false,
 			mode: 'closing_quarter',
 		}
@@ -129,6 +132,9 @@ export default {
 				if (response.data?.pipeline_mode) {
 					this.mode = response.data.pipeline_mode
 				}
+				if (typeof response.data?.pipeline_only_mine === 'boolean') {
+					this.onlyMine = response.data.pipeline_only_mine
+				}
 			} catch {
 				// best-effort — widget still functions at defaults
 			}
@@ -144,7 +150,10 @@ export default {
 		},
 
 		fetchOpportunities() {
-			const url = generateUrl('/apps/integration_suitecrm/my-pipeline?mode={mode}', { mode: this.mode })
+			const url = generateUrl('/apps/integration_suitecrm/my-pipeline?mode={mode}&onlyMine={m}', {
+				mode: this.mode,
+				m: this.onlyMine ? '1' : '0',
+			})
 			axios.get(url).then((response) => {
 				this.opportunities = response.data
 				this.state = 'ok'
@@ -158,11 +167,12 @@ export default {
 			})
 		},
 
-		async onSaveSettings({ refreshSeconds, extras, close }) {
+		async onSaveSettings({ refreshSeconds, onlyMine, extras, close }) {
 			this.saving = true
 			try {
 				const values = {
 					pipeline_refresh_seconds: String(refreshSeconds),
+					pipeline_only_mine: onlyMine ? '1' : '0',
 				}
 				if (extras?.pipeline_mode) {
 					values.pipeline_mode = String(extras.pipeline_mode)
@@ -170,8 +180,16 @@ export default {
 				await axios.put(generateUrl('/apps/integration_suitecrm/config'), { values })
 				this.refreshSeconds = refreshSeconds
 				this.autoRefresh.setIntervalMs(refreshSeconds * 1000)
+				let needRefetch = false
 				if (extras?.pipeline_mode && extras.pipeline_mode !== this.mode) {
 					this.mode = extras.pipeline_mode
+					needRefetch = true
+				}
+				if (onlyMine !== this.onlyMine) {
+					this.onlyMine = onlyMine
+					needRefetch = true
+				}
+				if (needRefetch) {
 					this.fetchOpportunities()
 				}
 				close()

@@ -8,6 +8,8 @@
 		:showMoreUrl="showMoreUrl"
 		:settingsTitle="t('integration_suitecrm', 'SuiteCRM: Calendar — settings')"
 		:refreshSeconds="refreshSeconds"
+		:showOnlyMineToggle="true"
+		:onlyMine="onlyMine"
 		:extras="{ calendar_show_tasks: calendarShowTasks }"
 		:saving="saving"
 		@refresh="fetchEvents"
@@ -97,6 +99,7 @@ export default {
 			events: [],
 			state: 'loading',
 			refreshSeconds: 300,
+			onlyMine: true,
 			saving: false,
 			calendarShowTasks: true,
 		}
@@ -125,6 +128,9 @@ export default {
 				if (typeof response.data?.calendar_show_tasks === 'boolean') {
 					this.calendarShowTasks = response.data.calendar_show_tasks
 				}
+				if (typeof response.data?.calendar_only_mine === 'boolean') {
+					this.onlyMine = response.data.calendar_only_mine
+				}
 			} catch {
 				// best-effort — widget still functions at defaults
 			}
@@ -140,7 +146,8 @@ export default {
 		},
 
 		fetchEvents() {
-			axios.get(generateUrl('/apps/integration_suitecrm/upcoming')).then((response) => {
+			const url = generateUrl('/apps/integration_suitecrm/upcoming?onlyMine={m}', { m: this.onlyMine ? '1' : '0' })
+			axios.get(url).then((response) => {
 				this.events = response.data
 				this.state = 'ok'
 			}).catch((error) => {
@@ -153,19 +160,28 @@ export default {
 			})
 		},
 
-		async onSaveSettings({ refreshSeconds, extras, close }) {
+		async onSaveSettings({ refreshSeconds, onlyMine, extras, close }) {
 			this.saving = true
 			try {
 				const values = {
 					calendar_refresh_seconds: String(refreshSeconds),
 					calendar_show_tasks: extras?.calendar_show_tasks ? '1' : '0',
+					calendar_only_mine: onlyMine ? '1' : '0',
 				}
 				await axios.put(generateUrl('/apps/integration_suitecrm/config'), { values })
 				this.refreshSeconds = refreshSeconds
 				this.autoRefresh.setIntervalMs(refreshSeconds * 1000)
+				let needRefetch = false
 				const nextShowTasks = !!extras?.calendar_show_tasks
 				if (nextShowTasks !== this.calendarShowTasks) {
 					this.calendarShowTasks = nextShowTasks
+					needRefetch = true
+				}
+				if (onlyMine !== this.onlyMine) {
+					this.onlyMine = onlyMine
+					needRefetch = true
+				}
+				if (needRefetch) {
 					this.fetchEvents()
 				}
 				close()

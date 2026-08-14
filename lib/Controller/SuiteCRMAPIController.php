@@ -147,12 +147,12 @@ class SuiteCRMAPIController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/upcoming')]
-	public function getUpcoming(int $horizonDays = 7, int $limit = 20): DataResponse {
+	public function getUpcoming(int $horizonDays = 7, int $limit = 20, bool $onlyMine = true): DataResponse {
 		if ($this->accessToken === '' || $this->userId === null) {
 			return new DataResponse('', 400);
 		}
 		$result = $this->suitecrmAPIService->getUpcoming(
-			$this->suitecrmUrl, $this->accessToken, $this->userId, $horizonDays, $limit
+			$this->suitecrmUrl, $this->accessToken, $this->userId, $horizonDays, $limit, 30, $onlyMine
 		);
 		if (!isset($result['error'])) {
 			return new DataResponse($result);
@@ -175,12 +175,12 @@ class SuiteCRMAPIController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/my-pipeline')]
-	public function getMyPipeline(string $mode = 'closing_quarter', int $limit = 20): DataResponse {
+	public function getMyPipeline(string $mode = 'closing_quarter', int $limit = 20, bool $onlyMine = true): DataResponse {
 		if ($this->accessToken === '' || $this->userId === null) {
 			return new DataResponse('', 400);
 		}
 		$result = $this->suitecrmAPIService->getMyPipeline(
-			$this->suitecrmUrl, $this->accessToken, $this->userId, $mode, $limit
+			$this->suitecrmUrl, $this->accessToken, $this->userId, $mode, $limit, $onlyMine
 		);
 		if (!isset($result['error'])) {
 			return new DataResponse($result);
@@ -201,12 +201,12 @@ class SuiteCRMAPIController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/my-tasks')]
-	public function getMyTasks(int $limit = 20): DataResponse {
+	public function getMyTasks(int $limit = 20, bool $onlyMine = true): DataResponse {
 		if ($this->accessToken === '' || $this->userId === null) {
 			return new DataResponse('', 400);
 		}
 		$result = $this->suitecrmAPIService->getMyTasks(
-			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit
+			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit, $onlyMine
 		);
 		if (!isset($result['error'])) {
 			return new DataResponse($result);
@@ -226,12 +226,12 @@ class SuiteCRMAPIController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/my-cases')]
-	public function getMyCases(int $limit = 20): DataResponse {
+	public function getMyCases(int $limit = 20, bool $onlyMine = true): DataResponse {
 		if ($this->accessToken === '' || $this->userId === null) {
 			return new DataResponse('', 400);
 		}
 		$result = $this->suitecrmAPIService->getMyCases(
-			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit
+			$this->suitecrmUrl, $this->accessToken, $this->userId, $limit, $onlyMine
 		);
 		if (!isset($result['error'])) {
 			return new DataResponse($result);

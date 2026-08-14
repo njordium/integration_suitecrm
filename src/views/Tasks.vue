@@ -8,6 +8,8 @@
 		:showMoreUrl="showMoreUrl"
 		:settingsTitle="t('integration_suitecrm', 'SuiteCRM: Tasks — settings')"
 		:refreshSeconds="refreshSeconds"
+		:showOnlyMineToggle="true"
+		:onlyMine="onlyMine"
 		:saving="saving"
 		@refresh="fetchTasks"
 		@save="onSaveSettings">
@@ -63,6 +65,7 @@ export default {
 			tasks: [],
 			state: 'loading',
 			refreshSeconds: 300,
+			onlyMine: true,
 			saving: false,
 		}
 	},
@@ -87,6 +90,9 @@ export default {
 					this.refreshSeconds = seconds
 					this.autoRefresh.setIntervalMs(seconds * 1000)
 				}
+				if (typeof response.data?.tasks_only_mine === 'boolean') {
+					this.onlyMine = response.data.tasks_only_mine
+				}
 			} catch {
 				// best-effort — widget still functions at defaults
 			}
@@ -102,7 +108,8 @@ export default {
 		},
 
 		fetchTasks() {
-			axios.get(generateUrl('/apps/integration_suitecrm/my-tasks')).then((response) => {
+			const url = generateUrl('/apps/integration_suitecrm/my-tasks?onlyMine={m}', { m: this.onlyMine ? '1' : '0' })
+			axios.get(url).then((response) => {
 				this.tasks = response.data
 				this.state = 'ok'
 			}).catch((error) => {
@@ -115,14 +122,21 @@ export default {
 			})
 		},
 
-		async onSaveSettings({ refreshSeconds, close }) {
+		async onSaveSettings({ refreshSeconds, onlyMine, close }) {
 			this.saving = true
 			try {
 				await axios.put(generateUrl('/apps/integration_suitecrm/config'), {
-					values: { tasks_refresh_seconds: String(refreshSeconds) },
+					values: {
+						tasks_refresh_seconds: String(refreshSeconds),
+						tasks_only_mine: onlyMine ? '1' : '0',
+					},
 				})
 				this.refreshSeconds = refreshSeconds
 				this.autoRefresh.setIntervalMs(refreshSeconds * 1000)
+				if (onlyMine !== this.onlyMine) {
+					this.onlyMine = onlyMine
+					this.fetchTasks()
+				}
 				close()
 				showSuccess(t('integration_suitecrm', 'Widget settings saved.'))
 			} catch {

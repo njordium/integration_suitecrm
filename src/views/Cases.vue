@@ -8,6 +8,8 @@
 		:showMoreUrl="showMoreUrl"
 		:settingsTitle="t('integration_suitecrm', 'SuiteCRM: Cases — settings')"
 		:refreshSeconds="refreshSeconds"
+		:showOnlyMineToggle="true"
+		:onlyMine="onlyMine"
 		:saving="saving"
 		@refresh="fetchCases"
 		@save="onSaveSettings">
@@ -75,6 +77,7 @@ export default {
 			cases: [],
 			state: 'loading',
 			refreshSeconds: 300,
+			onlyMine: true,
 			saving: false,
 		}
 	},
@@ -99,6 +102,9 @@ export default {
 					this.refreshSeconds = seconds
 					this.autoRefresh.setIntervalMs(seconds * 1000)
 				}
+				if (typeof response.data?.cases_only_mine === 'boolean') {
+					this.onlyMine = response.data.cases_only_mine
+				}
 			} catch {
 				// Config fetch is best-effort; widget still functions at default cadence.
 			}
@@ -115,7 +121,8 @@ export default {
 		},
 
 		fetchCases() {
-			axios.get(generateUrl('/apps/integration_suitecrm/my-cases')).then((response) => {
+			const url = generateUrl('/apps/integration_suitecrm/my-cases?onlyMine={m}', { m: this.onlyMine ? '1' : '0' })
+			axios.get(url).then((response) => {
 				this.cases = response.data
 				this.state = 'ok'
 			}).catch((error) => {
@@ -128,14 +135,21 @@ export default {
 			})
 		},
 
-		async onSaveSettings({ refreshSeconds, close }) {
+		async onSaveSettings({ refreshSeconds, onlyMine, close }) {
 			this.saving = true
 			try {
 				await axios.put(generateUrl('/apps/integration_suitecrm/config'), {
-					values: { cases_refresh_seconds: String(refreshSeconds) },
+					values: {
+						cases_refresh_seconds: String(refreshSeconds),
+						cases_only_mine: onlyMine ? '1' : '0',
+					},
 				})
 				this.refreshSeconds = refreshSeconds
 				this.autoRefresh.setIntervalMs(refreshSeconds * 1000)
+				if (onlyMine !== this.onlyMine) {
+					this.onlyMine = onlyMine
+					this.fetchCases()
+				}
 				close()
 				showSuccess(t('integration_suitecrm', 'Widget settings saved.'))
 			} catch {

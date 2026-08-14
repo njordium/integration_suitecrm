@@ -434,8 +434,14 @@ class SuiteCRMAPIService {
 	 *               (int Unix timestamp), and `is_overdue` (bool).
 	 *               On upstream API failure, returns the SuiteCRM error payload.
 	 */
-	public function getUpcoming(string $url, string $accessToken, string $userId, int $horizonDays = 7, int $limit = 20, int $overdueLookbackDays = 30): array {
-		$scrmUserId = $this->config->getUserValue($userId, Application::APP_ID, 'user_id');
+	public function getUpcoming(string $url, string $accessToken, string $userId, int $horizonDays = 7, int $limit = 20, int $overdueLookbackDays = 30, bool $onlyMine = true): array {
+		// Blank the scrmUserId when the widget's "Only records assigned to
+		// me" toggle is OFF; the loop below skips adding the
+		// filter[assigned_user_id][eq] clause when the id is empty, so the
+		// query returns everything the caller's ACL permits.
+		$scrmUserId = $onlyMine
+			? (string) $this->config->getUserValue($userId, Application::APP_ID, 'user_id')
+			: '';
 		$now = new DateTime();
 		$nowTs = $now->getTimestamp();
 		$horizon = (clone $now)->add(new DateInterval('P' . $horizonDays . 'D'));
@@ -468,11 +474,13 @@ class SuiteCRMAPIService {
 			}
 			$filters = [
 				'fields[' . $moduleDef['module'] . ']=' . $moduleDef['fields'],
-				urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId),
 				urlencode('filter[' . $moduleDef['date_attr'] . '][gt]') . '=' . urlencode($lookback->format('Y-m-d\TH:i:s')),
 				urlencode('filter[' . $moduleDef['date_attr'] . '][lt]') . '=' . urlencode($horizon->format('Y-m-d\TH:i:s')),
 				'filter[operator]=and',
 			];
+			if ($scrmUserId !== '') {
+				$filters[] = urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId);
+			}
 			$response = $this->request(
 				$url, $accessToken, $userId,
 				'module/' . $moduleDef['module'] . '?' . implode('&', $filters)
@@ -537,17 +545,21 @@ class SuiteCRMAPIService {
 	 *               `priority_rank` (int, lower = more urgent).
 	 *               On upstream API failure, returns the SuiteCRM error payload.
 	 */
-	public function getMyCases(string $url, string $accessToken, string $userId, int $limit = 20): array {
-		$scrmUserId = $this->config->getUserValue($userId, Application::APP_ID, 'user_id');
-		if ($scrmUserId === '') {
+	public function getMyCases(string $url, string $accessToken, string $userId, int $limit = 20, bool $onlyMine = true): array {
+		$scrmUserId = $onlyMine
+			? (string) $this->config->getUserValue($userId, Application::APP_ID, 'user_id')
+			: '';
+		if ($onlyMine && $scrmUserId === '') {
 			return [];
 		}
 
 		$filters = [
 			'fields[Cases]=name,case_number,priority,status,description,date_entered,account_name',
-			urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId),
 			'filter[operator]=and',
 		];
+		if ($scrmUserId !== '') {
+			$filters[] = urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId);
+		}
 		$response = $this->request(
 			$url, $accessToken, $userId,
 			'module/Cases?' . implode('&', $filters)
@@ -622,17 +634,21 @@ class SuiteCRMAPIService {
 	 *               `priority_rank` (int, lower = more urgent).
 	 *               On upstream API failure, returns the SuiteCRM error payload.
 	 */
-	public function getMyTasks(string $url, string $accessToken, string $userId, int $limit = 20): array {
-		$scrmUserId = $this->config->getUserValue($userId, Application::APP_ID, 'user_id');
-		if ($scrmUserId === '') {
+	public function getMyTasks(string $url, string $accessToken, string $userId, int $limit = 20, bool $onlyMine = true): array {
+		$scrmUserId = $onlyMine
+			? (string) $this->config->getUserValue($userId, Application::APP_ID, 'user_id')
+			: '';
+		if ($onlyMine && $scrmUserId === '') {
 			return [];
 		}
 
 		$filters = [
 			'fields[Tasks]=name,status,priority,date_due,date_entered,description',
-			urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId),
 			'filter[operator]=and',
 		];
+		if ($scrmUserId !== '') {
+			$filters[] = urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId);
+		}
 		$response = $this->request(
 			$url, $accessToken, $userId,
 			'module/Tasks?' . implode('&', $filters)
@@ -782,9 +798,11 @@ class SuiteCRMAPIService {
 	 * @return array Sorted result rows.
 	 *               On upstream API failure, returns the SuiteCRM error payload.
 	 */
-	public function getMyPipeline(string $url, string $accessToken, string $userId, string $mode = self::DEFAULT_PIPELINE_MODE, int $limit = 20): array {
-		$scrmUserId = $this->config->getUserValue($userId, Application::APP_ID, 'user_id');
-		if ($scrmUserId === '') {
+	public function getMyPipeline(string $url, string $accessToken, string $userId, string $mode = self::DEFAULT_PIPELINE_MODE, int $limit = 20, bool $onlyMine = true): array {
+		$scrmUserId = $onlyMine
+			? (string) $this->config->getUserValue($userId, Application::APP_ID, 'user_id')
+			: '';
+		if ($onlyMine && $scrmUserId === '') {
 			return [];
 		}
 		if (!in_array($mode, self::PIPELINE_MODES, true)) {
@@ -793,9 +811,11 @@ class SuiteCRMAPIService {
 
 		$filters = [
 			'fields[Opportunities]=name,amount,currency_symbol,probability,sales_stage,date_closed,account_name,date_entered',
-			urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId),
 			'filter[operator]=and',
 		];
+		if ($scrmUserId !== '') {
+			$filters[] = urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId);
+		}
 		$response = $this->request(
 			$url, $accessToken, $userId,
 			'module/Opportunities?' . implode('&', $filters)

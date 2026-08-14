@@ -85,6 +85,14 @@ class ConfigController extends Controller {
                 'contacts_only_mine',
                 'accounts_only_mine',
                 'leads_only_mine',
+                // For widgets that already default to "my records only",
+                // this key lets the user OPT-OUT to see the whole team's
+                // records within ACL. Default on missing row is '1' so
+                // upgraded installs keep their existing single-user view.
+                'calendar_only_mine',
+                'cases_only_mine',
+                'tasks_only_mine',
+                'pipeline_only_mine',
         ];
 
         /**
@@ -165,6 +173,10 @@ class ConfigController extends Controller {
                         'contacts_only_mine' => $boolKey('contacts_only_mine', false),
                         'accounts_only_mine' => $boolKey('accounts_only_mine', false),
                         'leads_only_mine' => $boolKey('leads_only_mine', false),
+                        'calendar_only_mine' => $boolKey('calendar_only_mine', true),
+                        'cases_only_mine' => $boolKey('cases_only_mine', true),
+                        'tasks_only_mine' => $boolKey('tasks_only_mine', true),
+                        'pipeline_only_mine' => $boolKey('pipeline_only_mine', true),
                         'calendar_show_tasks' => $this->config->getUserValue(
                                 $this->userId, Application::APP_ID, 'calendar_show_tasks', '1',
                         ) !== '0',
