@@ -261,6 +261,8 @@ export default {
 	text-decoration: none;
 	font-size: 12px;
 	border-radius: var(--border-radius);
+	/* Anchored at the bottom of the widget below the scrollable list. */
+	flex-shrink: 0;
 
 	&:hover {
 		text-decoration: underline;
