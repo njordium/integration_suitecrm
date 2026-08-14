@@ -75,6 +75,12 @@
 	color: inherit;
 	text-decoration: none;
 	overflow: hidden;
+	/* Pin size on the anchor so nothing inherits from a competing
+	 * NC dashboard-app rule; the shared CSS is unscoped (0,1,0)
+	 * and can lose specificity battles otherwise. Matches Forgejo's
+	 * scoped widget CSS which effectively pins the same values. */
+	font-size: 13px;
+	line-height: 1.35;
 }
 
 .scw-item__row {
@@ -85,6 +91,7 @@
 
 .scw-item__title {
 	font-weight: 500;
+	font-size: 13px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -94,6 +101,7 @@
 .scw-item__meta {
 	margin-top: 2px;
 	font-size: 11px;
+	line-height: 1.3;
 	color: var(--color-text-maxcontrast);
 	overflow: hidden;
 	text-overflow: ellipsis;
