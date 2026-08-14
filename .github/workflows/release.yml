@@ -84,10 +84,10 @@ jobs:
       # executes against the default branch of the workflow file). Doing
       # it inline is verbose but bulletproof.
       # -----------------------------------------------------------------
-      - name: Setup PHP (8.2 — floor per composer.json)
+      - name: Setup PHP (8.3 — floor per composer.json)
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '8.3'
           coverage: none
           tools: composer:v2
 
