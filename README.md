@@ -1,9 +1,11 @@
 # SuiteCRM integration for Nextcloud
 
 > **Actively maintained fork** of [julien-nc/integration_suitecrm](https://github.com/julien-nc/integration_suitecrm) by Julien Veyssier.
-> Updated for **Nextcloud 30 to 34** and **SuiteCRM 8.x**, migrated to Vue 3 / `@nextcloud/vue` v9, and extended with nine dashboard widgets, Quick Action write flows (Talk to Note, Deck to SuiteCRM, Email to Case), a global floating action button, reference cards, smart picker, encrypted token storage, and a companion CalDAV sync module.
+> Updated for **Nextcloud 30 to 35** and **SuiteCRM 8.x**, migrated to Vue 3 / `@nextcloud/vue` v9, and extended with nine dashboard widgets (each with its own 3-dot settings menu — per-widget refresh cadence, records-to-show, and "Only records assigned to me" filter), Quick Action write flows (Talk to Note, Deck to SuiteCRM, Email to Case), a global floating action button, reference cards, smart picker, encrypted token storage, and a companion CalDAV sync module.
 
 Interact with your SuiteCRM instance from inside Nextcloud. Search records, see your schedule, workload, recent CRM activity, and newly-added people and companies on your dashboard, get notified about meeting reminders, log Talk conversations as Notes, link Deck cards to SuiteCRM records, convert emails to Cases, and paste CRM links into Talk or Notes for rich preview cards.
+
+![SuiteCRM integration dashboard widgets](img/screenshot.png)
 
 **New here?** Skip straight to [`docs/getting-started.md`](docs/getting-started.md) for the zero-to-connected walkthrough (about 15 minutes end-to-end).
 
@@ -20,30 +22,35 @@ Search across your SuiteCRM data from Nextcloud's global search bar. Supports:
 Contacts and Leads are filtered on both `last_name` and `first_name`, searching for a first name like "Serena" returns the matching Contact even when their full name is stored differently.
 
 ### Dashboard widgets
-Nine home-dashboard widgets, grouped by intent, that answer the four questions a SuiteCRM user usually opens the dashboard to check: *what's on my calendar today*, *what's on my plate*, *what's happening in the CRM*, and *who's new*. Enable any subset via **Edit widgets** on the Nextcloud dashboard.
+Nine home-dashboard widgets, grouped by intent, that answer the four questions a SuiteCRM user usually opens the dashboard to check: *what's on my calendar today*, *what's on my plate*, *what's happening in the CRM*, and *who's new*. Enable any subset via **Customize** on the Nextcloud dashboard. Every widget carries a 3-dot settings menu with:
+
+- **Refresh frequency** — Never / 30s / 1m / 5m / 15m / 30m / 1h (default 5 minutes)
+- **Records to show** — 5 / 10 / 15 / 20 / 25 / 50 (default 20). Both a display cap and the fetch limit sent to SuiteCRM, so the widget doesn't ask for rows it would drop client-side. Server clamps to `min(100, N)` as a hard ceiling.
+- **Only records assigned to me** — on eight of nine widgets. Toggle-on-by-default for Calendar / Cases / Tasks / Pipeline (traditional single-user view); toggle-off-by-default for Activities / Contacts / Accounts / Leads (traditional recent-across-team view). Events has no toggle (reminders are per-user in SuiteCRM's data model).
+- **Widget-specific extras** — Calendar exposes "Include Tasks alongside Meetings and Calls"; Pipeline exposes the "Closing this quarter / Top value / Weighted value" framing radio.
 
 **Schedule** — what's on today
 
-- **SuiteCRM Events**. Reminders for upcoming Calls and Meetings that need your attention.
-- **SuiteCRM Calendar**. Chronological list of assigned Meetings, Calls, and Tasks in the next 7 days, plus past-due items that haven't been dispositioned yet. Personal preference under *Dashboard widget preferences* toggles whether Tasks are included, useful when you enable the standalone Tasks widget below and want to avoid seeing dated Tasks in both places.
+- **SuiteCRM: Events**. Reminders for upcoming Calls and Meetings that need your attention.
+- **SuiteCRM: Calendar**. Chronological list of assigned Meetings, Calls, and Tasks in the next 7 days, plus past-due items that haven't been dispositioned yet.
 
 **Workload** — what's on my plate
 
-- **SuiteCRM Cases**. Your open Cases, priority-sorted then oldest-first within priority, so the highest-severity long-open Case surfaces at the top. Row shows case number, name, priority, status, and days-open counter.
-- **SuiteCRM Tasks**. Your open Tasks (Not Started, In Progress, Pending Input). Distinct from the calendar widget in that it *includes undated Tasks* the calendar view drops. Sort is priority DESC then due-date ASC, with undated Tasks moved to the tail of each priority tier.
-- **SuiteCRM Pipeline**. Your open Opportunities, framed by a per-user preference. Three modes ship: **Closing this quarter** (default; filters to `date_closed` in the current calendar quarter, sorted earliest first), **Top value** (sort by amount DESC, all open deals), and **Weighted value** (sort by `amount × probability / 100`, matching how finance tracks pipeline). Switch modes in Personal Settings under *Dashboard widget preferences*.
+- **SuiteCRM: Cases**. Your open Cases, priority-sorted then oldest-first within priority, so the highest-severity long-open Case surfaces at the top. Row shows case number, name, priority, status, and days-open counter.
+- **SuiteCRM: Tasks**. Your open Tasks (Not Started, In Progress, Pending Input). Distinct from the calendar widget in that it *includes undated Tasks* the calendar view drops. Sort is priority DESC then due-date ASC, with undated Tasks moved to the tail of each priority tier.
+- **SuiteCRM: Pipeline**. Your open Opportunities, framed by the picker mode in the 3-dot menu. Three modes ship: **Closing this quarter** (default; filters to `date_closed` in the current calendar quarter, sorted earliest first), **Top value** (sort by amount DESC, all open deals), and **Weighted value** (sort by `amount × probability / 100`, matching how finance tracks pipeline).
 
 **Activity** — what's happening in the CRM
 
-- **SuiteCRM Activities**. Cross-module recent-activity feed covering Calls, Meetings, Tasks, and Notes as SuiteCRM's canonical activity types. Sorted by `date_modified` DESC, so a Call rescheduled today surfaces above a Meeting held last week even if the Meeting was created more recently. Tenant-wide within your ACL rather than filtered to `assigned_user_id`, answers "what's been touched in the CRM lately that I have access to see".
+- **SuiteCRM: Activities**. Cross-module recent-activity feed covering Calls, Meetings, Tasks, and Notes as SuiteCRM's canonical activity types. Sorted by `date_modified` DESC.
 
 **Discovery** — who's new
 
-- **SuiteCRM Contacts**. Most recently added Contacts within your ACL, sorted by `date_entered` DESC. Row shows full name (falls back to email for name-less Web-form captures), with account name and date in the subline.
-- **SuiteCRM Accounts**. Most recently added Accounts within your ACL. Subline shows industry and date.
-- **SuiteCRM Leads**. Most recently added Leads within your ACL. Subline shows account, status, lead source, and date, so a fresh Web-form capture ("New / Web") reads differently at a glance from an already-worked cold call ("In Process / Cold Call").
+- **SuiteCRM: Contacts**. Most recently added Contacts within your ACL, sorted by `date_entered` DESC. Row shows full name (falls back to email for name-less Web-form captures), with account name and date in the subline.
+- **SuiteCRM: Accounts**. Most recently added Accounts within your ACL. Subline shows industry and date.
+- **SuiteCRM: Leads**. Most recently added Leads within your ACL. Subline shows account, status, lead source, and date, so a fresh Web-form capture ("New / Web") reads differently at a glance from an already-worked cold call ("In Process / Cold Call").
 
-Every widget implements `IAPIWidgetV2` so the Nextcloud dashboard renders a SuiteCRM-specific empty-state message ("No open SuiteCRM Cases", "No recently added SuiteCRM Leads", "No SuiteCRM Opportunities closing this quarter", etc.) when your queue is empty, instead of the generic "No entries" fallback. Polling cadence is 120 seconds with a tab-hidden pause, so an idle dashboard tab doesn't hammer SuiteCRM.
+Row icons are chosen per widget for the record type — a person silhouette for Contacts, a handshake for Leads, an office building for Accounts, a briefcase for Cases, a task-list for Tasks, a trending-up arrow for Pipeline. Activities / Calendar / Events dispatch per row (calendar-clock for Meetings, phone for Calls, task-list for Tasks, note for Notes). All widgets share a single color SuiteCRM brand icon in the header. Empty-state uses a check-circle icon so a zero-result widget reads as "you're all caught up" rather than a blank card.
 
 ### Quick Actions: write to SuiteCRM from Nextcloud
 
@@ -88,14 +95,15 @@ Safe to run at any time; does not touch stored user tokens.
 - OAuth2 access + refresh tokens are encrypted at rest using Nextcloud's `ICrypto` service
 - Tokens migrated transparently from plaintext (installs upgraded from ≤ 1.1.x)
 - **OAuth 2.0 authorization-code flow** (RFC 6749) is the primary connect path, the password grant is kept as a labelled "Advanced" fallback only
+- 3.1.0 cleared a full OWASP-Top-10 static review with 0 High + 0 Medium findings (three Medium and four Low findings from the initial review pass are fixed; four remaining Low advisories are documented tradeoffs). Write endpoints carry `#[UserRateLimit(30/60s)]`, admin config writes go through an `ADMIN_ALLOWED_KEYS` whitelist with `sensitive: true` on `client_secret`, the avatar proxy pins Content-Type via image magic-byte sniff, the OAuth error log redacts the raw guzzle message, and the 2.x→3.x migration preserves the `sensitive` flag on `client_secret`.
 
 ---
 
 ## Requirements
 
-- Nextcloud **30 – 34**
+- Nextcloud **30 – 35**
 - **SuiteCRM 8.x** with the v8 REST API enabled and OpenSSL keys generated (v7.x is no longer supported)
-- PHP **8.2+**
+- PHP **8.3+**
 
 ---
 
@@ -118,7 +126,7 @@ npm run build
 
 Then enable it in **Apps → Integration → SuiteCRM integration**.
 
-> **⚠️ If you install by grabbing the source tarball** (`/archive/refs/heads/master.tar.gz`), the compiled `js/` bundles are **not** included (they're `.gitignore`d and produced by CI). You MUST run `npm ci && npm run build` on the host before enabling the app, otherwise the personal-settings section renders empty with no console errors. See [Troubleshooting → empty settings section](#troubleshooting).
+> **Note (3.1.0+):** the compiled `js/` bundles are now committed on release commits, so a `git clone` + `git checkout v<tag>` gives you a ready-to-serve app without needing node/npm on the host. Same convention as the sibling `integration_forgejo_gitea` app.
 
 ---
 
@@ -273,7 +281,7 @@ vendor/bin/phpunit # unit tests
 vendor/bin/phpstan analyse -c phpstan.neon
 ```
 
-CI (`.github/workflows/lint.yml`) runs all of the above on every push and PR across PHP 8.2 / 8.3 / 8.4 and Node 20. The release workflow (`.github/workflows/release.yml`) fires on `v*` tag push, re-runs the full lint+test suite as a release gate, and publishes the built zip + SHA-256 checksum to the GitHub Release automatically.
+CI (`.github/workflows/lint.yml`) runs all of the above on every push and PR across PHP 8.3 / 8.4 and Node 20. The release workflow (`.github/workflows/release.yml`) fires on `v*` tag push, re-runs the full lint+test suite as a release gate, and publishes the built zip + SHA-256 checksum to the GitHub Release automatically.
 
 ---
 
