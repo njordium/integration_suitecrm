@@ -1,30 +1,69 @@
 <template>
-	<NcDashboardWidget
-		:items="items"
+	<SuiteCRMWidgetShell
+		:loading="state === 'loading'"
+		:notConnected="state === 'no-token'"
+		:error="state === 'error' ? t('integration_suitecrm', 'Error connecting to SuiteCRM') : ''"
+		:hasItems="events.length > 0"
+		:emptyText="t('integration_suitecrm', 'No upcoming SuiteCRM events')"
 		:showMoreUrl="showMoreUrl"
-		:showMoreText="title"
-		:loading="state === 'loading'">
-		<template #empty-content>
-			<NcEmptyContent v-if="emptyContentMessage" :name="emptyContentMessage">
-				<template #action>
-					<div v-if="state === 'no-token' || state === 'error'" class="connect-button">
-						<a class="button" :href="settingsUrl">
-							{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
-						</a>
-					</div>
-				</template>
-			</NcEmptyContent>
+		:settingsTitle="t('integration_suitecrm', 'SuiteCRM: Calendar — settings')"
+		:refreshSeconds="refreshSeconds"
+		:extras="{ calendar_show_tasks: calendarShowTasks }"
+		:saving="saving"
+		@refresh="fetchEvents"
+		@save="onSaveSettings">
+		<template #settings="{ draft, updateExtra }">
+			<section class="scw-modal__section">
+				<h4>{{ t('integration_suitecrm', 'Item types') }}</h4>
+				<label class="scw-toggle">
+					<input
+						type="checkbox"
+						:checked="!!draft.calendar_show_tasks"
+						@change="updateExtra('calendar_show_tasks', $event.target.checked)">
+					<span>{{ t('integration_suitecrm', 'Include Tasks alongside Meetings and Calls') }}</span>
+				</label>
+			</section>
 		</template>
-	</NcDashboardWidget>
+
+		<ul class="scw-list">
+			<li v-for="e in events" :key="e.id" class="scw-item">
+				<img
+					v-if="getAvatarUrl(e)"
+					:src="getAvatarUrl(e)"
+					:alt="e.type"
+					class="scw-item__avatar">
+				<a
+					:href="getEventTarget(e)"
+					target="_blank"
+					rel="noopener"
+					class="scw-item__link">
+					<div class="scw-item__row">
+						<span class="scw-item__title">{{ getMainText(e) }}</span>
+					</div>
+					<div class="scw-item__meta">
+						{{ getSubline(e) }}
+					</div>
+				</a>
+			</li>
+		</ul>
+	</SuiteCRMWidgetShell>
 </template>
 
 <script>
+/**
+ * SuiteCRMCalendar — upcoming Meetings, Calls, and (optionally) Tasks.
+ *
+ * The `calendar_show_tasks` toggle has moved into this widget's own
+ * 3-dot settings menu — previously it lived under PersonalSettings.vue
+ * only. The same key is written, so existing values from 2.4.x+
+ * installs carry over untouched.
+ */
 import axios from '@nextcloud/axios'
-import { showError } from '@nextcloud/dialogs'
+import { showError, showSuccess } from '@nextcloud/dialogs'
 import moment from '@nextcloud/moment'
 import { generateUrl, imagePath } from '@nextcloud/router'
-import NcDashboardWidget from '@nextcloud/vue/components/NcDashboardWidget'
-import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import SuiteCRMWidgetShell from '../components/SuiteCRMWidgetShell.vue'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const TYPE_MODULE = {
 	meeting: 'Meetings',
@@ -35,95 +74,61 @@ const TYPE_MODULE = {
 export default {
 	name: 'SuiteCRMCalendar',
 
-	components: {
-		NcDashboardWidget,
-		NcEmptyContent,
-	},
+	components: { SuiteCRMWidgetShell },
 
-	props: {
-		title: {
-			type: String,
-			required: true,
-		},
+	setup() {
+		const bridge = { fetchLater: () => null }
+		const refresh = useAutoRefresh(() => bridge.fetchLater())
+		Object.assign(bridge, refresh)
+		return { autoRefresh: bridge }
 	},
 
 	data() {
 		return {
 			suitecrmUrl: null,
 			events: [],
-			loop: null,
 			state: 'loading',
-			settingsUrl: generateUrl('/settings/user/connected-accounts'),
-			windowVisibility: true,
+			refreshSeconds: 300,
+			saving: false,
+			calendarShowTasks: true,
 		}
 	},
 
 	computed: {
 		showMoreUrl() {
-			return this.suitecrmUrl + '/index.php?module=Calendar&action=index'
-		},
-
-		items() {
-			return this.events.map((e) => ({
-				id: e.id,
-				targetUrl: this.getEventTarget(e),
-				avatarUrl: this.getAvatarUrl(e),
-				avatarUsername: this.getMainText(e),
-				mainText: this.getMainText(e),
-				subText: this.getSubline(e),
-			}))
-		},
-
-		emptyContentMessage() {
-			if (this.state === 'no-token') {
-				return t('integration_suitecrm', 'No SuiteCRM account connected')
-			} else if (this.state === 'error') {
-				return t('integration_suitecrm', 'Error connecting to SuiteCRM')
-			} else if (this.state === 'ok') {
-				return t('integration_suitecrm', 'No upcoming SuiteCRM events')
-			}
-			return ''
+			return this.suitecrmUrl ? this.suitecrmUrl + '/index.php?module=Calendar&action=index' : ''
 		},
 	},
 
-	watch: {
-		windowVisibility(newValue) {
-			if (newValue) {
-				this.launchLoop()
-			} else {
-				this.stopLoop()
-			}
-		},
-	},
-
-	beforeUnmount() {
-		document.removeEventListener('visibilitychange', this.changeWindowVisibility)
-	},
-
-	beforeMount() {
-		this.launchLoop()
-		document.addEventListener('visibilitychange', this.changeWindowVisibility)
+	mounted() {
+		this.autoRefresh.fetchLater = () => this.fetchEvents()
+		this.loadWidgetConfig().then(() => this.probeUrl()).then(() => this.fetchEvents())
 	},
 
 	methods: {
-		changeWindowVisibility() {
-			this.windowVisibility = !document.hidden
+		async loadWidgetConfig() {
+			try {
+				const response = await axios.get(generateUrl('/apps/integration_suitecrm/widget-config'))
+				const seconds = Number(response.data?.calendar_refresh_seconds)
+				if (!Number.isNaN(seconds)) {
+					this.refreshSeconds = seconds
+					this.autoRefresh.setIntervalMs(seconds * 1000)
+				}
+				if (typeof response.data?.calendar_show_tasks === 'boolean') {
+					this.calendarShowTasks = response.data.calendar_show_tasks
+				}
+			} catch {
+				// best-effort — widget still functions at defaults
+			}
 		},
 
-		stopLoop() {
-			clearInterval(this.loop)
-		},
-
-		async launchLoop() {
+		async probeUrl() {
 			try {
 				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
-				this.suitecrmUrl = response.data.replace(/\/+$/, '')
+				this.suitecrmUrl = (response.data || '').replace(/\/+$/, '')
 			} catch {
-				// URL probe is best-effort; the widget still works, just without
-				// an absolute prefix on the "show more" link.
+				// best-effort — widget still functions at defaults
 			}
-			this.fetchEvents()
-			this.loop = setInterval(() => this.fetchEvents(), 120000)
 		},
 
 		fetchEvents() {
@@ -131,7 +136,6 @@ export default {
 				this.events = response.data
 				this.state = 'ok'
 			}).catch((error) => {
-				clearInterval(this.loop)
 				if (error.response && error.response.status === 400) {
 					this.state = 'no-token'
 				} else if (error.response && error.response.status === 401) {
@@ -141,7 +145,34 @@ export default {
 			})
 		},
 
+		async onSaveSettings({ refreshSeconds, extras, close }) {
+			this.saving = true
+			try {
+				const values = {
+					calendar_refresh_seconds: String(refreshSeconds),
+					calendar_show_tasks: extras?.calendar_show_tasks ? '1' : '0',
+				}
+				await axios.put(generateUrl('/apps/integration_suitecrm/config'), { values })
+				this.refreshSeconds = refreshSeconds
+				this.autoRefresh.setIntervalMs(refreshSeconds * 1000)
+				const nextShowTasks = !!extras?.calendar_show_tasks
+				if (nextShowTasks !== this.calendarShowTasks) {
+					this.calendarShowTasks = nextShowTasks
+					this.fetchEvents()
+				}
+				close()
+				showSuccess(t('integration_suitecrm', 'Widget settings saved.'))
+			} catch {
+				showError(t('integration_suitecrm', 'Failed to save widget settings.'))
+			} finally {
+				this.saving = false
+			}
+		},
+
 		getEventTarget(e) {
+			if (!this.suitecrmUrl) {
+				return ''
+			}
 			const module = TYPE_MODULE[e.type]
 			if (!module) {
 				return this.suitecrmUrl
@@ -156,7 +187,7 @@ export default {
 			if (e.type === 'meeting') {
 				return imagePath('integration_suitecrm', 'meeting.png')
 			}
-			return ''
+			return imagePath('integration_suitecrm', 'app-color.svg')
 		},
 
 		getMainText(e) {
@@ -184,7 +215,16 @@ export default {
 </script>
 
 <style scoped lang="scss">
-:deep(.connect-button) {
-	margin-top: 10px;
+.scw-toggle {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 0;
+	cursor: pointer;
+
+	input[type="checkbox"] {
+		margin: 0;
+		flex-shrink: 0;
+	}
 }
 </style>

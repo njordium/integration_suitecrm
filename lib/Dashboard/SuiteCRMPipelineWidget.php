@@ -60,7 +60,7 @@ class SuiteCRMPipelineWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIcon
 	}
 
 	public function getTitle(): string {
-		return $this->l10n->t('SuiteCRM Pipeline');
+		return $this->l10n->t('SuiteCRM: Pipeline');
 	}
 
 	public function getOrder(): int {
@@ -73,7 +73,7 @@ class SuiteCRMPipelineWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIcon
 
 	public function getIconUrl(): string {
 		return $this->url->getAbsoluteURL(
-			$this->url->imagePath(Application::APP_ID, 'app.svg')
+			$this->url->imagePath(Application::APP_ID, 'app-color.svg')
 		);
 	}
 
@@ -117,7 +117,7 @@ class SuiteCRMPipelineWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIcon
 				$title,
 				$this->buildSubtitle($mode, $attributes, $opp),
 				$this->buildOpportunityLink($suitecrmUrl, $oppId),
-				$this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')),
+				$this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app-color.svg')),
 				// Sort key: index within the already-sorted array so
 				// the dashboard app preserves getMyPipeline()'s ordering.
 				(string) $index,

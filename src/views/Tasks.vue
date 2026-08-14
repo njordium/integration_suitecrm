@@ -1,135 +1,102 @@
 <template>
-	<NcDashboardWidget
-		:items="items"
+	<SuiteCRMWidgetShell
+		:loading="state === 'loading'"
+		:notConnected="state === 'no-token'"
+		:error="state === 'error' ? t('integration_suitecrm', 'Error connecting to SuiteCRM') : ''"
+		:hasItems="tasks.length > 0"
+		:emptyText="t('integration_suitecrm', 'No open SuiteCRM Tasks')"
 		:showMoreUrl="showMoreUrl"
-		:showMoreText="title"
-		:loading="state === 'loading'">
-		<template #empty-content>
-			<NcEmptyContent v-if="emptyContentMessage" :name="emptyContentMessage">
-				<template #action>
-					<div v-if="state === 'no-token' || state === 'error'" class="connect-button">
-						<a class="button" :href="settingsUrl">
-							{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
-						</a>
+		:settingsTitle="t('integration_suitecrm', 'SuiteCRM: Tasks — settings')"
+		:refreshSeconds="refreshSeconds"
+		:saving="saving"
+		@refresh="fetchTasks"
+		@save="onSaveSettings">
+		<ul class="scw-list">
+			<li v-for="task in tasks" :key="task.id" class="scw-item">
+				<a
+					:href="getTaskTarget(task)"
+					target="_blank"
+					rel="noopener"
+					class="scw-item__link">
+					<div class="scw-item__row">
+						<span class="scw-item__title">{{ getMainText(task) }}</span>
 					</div>
-				</template>
-			</NcEmptyContent>
-		</template>
-	</NcDashboardWidget>
+					<div class="scw-item__meta">
+						{{ getSubline(task) }}
+					</div>
+				</a>
+			</li>
+		</ul>
+	</SuiteCRMWidgetShell>
 </template>
 
 <script>
 /**
- * SuiteCRMTasks.
- *
- * "My open Tasks" dashboard widget. Workload-oriented, not
- * schedule-oriented, includes undated Tasks the calendar widget
- * drops. Subline shows priority · due-date-relative-label, or
- * "no due date" when date_due is empty. Moment renders the
- * relative label so the user sees "due yesterday" / "due in 3 days"
- * in their own locale rather than raw ISO dates.
- *
- * @author Kim Haverblad
+ * SuiteCRMTasks — "My open Tasks" dashboard widget. Workload-oriented
+ * (includes undated Tasks the calendar widget drops). Uses the shared
+ * `SuiteCRMWidgetShell` for the 3-dot toolbar + settings modal.
  */
 import axios from '@nextcloud/axios'
-import { showError } from '@nextcloud/dialogs'
+import { showError, showSuccess } from '@nextcloud/dialogs'
 import moment from '@nextcloud/moment'
-import { generateUrl, imagePath } from '@nextcloud/router'
-import NcDashboardWidget from '@nextcloud/vue/components/NcDashboardWidget'
-import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import { generateUrl } from '@nextcloud/router'
+import SuiteCRMWidgetShell from '../components/SuiteCRMWidgetShell.vue'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 export default {
 	name: 'SuiteCRMTasks',
 
-	components: {
-		NcDashboardWidget,
-		NcEmptyContent,
-	},
+	components: { SuiteCRMWidgetShell },
 
-	props: {
-		title: {
-			type: String,
-			required: true,
-		},
+	setup() {
+		const bridge = { fetchLater: () => null }
+		const refresh = useAutoRefresh(() => bridge.fetchLater())
+		Object.assign(bridge, refresh)
+		return { autoRefresh: bridge }
 	},
 
 	data() {
 		return {
 			suitecrmUrl: null,
 			tasks: [],
-			loop: null,
 			state: 'loading',
-			settingsUrl: generateUrl('/settings/user/connected-accounts'),
-			windowVisibility: true,
+			refreshSeconds: 300,
+			saving: false,
 		}
 	},
 
 	computed: {
 		showMoreUrl() {
-			return this.suitecrmUrl + '/index.php?module=Tasks&action=index'
-		},
-
-		items() {
-			return this.tasks.map((t) => ({
-				id: t.id,
-				targetUrl: this.getTaskTarget(t),
-				avatarUrl: imagePath('integration_suitecrm', 'app.svg'),
-				avatarUsername: this.getMainText(t),
-				mainText: this.getMainText(t),
-				subText: this.getSubline(t),
-			}))
-		},
-
-		emptyContentMessage() {
-			if (this.state === 'no-token') {
-				return t('integration_suitecrm', 'No SuiteCRM account connected')
-			} else if (this.state === 'error') {
-				return t('integration_suitecrm', 'Error connecting to SuiteCRM')
-			} else if (this.state === 'ok') {
-				return t('integration_suitecrm', 'No open SuiteCRM Tasks')
-			}
-			return ''
+			return this.suitecrmUrl ? this.suitecrmUrl + '/index.php?module=Tasks&action=index' : ''
 		},
 	},
 
-	watch: {
-		windowVisibility(newValue) {
-			if (newValue) {
-				this.launchLoop()
-			} else {
-				this.stopLoop()
-			}
-		},
-	},
-
-	beforeUnmount() {
-		document.removeEventListener('visibilitychange', this.changeWindowVisibility)
-	},
-
-	beforeMount() {
-		this.launchLoop()
-		document.addEventListener('visibilitychange', this.changeWindowVisibility)
+	mounted() {
+		this.autoRefresh.fetchLater = () => this.fetchTasks()
+		this.loadWidgetConfig().then(() => this.probeUrl()).then(() => this.fetchTasks())
 	},
 
 	methods: {
-		changeWindowVisibility() {
-			this.windowVisibility = !document.hidden
+		async loadWidgetConfig() {
+			try {
+				const response = await axios.get(generateUrl('/apps/integration_suitecrm/widget-config'))
+				const seconds = Number(response.data?.tasks_refresh_seconds)
+				if (!Number.isNaN(seconds)) {
+					this.refreshSeconds = seconds
+					this.autoRefresh.setIntervalMs(seconds * 1000)
+				}
+			} catch {
+				// best-effort — widget still functions at defaults
+			}
 		},
 
-		stopLoop() {
-			clearInterval(this.loop)
-		},
-
-		async launchLoop() {
+		async probeUrl() {
 			try {
 				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
-				this.suitecrmUrl = response.data.replace(/\/+$/, '')
+				this.suitecrmUrl = (response.data || '').replace(/\/+$/, '')
 			} catch {
-				// URL probe is best-effort; the widget still works, just without
-				// an absolute prefix on the "show more" link.
+				// best-effort — widget still functions at defaults
 			}
-			this.fetchTasks()
-			this.loop = setInterval(() => this.fetchTasks(), 120000)
 		},
 
 		fetchTasks() {
@@ -137,7 +104,6 @@ export default {
 				this.tasks = response.data
 				this.state = 'ok'
 			}).catch((error) => {
-				clearInterval(this.loop)
 				if (error.response && error.response.status === 400) {
 					this.state = 'no-token'
 				} else if (error.response && error.response.status === 401) {
@@ -145,6 +111,23 @@ export default {
 					this.state = 'error'
 				}
 			})
+		},
+
+		async onSaveSettings({ refreshSeconds, close }) {
+			this.saving = true
+			try {
+				await axios.put(generateUrl('/apps/integration_suitecrm/config'), {
+					values: { tasks_refresh_seconds: String(refreshSeconds) },
+				})
+				this.refreshSeconds = refreshSeconds
+				this.autoRefresh.setIntervalMs(refreshSeconds * 1000)
+				close()
+				showSuccess(t('integration_suitecrm', 'Widget settings saved.'))
+			} catch {
+				showError(t('integration_suitecrm', 'Failed to save widget settings.'))
+			} finally {
+				this.saving = false
+			}
 		},
 
 		getTaskTarget(task) {
@@ -175,8 +158,4 @@ export default {
 }
 </script>
 
-<style scoped lang="scss">
-:deep(.connect-button) {
-	margin-top: 10px;
-}
-</style>
+<!-- List styles are shared across all nine widgets via css/dashboard.css. -->

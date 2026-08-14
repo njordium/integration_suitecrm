@@ -1,148 +1,110 @@
 <template>
-	<NcDashboardWidget
-		:items="items"
+	<SuiteCRMWidgetShell
+		:loading="state === 'loading'"
+		:notConnected="state === 'no-token'"
+		:error="state === 'error' ? t('integration_suitecrm', 'Error connecting to SuiteCRM') : ''"
+		:hasItems="notifications.length > 0"
+		:emptyText="t('integration_suitecrm', 'No SuiteCRM notifications!')"
 		:showMoreUrl="showMoreUrl"
-		:showMoreText="title"
-		:loading="state === 'loading'">
-		<template #empty-content>
-			<NcEmptyContent
-				v-if="emptyContentMessage"
-				:name="emptyContentMessage">
-				<template #action>
-					<div v-if="state === 'no-token' || state === 'error'" class="connect-button">
-						<a class="button" :href="settingsUrl">
-							{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
-						</a>
+		:settingsTitle="t('integration_suitecrm', 'SuiteCRM: Events — settings')"
+		:refreshSeconds="refreshSeconds"
+		:saving="saving"
+		@refresh="fetchNotifications"
+		@save="onSaveSettings">
+		<ul class="scw-list">
+			<li v-for="n in notifications" :key="getUniqueKey(n)" class="scw-item">
+				<img
+					v-if="getAvatarUrl(n)"
+					:src="getAvatarUrl(n)"
+					:alt="n.attributes?.related_event_module || ''"
+					class="scw-item__avatar">
+				<a
+					:href="getNotificationTarget(n)"
+					target="_blank"
+					rel="noopener"
+					class="scw-item__link">
+					<div class="scw-item__row">
+						<span class="scw-item__title">{{ getTargetTitle(n) }}</span>
 					</div>
-				</template>
-			</NcEmptyContent>
-		</template>
-	</NcDashboardWidget>
+					<div class="scw-item__meta">
+						{{ getSubline(n) }}
+					</div>
+				</a>
+			</li>
+		</ul>
+	</SuiteCRMWidgetShell>
 </template>
 
 <script>
 import axios from '@nextcloud/axios'
-import { showError } from '@nextcloud/dialogs'
+import { showError, showSuccess } from '@nextcloud/dialogs'
 import moment from '@nextcloud/moment'
 import { generateUrl, imagePath } from '@nextcloud/router'
-import { NcDashboardWidget, NcEmptyContent } from '@nextcloud/vue'
+import SuiteCRMWidgetShell from '../components/SuiteCRMWidgetShell.vue'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 export default {
 	name: 'SuiteCRMDashboard',
 
-	components: {
-		NcDashboardWidget,
-		NcEmptyContent,
-	},
+	components: { SuiteCRMWidgetShell },
 
-	props: {
-		title: {
-			type: String,
-			required: true,
-		},
+	setup() {
+		const bridge = { fetchLater: () => null }
+		const refresh = useAutoRefresh(() => bridge.fetchLater())
+		Object.assign(bridge, refresh)
+		return { autoRefresh: bridge }
 	},
 
 	data() {
 		return {
 			suitecrmUrl: null,
 			notifications: [],
-			loop: null,
 			state: 'loading',
-			settingsUrl: generateUrl('/settings/user/connected-accounts'),
-			windowVisibility: true,
+			refreshSeconds: 300,
+			saving: false,
 		}
 	},
 
 	computed: {
 		showMoreUrl() {
-			return this.suitecrmUrl + '/index.php?module=Home&action=index'
-		},
-
-		items() {
-			return this.notifications.map((n) => {
-				return {
-					id: this.getUniqueKey(n),
-					targetUrl: this.getNotificationTarget(n),
-					avatarUrl: this.getAvatarUrl(n),
-					avatarUsername: this.getAuthorShortName(n),
-					mainText: this.getTargetTitle(n),
-					subText: this.getSubline(n),
-				}
-			})
-		},
-
-		lastDate() {
-			const nbNotif = this.notifications.length
-			return (nbNotif > 0) ? this.notifications[0].date_start : null
-		},
-
-		lastMoment() {
-			return moment(this.lastDate)
-		},
-
-		emptyContentMessage() {
-			if (this.state === 'no-token') {
-				return t('integration_suitecrm', 'No SuiteCRM account connected')
-			} else if (this.state === 'error') {
-				return t('integration_suitecrm', 'Error connecting to SuiteCRM')
-			} else if (this.state === 'ok') {
-				return t('integration_suitecrm', 'No SuiteCRM notifications!')
-			}
-			return ''
+			return this.suitecrmUrl ? this.suitecrmUrl + '/index.php?module=Home&action=index' : ''
 		},
 	},
 
-	watch: {
-		windowVisibility(newValue) {
-			if (newValue) {
-				this.launchLoop()
-			} else {
-				this.stopLoop()
-			}
-		},
-	},
-
-	beforeUnmount() {
-		document.removeEventListener('visibilitychange', this.changeWindowVisibility)
-	},
-
-	beforeMount() {
-		this.launchLoop()
-		document.addEventListener('visibilitychange', this.changeWindowVisibility)
+	mounted() {
+		this.autoRefresh.fetchLater = () => this.fetchNotifications()
+		this.loadWidgetConfig().then(() => this.probeUrl()).then(() => this.fetchNotifications())
 	},
 
 	methods: {
-		changeWindowVisibility() {
-			this.windowVisibility = !document.hidden
+		async loadWidgetConfig() {
+			try {
+				const response = await axios.get(generateUrl('/apps/integration_suitecrm/widget-config'))
+				const seconds = Number(response.data?.events_refresh_seconds)
+				if (!Number.isNaN(seconds)) {
+					this.refreshSeconds = seconds
+					this.autoRefresh.setIntervalMs(seconds * 1000)
+				}
+			} catch {
+				// best-effort — widget still functions at defaults
+			}
 		},
 
-		stopLoop() {
-			clearInterval(this.loop)
-		},
-
-		async launchLoop() {
+		async probeUrl() {
 			try {
 				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
-				this.suitecrmUrl = response.data.replace(/\/+$/, '')
+				this.suitecrmUrl = (response.data || '').replace(/\/+$/, '')
 			} catch {
-				// URL probe is best-effort: dashboard still works without it,
-				// the "show more" link just won't have an absolute prefix.
+				// best-effort — widget still functions at defaults
 			}
-			this.fetchNotifications()
-			this.loop = setInterval(() => this.fetchNotifications(), 120000)
 		},
 
 		fetchNotifications() {
-			const req = {
-				params: {
-					eventSinceTimestamp: moment().unix(),
-				},
-			}
+			const req = { params: { eventSinceTimestamp: moment().unix() } }
 			axios.get(generateUrl('/apps/integration_suitecrm/reminders'), req).then((response) => {
-				this.processNotifications(response.data)
+				this.notifications = response.data || []
 				this.state = 'ok'
 			}).catch((error) => {
-				clearInterval(this.loop)
 				if (error.response && error.response.status === 400) {
 					this.state = 'no-token'
 				} else if (error.response && error.response.status === 401) {
@@ -152,15 +114,27 @@ export default {
 			})
 		},
 
-		processNotifications(newNotifications) {
-			this.notifications = this.filter(newNotifications)
-		},
-
-		filter(notifications) {
-			return notifications
+		async onSaveSettings({ refreshSeconds, close }) {
+			this.saving = true
+			try {
+				await axios.put(generateUrl('/apps/integration_suitecrm/config'), {
+					values: { events_refresh_seconds: String(refreshSeconds) },
+				})
+				this.refreshSeconds = refreshSeconds
+				this.autoRefresh.setIntervalMs(refreshSeconds * 1000)
+				close()
+				showSuccess(t('integration_suitecrm', 'Widget settings saved.'))
+			} catch {
+				showError(t('integration_suitecrm', 'Failed to save widget settings.'))
+			} finally {
+				this.saving = false
+			}
 		},
 
 		getNotificationTarget(n) {
+			if (!this.suitecrmUrl) {
+				return ''
+			}
 			return this.suitecrmUrl + '/index.php?module=' + n.attributes.related_event_module
 				+ '&action=DetailView&record=' + n.attributes.related_event_module_id
 		},
@@ -169,17 +143,14 @@ export default {
 			return n.id
 		},
 
-		getAuthorShortName(n) {
-			return n.attributes.created_by_name
-		},
-
 		getAvatarUrl(n) {
 			if (n.attributes.related_event_module === 'Calls') {
 				return imagePath('integration_suitecrm', 'call.png')
-			} else if (n.attributes.related_event_module === 'Meetings') {
+			}
+			if (n.attributes.related_event_module === 'Meetings') {
 				return imagePath('integration_suitecrm', 'meeting.png')
 			}
-			return ''
+			return imagePath('integration_suitecrm', 'app-color.svg')
 		},
 
 		getSubline(n) {
@@ -187,7 +158,8 @@ export default {
 			const date = mom.format('L') + ' ' + mom.format('HH:mm')
 			if (n.attributes.related_event_module === 'Calls') {
 				return t('integration_suitecrm', 'Call at {date}', { date })
-			} else if (n.attributes.related_event_module === 'Meetings') {
+			}
+			if (n.attributes.related_event_module === 'Meetings') {
 				return t('integration_suitecrm', 'Meeting at {date}', { date })
 			}
 			return ''
@@ -199,9 +171,3 @@ export default {
 	},
 }
 </script>
-
-<style scoped lang="scss">
-:deep(.connect-button) {
-	margin-top: 10px;
-}
-</style>

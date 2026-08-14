@@ -1,134 +1,97 @@
 <template>
-	<NcDashboardWidget
-		:items="items"
+	<SuiteCRMWidgetShell
+		:loading="state === 'loading'"
+		:notConnected="state === 'no-token'"
+		:error="state === 'error' ? t('integration_suitecrm', 'Error connecting to SuiteCRM') : ''"
+		:hasItems="contacts.length > 0"
+		:emptyText="t('integration_suitecrm', 'No recently added SuiteCRM Contacts')"
 		:showMoreUrl="showMoreUrl"
-		:showMoreText="title"
-		:loading="state === 'loading'">
-		<template #empty-content>
-			<NcEmptyContent v-if="emptyContentMessage" :name="emptyContentMessage">
-				<template #action>
-					<div v-if="state === 'no-token' || state === 'error'" class="connect-button">
-						<a class="button" :href="settingsUrl">
-							{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
-						</a>
+		:settingsTitle="t('integration_suitecrm', 'SuiteCRM: Contacts — settings')"
+		:refreshSeconds="refreshSeconds"
+		:saving="saving"
+		@refresh="fetchContacts"
+		@save="onSaveSettings">
+		<ul class="scw-list">
+			<li v-for="c in contacts" :key="c.id" class="scw-item">
+				<a
+					:href="getContactTarget(c)"
+					target="_blank"
+					rel="noopener"
+					class="scw-item__link">
+					<div class="scw-item__row">
+						<span class="scw-item__title">{{ getMainText(c) }}</span>
 					</div>
-				</template>
-			</NcEmptyContent>
-		</template>
-	</NcDashboardWidget>
+					<div class="scw-item__meta">
+						{{ getSubline(c) }}
+					</div>
+				</a>
+			</li>
+		</ul>
+	</SuiteCRMWidgetShell>
 </template>
 
 <script>
-/**
- * SuiteCRMContacts.
- *
- * "SuiteCRM Contacts" widget. Lists Contacts most recently added to
- * SuiteCRM, subject to the ACL on the caller's OAuth token. Sorted by
- * date_entered DESC, capped at 20 rows.
- *
- * Subline shape: account_name · date_entered (YYYY-MM-DD). Falls back
- * to email if the person record has no name captured yet.
- *
- * @author Kim Haverblad
- */
 import axios from '@nextcloud/axios'
-import { showError } from '@nextcloud/dialogs'
+import { showError, showSuccess } from '@nextcloud/dialogs'
 import moment from '@nextcloud/moment'
-import { generateUrl, imagePath } from '@nextcloud/router'
-import NcDashboardWidget from '@nextcloud/vue/components/NcDashboardWidget'
-import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import { generateUrl } from '@nextcloud/router'
+import SuiteCRMWidgetShell from '../components/SuiteCRMWidgetShell.vue'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 export default {
 	name: 'SuiteCRMContacts',
 
-	components: {
-		NcDashboardWidget,
-		NcEmptyContent,
-	},
+	components: { SuiteCRMWidgetShell },
 
-	props: {
-		title: {
-			type: String,
-			required: true,
-		},
+	setup() {
+		const bridge = { fetchLater: () => null }
+		const refresh = useAutoRefresh(() => bridge.fetchLater())
+		Object.assign(bridge, refresh)
+		return { autoRefresh: bridge }
 	},
 
 	data() {
 		return {
 			suitecrmUrl: null,
 			contacts: [],
-			loop: null,
 			state: 'loading',
-			settingsUrl: generateUrl('/settings/user/connected-accounts'),
-			windowVisibility: true,
+			refreshSeconds: 300,
+			saving: false,
 		}
 	},
 
 	computed: {
 		showMoreUrl() {
-			return this.suitecrmUrl + '/index.php?module=Contacts&action=index'
-		},
-
-		items() {
-			return this.contacts.map((c) => ({
-				id: c.id,
-				targetUrl: this.getContactTarget(c),
-				avatarUrl: imagePath('integration_suitecrm', 'app.svg'),
-				avatarUsername: this.getMainText(c),
-				mainText: this.getMainText(c),
-				subText: this.getSubline(c),
-			}))
-		},
-
-		emptyContentMessage() {
-			if (this.state === 'no-token') {
-				return t('integration_suitecrm', 'No SuiteCRM account connected')
-			} else if (this.state === 'error') {
-				return t('integration_suitecrm', 'Error connecting to SuiteCRM')
-			} else if (this.state === 'ok') {
-				return t('integration_suitecrm', 'No recently added SuiteCRM Contacts')
-			}
-			return ''
+			return this.suitecrmUrl ? this.suitecrmUrl + '/index.php?module=Contacts&action=index' : ''
 		},
 	},
 
-	watch: {
-		windowVisibility(newValue) {
-			if (newValue) {
-				this.launchLoop()
-			} else {
-				this.stopLoop()
-			}
-		},
-	},
-
-	beforeUnmount() {
-		document.removeEventListener('visibilitychange', this.changeWindowVisibility)
-	},
-
-	beforeMount() {
-		this.launchLoop()
-		document.addEventListener('visibilitychange', this.changeWindowVisibility)
+	mounted() {
+		this.autoRefresh.fetchLater = () => this.fetchContacts()
+		this.loadWidgetConfig().then(() => this.probeUrl()).then(() => this.fetchContacts())
 	},
 
 	methods: {
-		changeWindowVisibility() {
-			this.windowVisibility = !document.hidden
+		async loadWidgetConfig() {
+			try {
+				const response = await axios.get(generateUrl('/apps/integration_suitecrm/widget-config'))
+				const seconds = Number(response.data?.contacts_refresh_seconds)
+				if (!Number.isNaN(seconds)) {
+					this.refreshSeconds = seconds
+					this.autoRefresh.setIntervalMs(seconds * 1000)
+				}
+			} catch {
+				// best-effort — widget still functions at defaults
+			}
 		},
 
-		stopLoop() {
-			clearInterval(this.loop)
-		},
-
-		async launchLoop() {
+		async probeUrl() {
 			try {
 				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
-				this.suitecrmUrl = response.data.replace(/\/+$/, '')
+				this.suitecrmUrl = (response.data || '').replace(/\/+$/, '')
 			} catch {
-				// best-effort URL probe
+				// best-effort — widget still functions at defaults
 			}
-			this.fetchContacts()
-			this.loop = setInterval(() => this.fetchContacts(), 120000)
 		},
 
 		fetchContacts() {
@@ -136,7 +99,6 @@ export default {
 				this.contacts = response.data
 				this.state = 'ok'
 			}).catch((error) => {
-				clearInterval(this.loop)
 				if (error.response && error.response.status === 400) {
 					this.state = 'no-token'
 				} else if (error.response && error.response.status === 401) {
@@ -144,6 +106,23 @@ export default {
 					this.state = 'error'
 				}
 			})
+		},
+
+		async onSaveSettings({ refreshSeconds, close }) {
+			this.saving = true
+			try {
+				await axios.put(generateUrl('/apps/integration_suitecrm/config'), {
+					values: { contacts_refresh_seconds: String(refreshSeconds) },
+				})
+				this.refreshSeconds = refreshSeconds
+				this.autoRefresh.setIntervalMs(refreshSeconds * 1000)
+				close()
+				showSuccess(t('integration_suitecrm', 'Widget settings saved.'))
+			} catch {
+				showError(t('integration_suitecrm', 'Failed to save widget settings.'))
+			} finally {
+				this.saving = false
+			}
 		},
 
 		getContactTarget(contact) {
@@ -179,9 +158,3 @@ export default {
 	},
 }
 </script>
-
-<style scoped lang="scss">
-:deep(.connect-button) {
-	margin-top: 10px;
-}
-</style>

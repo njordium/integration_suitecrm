@@ -55,7 +55,7 @@ class SuiteCRMContactsWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIcon
 	}
 
 	public function getTitle(): string {
-		return $this->l10n->t('SuiteCRM Contacts');
+		return $this->l10n->t('SuiteCRM: Contacts');
 	}
 
 	public function getOrder(): int {
@@ -68,7 +68,7 @@ class SuiteCRMContactsWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIcon
 
 	public function getIconUrl(): string {
 		return $this->url->getAbsoluteURL(
-			$this->url->imagePath(Application::APP_ID, 'app.svg')
+			$this->url->imagePath(Application::APP_ID, 'app-color.svg')
 		);
 	}
 
@@ -110,7 +110,7 @@ class SuiteCRMContactsWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIcon
 				$this->buildTitle($attributes),
 				$this->buildSubtitle($attributes, (int) ($contact['entered_ts'] ?? 0)),
 				$this->buildContactLink($suitecrmUrl, $contactId),
-				$this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')),
+				$this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app-color.svg')),
 				(string) ($contact['entered_ts'] ?? 0),
 			);
 		}

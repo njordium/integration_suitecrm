@@ -31,10 +31,10 @@ SuiteCRM 8.10.x or later with the v8 REST/JSON:API enabled. SuiteCRM 7.x is no l
 ## Upgrading from 2.x
 
 The 3.0.0 release restored the original `integration_suitecrm` app id after the App Store record transfer. A repair step copies admin config and per-user OAuth tokens forward from the 2.x `njordium_suitecrm` install automatically on `occ upgrade`. See `docs/upgrade-2.x-to-3.0.md` in the repository for the manual rollback path if needed.]]></description>
-	<version>3.0.2</version>
+	<version>3.1.0</version>
 	<licence>AGPL-3.0-or-later</licence>
-	<author>Julien Veyssier</author>
 	<author homepage="https://njordium.com">Kim Haverblad</author>
+	<author>Julien Veyssier</author>
 	<namespace>SuiteCRM</namespace>
 	<documentation>
 		<developer>https://github.com/njordium/integration_suitecrm</developer>
@@ -58,8 +58,8 @@ The 3.0.0 release restored the original `integration_suitecrm` app id after the 
 	-->
 	<screenshot small-thumbnail="https://raw.githubusercontent.com/njordium/integration_suitecrm/master/img/screenshot.png">https://raw.githubusercontent.com/njordium/integration_suitecrm/master/img/screenshot.png</screenshot>
 	<dependencies>
-		<php min-version="8.2"/>
-		<nextcloud min-version="30" max-version="34"/>
+		<php min-version="8.3"/>
+		<nextcloud min-version="30" max-version="35"/>
 	</dependencies>
 	<background-jobs>
 		<job>OCA\SuiteCRM\BackgroundJob\CheckAlerts</job>

@@ -16,6 +16,7 @@ namespace OCA\SuiteCRM\Controller;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\IAppConfig;
 use OCP\IRequest;
@@ -65,13 +66,53 @@ class SuiteCRMAPIController extends Controller {
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/avatar')]
 	public function getSuiteCRMAvatar(string $suiteUserId = ''): DataDisplayResponse {
-		$response = new DataDisplayResponse(
-			$this->suitecrmAPIService->getSuiteCRMAvatar(
-				$this->suitecrmUrl, $this->accessToken, $suiteUserId
-			)
+		$bytes = $this->suitecrmAPIService->getSuiteCRMAvatar(
+			$this->suitecrmUrl, $this->accessToken, $suiteUserId
 		);
+		// Pin the Content-Type to a safe image mime rather than the
+		// DataDisplayResponse default (`application/octet-stream`).
+		// The response is served with a 24-hour browser cache and is
+		// #[NoCSRFRequired] so it can be embedded in <img> tags, which
+		// means an attacker who could return an HTML or SVG-with-script
+		// blob upstream would get their payload cached by every viewer
+		// under the Nextcloud origin. Byte-sniffing gives us a mime we
+		// can trust; anything that does not sniff as a real image falls
+		// back to `image/png` with an empty body so a compromised
+		// upstream cannot smuggle text/html.
+		$mime = $this->sniffImageMime($bytes);
+		if ($mime === null) {
+			$bytes = '';
+			$mime = 'image/png';
+		}
+		$response = new DataDisplayResponse($bytes, 200, ['Content-Type' => $mime]);
 		$response->cacheFor(60*60*24);
 		return $response;
+	}
+
+	/**
+	 * Return a whitelisted `image/*` mime type by inspecting the first
+	 * few bytes of the payload, or null if the bytes do not look like
+	 * any of the supported image types. Deliberately narrow — SuiteCRM
+	 * profile photos are always JPEG/PNG/GIF/WebP in practice, and
+	 * SVG is excluded on purpose because it can carry <script>.
+	 */
+	private function sniffImageMime(string $bytes): ?string {
+		if (strlen($bytes) < 12) {
+			return null;
+		}
+		if (str_starts_with($bytes, "\xFF\xD8\xFF")) {
+			return 'image/jpeg';
+		}
+		if (str_starts_with($bytes, "\x89PNG\r\n\x1A\n")) {
+			return 'image/png';
+		}
+		if (str_starts_with($bytes, 'GIF87a') || str_starts_with($bytes, 'GIF89a')) {
+			return 'image/gif';
+		}
+		if (str_starts_with($bytes, 'RIFF') && substr($bytes, 8, 4) === 'WEBP') {
+			return 'image/webp';
+		}
+		return null;
 	}
 
 	/**
@@ -316,6 +357,7 @@ class SuiteCRMAPIController extends Controller {
 	 * @param string $priority      'High' | 'Medium' | 'Low'
 	 */
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/task-followup')]
 	public function createFollowupTask(
 		string $sourceModule,
@@ -406,6 +448,7 @@ class SuiteCRMAPIController extends Controller {
 	 * @param string $description   Free-text body, may be markdown
 	 */
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/log-note')]
 	public function logNote(
 		string $targetModule,
@@ -489,6 +532,7 @@ class SuiteCRMAPIController extends Controller {
 	 * @param string $extraNote      Optional free-text appended below the link
 	 */
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/link-deck-card')]
 	public function linkDeckCard(
 		string $deckCardUrl,
@@ -598,6 +642,7 @@ class SuiteCRMAPIController extends Controller {
 	 * @param string $priority     'High' | 'Medium' | 'Low'
 	 */
 	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/email-to-case')]
 	public function emailToCase(
 		string $subject,

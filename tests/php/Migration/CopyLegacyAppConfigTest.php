@@ -153,6 +153,36 @@ class CopyLegacyAppConfigTest extends TestCase {
 		);
 	}
 
+	public function testAppConfigCopyPreservesSensitiveFlag(): void {
+		// Regression guard for the 3.1.0 security-review finding:
+		// the migration used to write appconfig rows via a raw
+		// QueryBuilder INSERT of (appid, configkey, configvalue), which
+		// left the `sensitive` column at its table default (false).
+		// The OAuth `client_secret` therefore landed under the new app id
+		// as admin-inspectable plaintext even though the 2.x write path
+		// had marked it sensitive. The fix routes writes through
+		// IAppConfig::setValueString with the `sensitive` argument, and
+		// backfills a whitelist of known-sensitive keys so a legacy row
+		// with a null `sensitive` column still migrates protected.
+		$body = (string)file_get_contents($this->sutPath);
+		$this->assertMatchesRegularExpression(
+			'/SENSITIVE_APPCONFIG_KEYS\s*=\s*\[[^\]]*[\'"]client_secret[\'"]/',
+			$body,
+			'SENSITIVE_APPCONFIG_KEYS whitelist must include client_secret.',
+		);
+		$this->assertStringContainsString(
+			'appConfig->setValueString',
+			$body,
+			'copyAppConfig() must write via IAppConfig::setValueString '
+			. 'so the sensitive flag rides along.',
+		);
+		$this->assertMatchesRegularExpression(
+			'/sensitive:\s*\$sensitive/',
+			$body,
+			'sensitive argument must be threaded into setValueString().',
+		);
+	}
+
 	public function testInfoXmlAppIdIsNewFork(): void {
 		$infoXml = (string)file_get_contents($this->infoXmlPath);
 		$this->assertMatchesRegularExpression(

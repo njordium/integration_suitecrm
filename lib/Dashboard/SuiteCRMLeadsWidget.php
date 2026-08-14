@@ -57,7 +57,7 @@ class SuiteCRMLeadsWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWid
 	}
 
 	public function getTitle(): string {
-		return $this->l10n->t('SuiteCRM Leads');
+		return $this->l10n->t('SuiteCRM: Leads');
 	}
 
 	public function getOrder(): int {
@@ -70,7 +70,7 @@ class SuiteCRMLeadsWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWid
 
 	public function getIconUrl(): string {
 		return $this->url->getAbsoluteURL(
-			$this->url->imagePath(Application::APP_ID, 'app.svg')
+			$this->url->imagePath(Application::APP_ID, 'app-color.svg')
 		);
 	}
 
@@ -109,7 +109,7 @@ class SuiteCRMLeadsWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWid
 				$this->buildTitle($attributes),
 				$this->buildSubtitle($attributes, (int) ($lead['entered_ts'] ?? 0)),
 				$this->buildLeadLink($suitecrmUrl, $leadId),
-				$this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')),
+				$this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app-color.svg')),
 				(string) ($lead['entered_ts'] ?? 0),
 			);
 		}

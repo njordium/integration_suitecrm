@@ -71,7 +71,7 @@ class SuiteCRMCalendarWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIcon
 	}
 
 	public function getTitle(): string {
-		return $this->l10n->t('SuiteCRM Calendar');
+		return $this->l10n->t('SuiteCRM: Calendar');
 	}
 
 	public function getOrder(): int {
@@ -84,7 +84,7 @@ class SuiteCRMCalendarWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIcon
 
 	public function getIconUrl(): string {
 		return $this->url->getAbsoluteURL(
-			$this->url->imagePath(Application::APP_ID, 'app.svg')
+			$this->url->imagePath(Application::APP_ID, 'app-color.svg')
 		);
 	}
 
@@ -193,7 +193,7 @@ class SuiteCRMCalendarWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIcon
 		$file = match ($type) {
 			'call' => 'call.png',
 			'meeting' => 'meeting.png',
-			default => 'app.svg',
+			default => 'app-color.svg',
 		};
 		return $this->url->getAbsoluteURL(
 			$this->url->imagePath(Application::APP_ID, $file)

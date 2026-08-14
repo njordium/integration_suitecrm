@@ -1,156 +1,144 @@
 <template>
-	<NcDashboardWidget
-		:items="items"
+	<SuiteCRMWidgetShell
+		:loading="state === 'loading'"
+		:notConnected="state === 'no-token'"
+		:error="state === 'error' ? t('integration_suitecrm', 'Error connecting to SuiteCRM') : ''"
+		:hasItems="opportunities.length > 0"
+		:emptyText="emptyText"
 		:showMoreUrl="showMoreUrl"
-		:showMoreText="title"
-		:loading="state === 'loading'">
-		<template #empty-content>
-			<NcEmptyContent v-if="emptyContentMessage" :name="emptyContentMessage">
-				<template #action>
-					<div v-if="state === 'no-token' || state === 'error'" class="connect-button">
-						<a class="button" :href="settingsUrl">
-							{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
-						</a>
-					</div>
-				</template>
-			</NcEmptyContent>
+		:settingsTitle="t('integration_suitecrm', 'SuiteCRM: Pipeline — settings')"
+		:refreshSeconds="refreshSeconds"
+		:extras="{ pipeline_mode: mode }"
+		:saving="saving"
+		@refresh="fetchOpportunities"
+		@save="onSaveSettings">
+		<template #settings="{ draft, updateExtra }">
+			<section class="scw-modal__section">
+				<h4>{{ t('integration_suitecrm', 'Pipeline framing') }}</h4>
+				<div class="scw-mode-choice">
+					<label v-for="opt in modeOptions" :key="opt.value" class="scw-mode-radio">
+						<input
+							type="radio"
+							name="pipeline_mode"
+							:value="opt.value"
+							:checked="draft.pipeline_mode === opt.value"
+							@change="updateExtra('pipeline_mode', opt.value)">
+						<span>{{ opt.label }}</span>
+					</label>
+				</div>
+			</section>
 		</template>
-	</NcDashboardWidget>
+
+		<ul class="scw-list">
+			<li v-for="opp in opportunities" :key="opp.id" class="scw-item">
+				<a
+					:href="getOpportunityTarget(opp)"
+					target="_blank"
+					rel="noopener"
+					class="scw-item__link">
+					<div class="scw-item__row">
+						<span class="scw-item__title">{{ getMainText(opp) }}</span>
+					</div>
+					<div class="scw-item__meta">
+						{{ getSubline(opp) }}
+					</div>
+				</a>
+			</li>
+		</ul>
+	</SuiteCRMWidgetShell>
 </template>
 
 <script>
 /**
- * SuiteCRMPipeline.
+ * SuiteCRMPipeline — "My pipeline" dashboard widget.
  *
- * "My pipeline" dashboard widget. Framing is settings-driven via
- * the `pipeline_mode` personal preference, see PersonalSettings.vue
- * for the selector. All three modes are handled here through the
- * initial-state loadState call so the widget doesn't need to
- * re-fetch preferences on every polling cycle.
- *
- * The subline shape shifts with mode:
- *   - closing_quarter: `stage · closes YYYY-MM-DD · $amount`
- *   - top_value:       `stage · $amount · N% probability`
- *   - weighted:        `stage · $weighted weighted (of $amount at N%)`
- *
- * Backend already emits the mode-appropriate `weighted_num` /
- * `close_ts` fields so the frontend just picks what to show.
- *
- * @author Kim Haverblad
+ * Pipeline framing (`pipeline_mode`) has moved out of the global
+ * PersonalSettings.vue block and into this widget's own 3-dot menu, so
+ * a user with multiple SuiteCRM dashboards on their profile can pick
+ * a framing without touching a global setting. The pref key remains
+ * the same (`pipeline_mode`) so existing values from 3.0.x install
+ * carry over verbatim; PersonalSettings.vue continues to expose the
+ * key as an alias for discovery.
  */
 import axios from '@nextcloud/axios'
-import { showError } from '@nextcloud/dialogs'
-import { loadState } from '@nextcloud/initial-state'
-import { generateUrl, imagePath } from '@nextcloud/router'
-import NcDashboardWidget from '@nextcloud/vue/components/NcDashboardWidget'
-import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import { showError, showSuccess } from '@nextcloud/dialogs'
+import { generateUrl } from '@nextcloud/router'
+import SuiteCRMWidgetShell from '../components/SuiteCRMWidgetShell.vue'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 export default {
 	name: 'SuiteCRMPipeline',
 
-	components: {
-		NcDashboardWidget,
-		NcEmptyContent,
-	},
+	components: { SuiteCRMWidgetShell },
 
-	props: {
-		title: {
-			type: String,
-			required: true,
-		},
+	setup() {
+		const bridge = { fetchLater: () => null }
+		const refresh = useAutoRefresh(() => bridge.fetchLater())
+		Object.assign(bridge, refresh)
+		return { autoRefresh: bridge }
 	},
 
 	data() {
-		// loadState may not be available in every dashboard-mount
-		// context; wrap in try/catch and fall back to the default.
-		let mode = 'closing_quarter'
-		try {
-			const config = loadState('integration_suitecrm', 'user-config')
-			if (config?.pipeline_mode) {
-				mode = config.pipeline_mode
-			}
-		} catch {
-			// no-op, settings not present, use default
-		}
 		return {
 			suitecrmUrl: null,
 			opportunities: [],
-			loop: null,
 			state: 'loading',
-			settingsUrl: generateUrl('/settings/user/connected-accounts'),
-			windowVisibility: true,
-			mode,
+			refreshSeconds: 300,
+			saving: false,
+			mode: 'closing_quarter',
 		}
 	},
 
 	computed: {
+		modeOptions() {
+			return [
+				{ value: 'closing_quarter', label: t('integration_suitecrm', 'Closing this quarter') },
+				{ value: 'top_value', label: t('integration_suitecrm', 'Top value (all open)') },
+				{ value: 'weighted', label: t('integration_suitecrm', 'Weighted value') },
+			]
+		},
+
 		showMoreUrl() {
-			return this.suitecrmUrl + '/index.php?module=Opportunities&action=index'
+			return this.suitecrmUrl ? this.suitecrmUrl + '/index.php?module=Opportunities&action=index' : ''
 		},
 
-		items() {
-			return this.opportunities.map((opp) => ({
-				id: opp.id,
-				targetUrl: this.getOpportunityTarget(opp),
-				avatarUrl: imagePath('integration_suitecrm', 'app.svg'),
-				avatarUsername: this.getMainText(opp),
-				mainText: this.getMainText(opp),
-				subText: this.getSubline(opp),
-			}))
-		},
-
-		emptyContentMessage() {
-			if (this.state === 'no-token') {
-				return t('integration_suitecrm', 'No SuiteCRM account connected')
-			} else if (this.state === 'error') {
-				return t('integration_suitecrm', 'Error connecting to SuiteCRM')
-			} else if (this.state === 'ok') {
-				if (this.mode === 'top_value' || this.mode === 'weighted') {
-					return t('integration_suitecrm', 'No open SuiteCRM Opportunities')
-				}
-				return t('integration_suitecrm', 'No SuiteCRM Opportunities closing this quarter')
+		emptyText() {
+			if (this.mode === 'top_value' || this.mode === 'weighted') {
+				return t('integration_suitecrm', 'No open SuiteCRM Opportunities')
 			}
-			return ''
+			return t('integration_suitecrm', 'No SuiteCRM Opportunities closing this quarter')
 		},
 	},
 
-	watch: {
-		windowVisibility(newValue) {
-			if (newValue) {
-				this.launchLoop()
-			} else {
-				this.stopLoop()
-			}
-		},
-	},
-
-	beforeUnmount() {
-		document.removeEventListener('visibilitychange', this.changeWindowVisibility)
-	},
-
-	beforeMount() {
-		this.launchLoop()
-		document.addEventListener('visibilitychange', this.changeWindowVisibility)
+	mounted() {
+		this.autoRefresh.fetchLater = () => this.fetchOpportunities()
+		this.loadWidgetConfig().then(() => this.probeUrl()).then(() => this.fetchOpportunities())
 	},
 
 	methods: {
-		changeWindowVisibility() {
-			this.windowVisibility = !document.hidden
+		async loadWidgetConfig() {
+			try {
+				const response = await axios.get(generateUrl('/apps/integration_suitecrm/widget-config'))
+				const seconds = Number(response.data?.pipeline_refresh_seconds)
+				if (!Number.isNaN(seconds)) {
+					this.refreshSeconds = seconds
+					this.autoRefresh.setIntervalMs(seconds * 1000)
+				}
+				if (response.data?.pipeline_mode) {
+					this.mode = response.data.pipeline_mode
+				}
+			} catch {
+				// best-effort — widget still functions at defaults
+			}
 		},
 
-		stopLoop() {
-			clearInterval(this.loop)
-		},
-
-		async launchLoop() {
+		async probeUrl() {
 			try {
 				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
-				this.suitecrmUrl = response.data.replace(/\/+$/, '')
+				this.suitecrmUrl = (response.data || '').replace(/\/+$/, '')
 			} catch {
-				// best-effort URL probe
+				// best-effort — widget still functions at defaults
 			}
-			this.fetchOpportunities()
-			this.loop = setInterval(() => this.fetchOpportunities(), 120000)
 		},
 
 		fetchOpportunities() {
@@ -159,7 +147,6 @@ export default {
 				this.opportunities = response.data
 				this.state = 'ok'
 			}).catch((error) => {
-				clearInterval(this.loop)
 				if (error.response && error.response.status === 400) {
 					this.state = 'no-token'
 				} else if (error.response && error.response.status === 401) {
@@ -167,6 +154,31 @@ export default {
 					this.state = 'error'
 				}
 			})
+		},
+
+		async onSaveSettings({ refreshSeconds, extras, close }) {
+			this.saving = true
+			try {
+				const values = {
+					pipeline_refresh_seconds: String(refreshSeconds),
+				}
+				if (extras?.pipeline_mode) {
+					values.pipeline_mode = String(extras.pipeline_mode)
+				}
+				await axios.put(generateUrl('/apps/integration_suitecrm/config'), { values })
+				this.refreshSeconds = refreshSeconds
+				this.autoRefresh.setIntervalMs(refreshSeconds * 1000)
+				if (extras?.pipeline_mode && extras.pipeline_mode !== this.mode) {
+					this.mode = extras.pipeline_mode
+					this.fetchOpportunities()
+				}
+				close()
+				showSuccess(t('integration_suitecrm', 'Widget settings saved.'))
+			} catch {
+				showError(t('integration_suitecrm', 'Failed to save widget settings.'))
+			} finally {
+				this.saving = false
+			}
 		},
 
 		getOpportunityTarget(opp) {
@@ -220,7 +232,22 @@ export default {
 </script>
 
 <style scoped lang="scss">
-:deep(.connect-button) {
-	margin-top: 10px;
+.scw-mode-choice {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.scw-mode-radio {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 4px;
+	cursor: pointer;
+
+	input[type="radio"] {
+		margin: 0;
+		flex-shrink: 0;
+	}
 }
 </style>

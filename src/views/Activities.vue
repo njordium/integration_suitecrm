@@ -1,135 +1,97 @@
 <template>
-	<NcDashboardWidget
-		:items="items"
+	<SuiteCRMWidgetShell
+		:loading="state === 'loading'"
+		:notConnected="state === 'no-token'"
+		:error="state === 'error' ? t('integration_suitecrm', 'Error connecting to SuiteCRM') : ''"
+		:hasItems="activities.length > 0"
+		:emptyText="t('integration_suitecrm', 'No recent SuiteCRM activity')"
 		:showMoreUrl="showMoreUrl"
-		:showMoreText="title"
-		:loading="state === 'loading'">
-		<template #empty-content>
-			<NcEmptyContent v-if="emptyContentMessage" :name="emptyContentMessage">
-				<template #action>
-					<div v-if="state === 'no-token' || state === 'error'" class="connect-button">
-						<a class="button" :href="settingsUrl">
-							{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
-						</a>
+		:settingsTitle="t('integration_suitecrm', 'SuiteCRM: Activities — settings')"
+		:refreshSeconds="refreshSeconds"
+		:saving="saving"
+		@refresh="fetchActivities"
+		@save="onSaveSettings">
+		<ul class="scw-list">
+			<li v-for="a in activities" :key="a.id" class="scw-item">
+				<a
+					:href="getActivityTarget(a)"
+					target="_blank"
+					rel="noopener"
+					class="scw-item__link">
+					<div class="scw-item__row">
+						<span class="scw-item__title">{{ getMainText(a) }}</span>
 					</div>
-				</template>
-			</NcEmptyContent>
-		</template>
-	</NcDashboardWidget>
+					<div class="scw-item__meta">
+						{{ getSubline(a) }}
+					</div>
+				</a>
+			</li>
+		</ul>
+	</SuiteCRMWidgetShell>
 </template>
 
 <script>
-/**
- * SuiteCRMActivities.
- *
- * "SuiteCRM Activities" widget. Cross-module recent-activity feed
- * covering Calls, Meetings, Tasks, and Notes as SuiteCRM's canonical
- * activity types. Sort key is date_modified so "recent activity" means
- * "recently touched", not "recently created".
- *
- * Subline shape: type · assigned-user · relative-modified-time.
- *
- * @author Kim Haverblad
- */
 import axios from '@nextcloud/axios'
-import { showError } from '@nextcloud/dialogs'
+import { showError, showSuccess } from '@nextcloud/dialogs'
 import moment from '@nextcloud/moment'
-import { generateUrl, imagePath } from '@nextcloud/router'
-import NcDashboardWidget from '@nextcloud/vue/components/NcDashboardWidget'
-import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import { generateUrl } from '@nextcloud/router'
+import SuiteCRMWidgetShell from '../components/SuiteCRMWidgetShell.vue'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 export default {
 	name: 'SuiteCRMActivities',
 
-	components: {
-		NcDashboardWidget,
-		NcEmptyContent,
-	},
+	components: { SuiteCRMWidgetShell },
 
-	props: {
-		title: {
-			type: String,
-			required: true,
-		},
+	setup() {
+		const bridge = { fetchLater: () => null }
+		const refresh = useAutoRefresh(() => bridge.fetchLater())
+		Object.assign(bridge, refresh)
+		return { autoRefresh: bridge }
 	},
 
 	data() {
 		return {
 			suitecrmUrl: null,
 			activities: [],
-			loop: null,
 			state: 'loading',
-			settingsUrl: generateUrl('/settings/user/connected-accounts'),
-			windowVisibility: true,
+			refreshSeconds: 300,
+			saving: false,
 		}
 	},
 
 	computed: {
 		showMoreUrl() {
-			return this.suitecrmUrl + '/index.php?module=Home&action=index'
-		},
-
-		items() {
-			return this.activities.map((a) => ({
-				id: a.id,
-				targetUrl: this.getActivityTarget(a),
-				avatarUrl: imagePath('integration_suitecrm', 'app.svg'),
-				avatarUsername: this.getMainText(a),
-				mainText: this.getMainText(a),
-				subText: this.getSubline(a),
-			}))
-		},
-
-		emptyContentMessage() {
-			if (this.state === 'no-token') {
-				return t('integration_suitecrm', 'No SuiteCRM account connected')
-			} else if (this.state === 'error') {
-				return t('integration_suitecrm', 'Error connecting to SuiteCRM')
-			} else if (this.state === 'ok') {
-				return t('integration_suitecrm', 'No recent SuiteCRM activity')
-			}
-			return ''
+			return this.suitecrmUrl ? this.suitecrmUrl + '/index.php?module=Home&action=index' : ''
 		},
 	},
 
-	watch: {
-		windowVisibility(newValue) {
-			if (newValue) {
-				this.launchLoop()
-			} else {
-				this.stopLoop()
-			}
-		},
-	},
-
-	beforeUnmount() {
-		document.removeEventListener('visibilitychange', this.changeWindowVisibility)
-	},
-
-	beforeMount() {
-		this.launchLoop()
-		document.addEventListener('visibilitychange', this.changeWindowVisibility)
+	mounted() {
+		this.autoRefresh.fetchLater = () => this.fetchActivities()
+		this.loadWidgetConfig().then(() => this.probeUrl()).then(() => this.fetchActivities())
 	},
 
 	methods: {
-		changeWindowVisibility() {
-			this.windowVisibility = !document.hidden
+		async loadWidgetConfig() {
+			try {
+				const response = await axios.get(generateUrl('/apps/integration_suitecrm/widget-config'))
+				const seconds = Number(response.data?.activities_refresh_seconds)
+				if (!Number.isNaN(seconds)) {
+					this.refreshSeconds = seconds
+					this.autoRefresh.setIntervalMs(seconds * 1000)
+				}
+			} catch {
+				// best-effort — widget still functions at defaults
+			}
 		},
 
-		stopLoop() {
-			clearInterval(this.loop)
-		},
-
-		async launchLoop() {
+		async probeUrl() {
 			try {
 				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
-				this.suitecrmUrl = response.data.replace(/\/+$/, '')
+				this.suitecrmUrl = (response.data || '').replace(/\/+$/, '')
 			} catch {
-				// URL probe is best-effort; widget still works, just without
-				// an absolute prefix on the DetailView links.
+				// best-effort — widget still functions at defaults
 			}
-			this.fetchActivities()
-			this.loop = setInterval(() => this.fetchActivities(), 120000)
 		},
 
 		fetchActivities() {
@@ -137,7 +99,6 @@ export default {
 				this.activities = response.data
 				this.state = 'ok'
 			}).catch((error) => {
-				clearInterval(this.loop)
 				if (error.response && error.response.status === 400) {
 					this.state = 'no-token'
 				} else if (error.response && error.response.status === 401) {
@@ -145,6 +106,23 @@ export default {
 					this.state = 'error'
 				}
 			})
+		},
+
+		async onSaveSettings({ refreshSeconds, close }) {
+			this.saving = true
+			try {
+				await axios.put(generateUrl('/apps/integration_suitecrm/config'), {
+					values: { activities_refresh_seconds: String(refreshSeconds) },
+				})
+				this.refreshSeconds = refreshSeconds
+				this.autoRefresh.setIntervalMs(refreshSeconds * 1000)
+				close()
+				showSuccess(t('integration_suitecrm', 'Widget settings saved.'))
+			} catch {
+				showError(t('integration_suitecrm', 'Failed to save widget settings.'))
+			} finally {
+				this.saving = false
+			}
 		},
 
 		getActivityTarget(activity) {
@@ -194,9 +172,3 @@ export default {
 	},
 }
 </script>
-
-<style scoped lang="scss">
-:deep(.connect-button) {
-	margin-top: 10px;
-}
-</style>

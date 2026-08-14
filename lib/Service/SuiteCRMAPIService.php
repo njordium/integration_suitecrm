@@ -107,7 +107,14 @@ class SuiteCRMAPIService {
 					$this->sendNCNotification($userId, 'reminder', [
 						'type' => $module,
 						'elem_id' => $elemId,
-						'link' => $suitecrmUrl . '/index.php?module=' . $module . '&action=DetailView&record=' . $elemId,
+						// rawurlencode module + record id so a value carrying a
+						// stray `&`, `#` or space cannot rewrite the query
+						// string on the notification click-through. Matches
+						// the same defence in {@see SuiteCRMWidget::buildEventLink()}
+						// and {@see SuiteCRMCalendarWidget::buildEventLink()};
+						// leaving this one call site un-encoded was a
+						// consistency gap flagged by the 3.1.0 security review.
+						'link' => $suitecrmUrl . '/index.php?module=' . rawurlencode((string) $module) . '&action=DetailView&record=' . rawurlencode((string) $elemId),
 						'title' => $reminder['title'],
 						'event_timestamp' => $reminder['attributes']['date_willexecute'],
 					]);

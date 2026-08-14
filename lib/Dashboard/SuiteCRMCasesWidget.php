@@ -61,7 +61,7 @@ class SuiteCRMCasesWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWid
 	}
 
 	public function getTitle(): string {
-		return $this->l10n->t('SuiteCRM Cases');
+		return $this->l10n->t('SuiteCRM: Cases');
 	}
 
 	public function getOrder(): int {
@@ -79,7 +79,7 @@ class SuiteCRMCasesWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWid
 
 	public function getIconUrl(): string {
 		return $this->url->getAbsoluteURL(
-			$this->url->imagePath(Application::APP_ID, 'app.svg')
+			$this->url->imagePath(Application::APP_ID, 'app-color.svg')
 		);
 	}
 
@@ -134,7 +134,7 @@ class SuiteCRMCasesWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIconWid
 				$title,
 				$this->buildSubtitle($attributes, (int) ($case['age_days'] ?? 0)),
 				$this->buildCaseLink($suitecrmUrl, $caseId),
-				$this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')),
+				$this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app-color.svg')),
 				(string) ($case['priority_rank'] ?? 99),
 			);
 		}

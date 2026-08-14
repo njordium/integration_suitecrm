@@ -57,7 +57,7 @@ class SuiteCRMActivitiesWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIc
 	}
 
 	public function getTitle(): string {
-		return $this->l10n->t('SuiteCRM Activities');
+		return $this->l10n->t('SuiteCRM: Activities');
 	}
 
 	public function getOrder(): int {
@@ -70,7 +70,7 @@ class SuiteCRMActivitiesWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIc
 
 	public function getIconUrl(): string {
 		return $this->url->getAbsoluteURL(
-			$this->url->imagePath(Application::APP_ID, 'app.svg')
+			$this->url->imagePath(Application::APP_ID, 'app-color.svg')
 		);
 	}
 
@@ -118,7 +118,7 @@ class SuiteCRMActivitiesWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIc
 				$title,
 				$this->buildSubtitle($type, $attributes, (int) ($activity['modified_ts'] ?? 0)),
 				$this->buildLink($suitecrmUrl, $type, $recordId),
-				$this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')),
+				$this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app-color.svg')),
 				(string) ($activity['modified_ts'] ?? 0),
 			);
 		}

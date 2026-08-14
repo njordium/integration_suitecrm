@@ -51,7 +51,7 @@ class SuiteCRMAccountsWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIcon
 	}
 
 	public function getTitle(): string {
-		return $this->l10n->t('SuiteCRM Accounts');
+		return $this->l10n->t('SuiteCRM: Accounts');
 	}
 
 	public function getOrder(): int {
@@ -64,7 +64,7 @@ class SuiteCRMAccountsWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIcon
 
 	public function getIconUrl(): string {
 		return $this->url->getAbsoluteURL(
-			$this->url->imagePath(Application::APP_ID, 'app.svg')
+			$this->url->imagePath(Application::APP_ID, 'app-color.svg')
 		);
 	}
 
@@ -103,7 +103,7 @@ class SuiteCRMAccountsWidget implements IWidget, IAPIWidget, IAPIWidgetV2, IIcon
 				(string) ($attributes['name'] ?? $this->l10n->t('(no name)')),
 				$this->buildSubtitle($attributes, (int) ($account['entered_ts'] ?? 0)),
 				$this->buildAccountLink($suitecrmUrl, $accountId),
-				$this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app.svg')),
+				$this->url->getAbsoluteURL($this->url->imagePath(Application::APP_ID, 'app-color.svg')),
 				(string) ($account['entered_ts'] ?? 0),
 			);
 		}

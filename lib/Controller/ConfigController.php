@@ -61,6 +61,38 @@ class ConfigController extends Controller {
                 // dashboard. Stored as '1'/'0'; default '1' on
                 // missing row preserves 2.3.x behaviour.
                 'calendar_show_tasks',
+                // Per-widget refresh cadence (seconds). Written by each
+                // widget's 3-dot settings modal; read by the widget's own
+                // fetch endpoint to hand back to useAutoRefresh on the
+                // client. Allowed values are the RefreshIntervalPicker
+                // enum {0, 30, 60, 300, 900, 1800, 3600}; unknown values
+                // fall back to the default (300s) client-side.
+                'events_refresh_seconds',
+                'calendar_refresh_seconds',
+                'tasks_refresh_seconds',
+                'cases_refresh_seconds',
+                'pipeline_refresh_seconds',
+                'activities_refresh_seconds',
+                'contacts_refresh_seconds',
+                'accounts_refresh_seconds',
+                'leads_refresh_seconds',
+        ];
+
+        /**
+         * Admin-only appconfig keys the {@see setAdminConfig()} endpoint
+         * will write. Mirrors USER_ALLOWED_KEYS for the admin side so a
+         * request PUT'd with an unknown key is silently dropped rather
+         * than materialised into `oc_appconfig` under the app id.
+         *
+         * `client_secret` is on the list even though the write path also
+         * flags it `sensitive: true` — inclusion here is the AuthZ gate,
+         * `sensitive: true` is the storage-hardening.
+         */
+        private const ADMIN_ALLOWED_KEYS = [
+                'oauth_instance_url',
+                'client_id',
+                'client_secret',
+                'oauth_authorize_path',
         ];
 
         public function __construct(string $appName,
@@ -83,6 +115,48 @@ class ConfigController extends Controller {
          * @param array $values
          * @return DataResponse
          */
+        /**
+         * Per-widget config bundle read on dashboard mount by the Vue
+         * widgets' 3-dot settings modal. Returns the current values for
+         * every USER_ALLOWED_KEYS entry that is widget-scoped, plus the
+         * two behaviour toggles that widgets expose (calendar_show_tasks,
+         * pipeline_mode). Missing keys read as their client-side
+         * defaults; the widget applies the value via
+         * {@see useAutoRefresh} setIntervalMs().
+         *
+         * Kept intentionally read-only. Writes go through {@see setConfig()}
+         * with the same USER_ALLOWED_KEYS whitelist so the AuthZ gate is
+         * shared with every other per-user pref this app persists.
+         */
+        #[NoAdminRequired]
+        #[FrontpageRoute(verb: 'GET', url: '/widget-config')]
+        public function getWidgetConfig(): DataResponse {
+                if ($this->userId === null) {
+                        return new DataResponse(['error' => 'No user session'], 401);
+                }
+                $intKey = function (string $key, int $default): int {
+                        $raw = $this->config->getUserValue($this->userId, Application::APP_ID, $key, (string)$default);
+                        return ctype_digit($raw) ? (int)$raw : $default;
+                };
+                return new DataResponse([
+                        'events_refresh_seconds' => $intKey('events_refresh_seconds', 300),
+                        'calendar_refresh_seconds' => $intKey('calendar_refresh_seconds', 300),
+                        'tasks_refresh_seconds' => $intKey('tasks_refresh_seconds', 300),
+                        'cases_refresh_seconds' => $intKey('cases_refresh_seconds', 300),
+                        'pipeline_refresh_seconds' => $intKey('pipeline_refresh_seconds', 300),
+                        'activities_refresh_seconds' => $intKey('activities_refresh_seconds', 300),
+                        'contacts_refresh_seconds' => $intKey('contacts_refresh_seconds', 300),
+                        'accounts_refresh_seconds' => $intKey('accounts_refresh_seconds', 300),
+                        'leads_refresh_seconds' => $intKey('leads_refresh_seconds', 300),
+                        'calendar_show_tasks' => $this->config->getUserValue(
+                                $this->userId, Application::APP_ID, 'calendar_show_tasks', '1',
+                        ) !== '0',
+                        'pipeline_mode' => $this->config->getUserValue(
+                                $this->userId, Application::APP_ID, 'pipeline_mode', 'closing_quarter',
+                        ),
+                ]);
+        }
+
         #[NoAdminRequired]
         #[FrontpageRoute(verb: 'PUT', url: '/config')]
         public function setConfig(array $values): DataResponse {
@@ -127,6 +201,13 @@ class ConfigController extends Controller {
         #[FrontpageRoute(verb: 'PUT', url: '/admin-config')]
         public function setAdminConfig(array $values): DataResponse {
                 foreach ($values as $key => $value) {
+                        if (!in_array($key, self::ADMIN_ALLOWED_KEYS, true)) {
+                                // Silently drop unknown keys rather than 400 so a legitimate
+                                // partial update (e.g. only client_secret) is not held up by
+                                // a stray field the frontend may add later. Matches the
+                                // permissive-drop model of setConfig() above.
+                                continue;
+                        }
                         $sensitive = $key === 'client_secret';
                         $this->appConfig->setValueString(
                                 Application::APP_ID,
@@ -278,13 +359,18 @@ class ConfigController extends Controller {
                         $errCode = (string) ($result['error_code'] ?? '');
                         $errDesc = (string) ($result['error_description'] ?? '');
 
+                        // Deliberately omit the raw guzzle message: it can embed
+                        // the request URL, which on a failing token exchange
+                        // means the one-time OAuth authorization code lands in
+                        // the Nextcloud log. The structured error_code /
+                        // error_description / http_status fields above carry
+                        // the same admin-actionable signal without the leak.
                         $this->logger->error('SuiteCRM OAuth exchange failed', [
                                 'app' => Application::APP_ID,
                                 'error_kind' => $errorKind,
                                 'http_status' => $httpStatus,
                                 'error_code' => $errCode,
                                 'error_description' => $errDesc,
-                                'raw' => (string) ($result['error'] ?? ''),
                         ]);
 
                         if ($errorKind === 'local_server_blocked') {

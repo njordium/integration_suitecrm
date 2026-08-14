@@ -1,138 +1,114 @@
 <template>
-	<NcDashboardWidget
-		:items="items"
+	<SuiteCRMWidgetShell
+		:loading="state === 'loading'"
+		:notConnected="state === 'no-token'"
+		:error="state === 'error' ? t('integration_suitecrm', 'Error connecting to SuiteCRM') : ''"
+		:hasItems="cases.length > 0"
+		:emptyText="t('integration_suitecrm', 'No open SuiteCRM Cases')"
 		:showMoreUrl="showMoreUrl"
-		:showMoreText="title"
-		:loading="state === 'loading'">
-		<template #empty-content>
-			<NcEmptyContent v-if="emptyContentMessage" :name="emptyContentMessage">
-				<template #action>
-					<div v-if="state === 'no-token' || state === 'error'" class="connect-button">
-						<a class="button" :href="settingsUrl">
-							{{ t('integration_suitecrm', 'Connect to SuiteCRM') }}
-						</a>
+		:settingsTitle="t('integration_suitecrm', 'SuiteCRM: Cases — settings')"
+		:refreshSeconds="refreshSeconds"
+		:saving="saving"
+		@refresh="fetchCases"
+		@save="onSaveSettings">
+		<ul class="scw-list">
+			<li v-for="c in cases" :key="c.id" class="scw-item">
+				<a
+					:href="getCaseTarget(c)"
+					target="_blank"
+					rel="noopener"
+					class="scw-item__link">
+					<div class="scw-item__row">
+						<span class="scw-item__title">{{ getMainText(c) }}</span>
 					</div>
-				</template>
-			</NcEmptyContent>
-		</template>
-	</NcDashboardWidget>
+					<div class="scw-item__meta">
+						{{ getSubline(c) }}
+					</div>
+				</a>
+			</li>
+		</ul>
+	</SuiteCRMWidgetShell>
 </template>
 
 <script>
 /**
  * SuiteCRMCases.
  *
- * "My open Cases" dashboard widget. Mirrors the shape of
- * ./Calendar.vue so a rep familiar with the schedule widget finds
- * the same interaction model here, click a row to open the record
- * in SuiteCRM, connect-button empty-state, 120s polling loop paused
- * when the tab is hidden.
+ * "My open Cases" dashboard widget. Renders through the shared
+ * `SuiteCRMWidgetShell` so it inherits the 3-dot toolbar
+ * (Refresh, Widget settings) and settings modal shape used across
+ * every SuiteCRM dashboard widget.
  *
- * The subline format is priority · status · "N days open" (or
- * "opened today" for age 0). Case number is prefixed to the main
- * text so a rep with the SuiteCRM case number in mind can spot the
- * right row without opening it.
- *
- * @author Kim Haverblad
+ * Per-widget refresh cadence is persisted under
+ * `cases_refresh_seconds` (allowed value set enforced by
+ * `ConfigController::USER_ALLOWED_KEYS`); the initial value comes
+ * from `GET /widget-config` on mount, and `useAutoRefresh` drives the
+ * polling loop with wake-signal refetches on tab focus / visibility
+ * change / bfcache restore.
  */
 import axios from '@nextcloud/axios'
-import { showError } from '@nextcloud/dialogs'
-import { generateUrl, imagePath } from '@nextcloud/router'
-import NcDashboardWidget from '@nextcloud/vue/components/NcDashboardWidget'
-import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import { showError, showSuccess } from '@nextcloud/dialogs'
+import { generateUrl } from '@nextcloud/router'
+import SuiteCRMWidgetShell from '../components/SuiteCRMWidgetShell.vue'
+import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 export default {
 	name: 'SuiteCRMCases',
 
 	components: {
-		NcDashboardWidget,
-		NcEmptyContent,
+		SuiteCRMWidgetShell,
 	},
 
-	props: {
-		title: {
-			type: String,
-			required: true,
-		},
+	setup() {
+		const bridge = { fetchLater: () => null }
+		const refresh = useAutoRefresh(() => bridge.fetchLater())
+		Object.assign(bridge, refresh)
+		return { autoRefresh: bridge }
 	},
 
 	data() {
 		return {
 			suitecrmUrl: null,
 			cases: [],
-			loop: null,
 			state: 'loading',
-			settingsUrl: generateUrl('/settings/user/connected-accounts'),
-			windowVisibility: true,
+			refreshSeconds: 300,
+			saving: false,
 		}
 	},
 
 	computed: {
 		showMoreUrl() {
-			return this.suitecrmUrl + '/index.php?module=Cases&action=index'
-		},
-
-		items() {
-			return this.cases.map((c) => ({
-				id: c.id,
-				targetUrl: this.getCaseTarget(c),
-				avatarUrl: imagePath('integration_suitecrm', 'app.svg'),
-				avatarUsername: this.getMainText(c),
-				mainText: this.getMainText(c),
-				subText: this.getSubline(c),
-			}))
-		},
-
-		emptyContentMessage() {
-			if (this.state === 'no-token') {
-				return t('integration_suitecrm', 'No SuiteCRM account connected')
-			} else if (this.state === 'error') {
-				return t('integration_suitecrm', 'Error connecting to SuiteCRM')
-			} else if (this.state === 'ok') {
-				return t('integration_suitecrm', 'No open SuiteCRM Cases')
-			}
-			return ''
+			return this.suitecrmUrl ? this.suitecrmUrl + '/index.php?module=Cases&action=index' : ''
 		},
 	},
 
-	watch: {
-		windowVisibility(newValue) {
-			if (newValue) {
-				this.launchLoop()
-			} else {
-				this.stopLoop()
-			}
-		},
-	},
-
-	beforeUnmount() {
-		document.removeEventListener('visibilitychange', this.changeWindowVisibility)
-	},
-
-	beforeMount() {
-		this.launchLoop()
-		document.addEventListener('visibilitychange', this.changeWindowVisibility)
+	mounted() {
+		this.autoRefresh.fetchLater = () => this.fetchCases()
+		this.loadWidgetConfig().then(() => this.probeUrl()).then(() => this.fetchCases())
 	},
 
 	methods: {
-		changeWindowVisibility() {
-			this.windowVisibility = !document.hidden
+		async loadWidgetConfig() {
+			try {
+				const response = await axios.get(generateUrl('/apps/integration_suitecrm/widget-config'))
+				const seconds = Number(response.data?.cases_refresh_seconds)
+				if (!Number.isNaN(seconds)) {
+					this.refreshSeconds = seconds
+					this.autoRefresh.setIntervalMs(seconds * 1000)
+				}
+			} catch {
+				// Config fetch is best-effort; widget still functions at default cadence.
+			}
 		},
 
-		stopLoop() {
-			clearInterval(this.loop)
-		},
-
-		async launchLoop() {
+		async probeUrl() {
 			try {
 				const response = await axios.get(generateUrl('/apps/integration_suitecrm/url'))
-				this.suitecrmUrl = response.data.replace(/\/+$/, '')
+				this.suitecrmUrl = (response.data || '').replace(/\/+$/, '')
 			} catch {
 				// URL probe is best-effort; the widget still works, just without
-				// an absolute prefix on the "show more" link.
+				// an absolute prefix on the row-click and "show more" link.
 			}
-			this.fetchCases()
-			this.loop = setInterval(() => this.fetchCases(), 120000)
 		},
 
 		fetchCases() {
@@ -140,7 +116,6 @@ export default {
 				this.cases = response.data
 				this.state = 'ok'
 			}).catch((error) => {
-				clearInterval(this.loop)
 				if (error.response && error.response.status === 400) {
 					this.state = 'no-token'
 				} else if (error.response && error.response.status === 401) {
@@ -148,6 +123,23 @@ export default {
 					this.state = 'error'
 				}
 			})
+		},
+
+		async onSaveSettings({ refreshSeconds, close }) {
+			this.saving = true
+			try {
+				await axios.put(generateUrl('/apps/integration_suitecrm/config'), {
+					values: { cases_refresh_seconds: String(refreshSeconds) },
+				})
+				this.refreshSeconds = refreshSeconds
+				this.autoRefresh.setIntervalMs(refreshSeconds * 1000)
+				close()
+				showSuccess(t('integration_suitecrm', 'Widget settings saved.'))
+			} catch {
+				showError(t('integration_suitecrm', 'Failed to save widget settings.'))
+			} finally {
+				this.saving = false
+			}
 		},
 
 		getCaseTarget(c) {
@@ -185,8 +177,4 @@ export default {
 }
 </script>
 
-<style scoped lang="scss">
-:deep(.connect-button) {
-	margin-top: 10px;
-}
-</style>
+<!-- List styles are shared across all nine widgets via css/dashboard.css. -->

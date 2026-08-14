@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace OCA\SuiteCRM\Migration;
 
 use OCA\SuiteCRM\AppInfo\Application;
+use OCP\IAppConfig;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\IRepairStep;
@@ -51,8 +52,23 @@ class CopyLegacyAppConfig implements IRepairStep {
 
 	private const LEGACY_APP_ID = 'njordium_suitecrm';
 
+	/**
+	 * Keys that must land under the new app id with `sensitive=true` no
+	 * matter what the legacy row's `sensitive` column said. The legacy
+	 * 2.x row set the flag on the write path ({@see ConfigController::setAdminConfig()}
+	 * at commit-time in 2.x), so on a clean 2.x install this list is a
+	 * belt-and-braces backup — but any admin who hand-set the value via
+	 * `occ config:app:set integration_suitecrm client_secret --value=…`
+	 * without `--sensitive` in the 2.x window has a plaintext row we do
+	 * not want to migrate forward unmasked. Named as a class constant so
+	 * later contributors can add newly-sensitive keys without editing the
+	 * write loop.
+	 */
+	private const SENSITIVE_APPCONFIG_KEYS = ['client_secret'];
+
 	public function __construct(
 		private IDBConnection $db,
+		private IAppConfig $appConfig,
 	) {
 	}
 
@@ -90,7 +106,12 @@ class CopyLegacyAppConfig implements IRepairStep {
 	 */
 	private function copyAppConfig(): int {
 		$qb = $this->db->getQueryBuilder();
-		$legacy = $qb->select('configkey', 'configvalue')
+		// Select `sensitive` alongside key/value so we can propagate the
+		// column instead of dropping it. Pre-NC-31 the column was
+		// nullable; a null / missing value coerces to false via the
+		// (int) cast and the SENSITIVE_APPCONFIG_KEYS whitelist backfills
+		// the known-sensitive keys either way.
+		$legacy = $qb->select('configkey', 'configvalue', 'sensitive')
 			->from('appconfig')
 			->where($qb->expr()->eq('appid', $qb->createNamedParameter(self::LEGACY_APP_ID)))
 			->executeQuery();
@@ -101,14 +122,24 @@ class CopyLegacyAppConfig implements IRepairStep {
 			if ($this->appConfigExists(Application::APP_ID, $key)) {
 				continue;
 			}
-			$ins = $this->db->getQueryBuilder();
-			$ins->insert('appconfig')
-				->values([
-					'appid' => $ins->createNamedParameter(Application::APP_ID),
-					'configkey' => $ins->createNamedParameter($key),
-					'configvalue' => $ins->createNamedParameter((string)$row['configvalue']),
-				])
-				->executeStatement();
+			$sensitive = ((int)($row['sensitive'] ?? 0) === 1)
+				|| in_array($key, self::SENSITIVE_APPCONFIG_KEYS, true);
+			// Route through IAppConfig::setValueString rather than a raw
+			// INSERT so the `lazy` and `sensitive` columns get set
+			// through the same code path admins hit when they update
+			// values via the settings UI. A raw INSERT with only
+			// (appid, configkey, configvalue) leaves both columns at
+			// their table default (`sensitive=false`), which silently
+			// downgrades the OAuth client_secret to admin-inspectable
+			// plaintext on `occ config:app:get` — the finding from the
+			// 3.1.0 security review.
+			$this->appConfig->setValueString(
+				Application::APP_ID,
+				$key,
+				(string)$row['configvalue'],
+				lazy: true,
+				sensitive: $sensitive,
+			);
 			$copied++;
 		}
 		$legacy->closeCursor();

@@ -280,14 +280,10 @@ export default {
 }
 
 .icon-suitecrm {
-	background-image: url(./../../img/app-dark.svg);
+	background-image: url(./../../img/app-color.svg);
 	background-size: 23px 23px;
 	height: 23px;
 	width: 23px;
 	display: inline-block;
-}
-
-body.theme--dark .icon-suitecrm {
-	background-image: url(./../../img/app.svg);
 }
 </style>
