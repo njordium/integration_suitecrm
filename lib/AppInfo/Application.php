@@ -14,8 +14,6 @@ use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 
-use OCP\AppFramework\Http\Events\BeforeTemplateRenderedEvent;
-
 use OCA\SuiteCRM\Dashboard\SuiteCRMAccountsWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMActivitiesWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMCalendarWidget;
@@ -25,9 +23,6 @@ use OCA\SuiteCRM\Dashboard\SuiteCRMLeadsWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMPipelineWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMTasksWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMWidget;
-use OCA\SuiteCRM\Listener\AddQuickActionsScriptListener;
-use OCA\SuiteCRM\Listener\LoadFilesScriptListener;
-use OCA\SuiteCRM\Listener\LoadTalkScriptListener;
 use OCA\SuiteCRM\Notification\Notifier;
 use OCA\SuiteCRM\Reference\SuiteCRMReferenceProvider;
 use OCA\SuiteCRM\Search\SuiteCRMSearchProvider;
@@ -58,19 +53,6 @@ class Application extends App implements IBootstrap {
 		$context->registerSearchProvider(SuiteCRMSearchProvider::class);
 		$context->registerReferenceProvider(SuiteCRMReferenceProvider::class);
 		$context->registerNotifierService(Notifier::class);
-		// Inject the global Quick Actions floating action button
-		// on every full page render for signed-in users.
-		$context->registerEventListener(BeforeTemplateRenderedEvent::class, AddQuickActionsScriptListener::class);
-		// Register the "Link to SuiteCRM record" file action when the
-		// Files app is rendering. The listener is a no-op on any other
-		// dispatched event, so a stray registration outside Files does
-		// nothing rather than corrupting the target-app surface.
-		$context->registerEventListener(\OCA\Files\Event\LoadAdditionalScriptsEvent::class, LoadFilesScriptListener::class);
-		// Talk (spreed) has no first-party "additional scripts" event,
-		// so the canonical pattern is to listen on the core template-
-		// rendered event and filter on the /call/ pathinfo. Same
-		// approach nextcloud/bookmarks uses to inject its Talk hook.
-		$context->registerEventListener(BeforeTemplateRenderedEvent::class, LoadTalkScriptListener::class);
 	}
 
 	public function boot(IBootContext $context): void {

@@ -18,13 +18,10 @@ webpackConfig.entry = {
     cases: { import: path.join(__dirname, 'src', 'cases.js'), filename: 'integration_suitecrm-cases.js' },
     tasks: { import: path.join(__dirname, 'src', 'tasks.js'), filename: 'integration_suitecrm-tasks.js' },
     pipeline: { import: path.join(__dirname, 'src', 'pipeline.js'), filename: 'integration_suitecrm-pipeline.js' },
-    quickactions: { import: path.join(__dirname, 'src', 'quickActions.js'), filename: 'integration_suitecrm-quickactions.js' },
     activities: { import: path.join(__dirname, 'src', 'activities.js'), filename: 'integration_suitecrm-activities.js' },
     recentcontacts: { import: path.join(__dirname, 'src', 'recentContacts.js'), filename: 'integration_suitecrm-recentcontacts.js' },
     recentaccounts: { import: path.join(__dirname, 'src', 'recentAccounts.js'), filename: 'integration_suitecrm-recentaccounts.js' },
     recentleads: { import: path.join(__dirname, 'src', 'recentLeads.js'), filename: 'integration_suitecrm-recentleads.js' },
-    fileshook: { import: path.join(__dirname, 'src', 'filesHook.js'), filename: 'integration_suitecrm-fileshook.js' },
-    talkhook: { import: path.join(__dirname, 'src', 'talkHook.js'), filename: 'integration_suitecrm-talkhook.js' },
 }
 
 module.exports = webpackConfig

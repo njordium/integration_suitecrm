@@ -115,56 +115,6 @@
 				</p>
 			</div>
 
-			<div v-if="connected" class="suitecrm-quick-actions">
-				<h3 class="suitecrm-quick-actions__heading">
-					<PlusBoxOutlineIcon :size="20" />
-					{{ t('integration_suitecrm', 'Quick actions to SuiteCRM') }}
-				</h3>
-				<p class="settings-hint">
-					{{ t('integration_suitecrm', 'Capture something from Nextcloud into your SuiteCRM record. Each action creates a linked SuiteCRM record and opens the confirmation in the SuiteCRM UI.') }}
-				</p>
-				<div class="suitecrm-quick-actions__buttons">
-					<NcButton variant="secondary" @click="openTalkModal">
-						<template #icon>
-							<MessageTextOutlineIcon :size="20" />
-						</template>
-						{{ t('integration_suitecrm', 'Log Talk conversation …') }}
-					</NcButton>
-					<NcButton variant="secondary" @click="openDeckModal">
-						<template #icon>
-							<CardsOutlineIcon :size="20" />
-						</template>
-						{{ t('integration_suitecrm', 'Link Deck card …') }}
-					</NcButton>
-					<NcButton variant="secondary" @click="openEmailModal">
-						<template #icon>
-							<EmailOutlineIcon :size="20" />
-						</template>
-						{{ t('integration_suitecrm', 'Convert email to Case …') }}
-					</NcButton>
-				</div>
-				<div class="suitecrm-quick-actions__fab-toggle">
-					<NcCheckboxRadioSwitch
-						:modelValue="!!state.quick_actions_enabled"
-						@update:modelValue="onQuickActionsFabChange">
-						{{ t('integration_suitecrm', 'Show the floating Quick Actions button on every page') }}
-					</NcCheckboxRadioSwitch>
-					<p class="settings-hint">
-						{{ t('integration_suitecrm', 'When enabled, a "+" button appears in the bottom-right of every Nextcloud page for one-click access to the actions above. Turn off if you prefer to reach the actions from this settings page only. Takes effect on the next page reload.') }}
-					</p>
-				</div>
-			</div>
-
-			<TalkToNoteModal
-				:open="quickAction === 'talk'"
-				@close="quickAction = null" />
-			<LinkDeckCardModal
-				:open="quickAction === 'deck'"
-				@close="quickAction = null" />
-			<EmailToCaseModal
-				:open="quickAction === 'email'"
-				@close="quickAction = null" />
-
 			<div v-if="connected" class="suitecrm-companion">
 				<h3>
 					<CalendarSyncIcon :size="20" class="companion-heading-icon" />
@@ -222,41 +172,27 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcPasswordField from '@nextcloud/vue/components/NcPasswordField'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import CalendarSyncIcon from 'vue-material-design-icons/CalendarSync.vue'
-import CardsOutlineIcon from 'vue-material-design-icons/CardsOutline.vue'
 import CheckCircleIcon from 'vue-material-design-icons/CheckCircle.vue'
 import ContentCopyIcon from 'vue-material-design-icons/ContentCopy.vue'
-import EmailOutlineIcon from 'vue-material-design-icons/EmailOutline.vue'
 import KeyPlusIcon from 'vue-material-design-icons/KeyPlus.vue'
 import LoginIcon from 'vue-material-design-icons/Login.vue'
 import LogoutIcon from 'vue-material-design-icons/Logout.vue'
-import MessageTextOutlineIcon from 'vue-material-design-icons/MessageTextOutline.vue'
-import PlusBoxOutlineIcon from 'vue-material-design-icons/PlusBoxOutline.vue'
-import EmailToCaseModal from './EmailToCaseModal.vue'
-import LinkDeckCardModal from './LinkDeckCardModal.vue'
-import TalkToNoteModal from './TalkToNoteModal.vue'
 
 export default {
 	name: 'PersonalSettings',
 
 	components: {
-		EmailToCaseModal,
-		LinkDeckCardModal,
 		NcButton,
 		NcCheckboxRadioSwitch,
 		NcNoteCard,
 		NcPasswordField,
 		NcTextField,
-		TalkToNoteModal,
 		CalendarSyncIcon,
-		CardsOutlineIcon,
 		CheckCircleIcon,
 		ContentCopyIcon,
-		EmailOutlineIcon,
 		KeyPlusIcon,
 		LoginIcon,
 		LogoutIcon,
-		MessageTextOutlineIcon,
-		PlusBoxOutlineIcon,
 	},
 
 	props: {},
@@ -269,10 +205,6 @@ export default {
 			loading: false,
 			authorizing: false,
 			companion: null,
-			// Which of the write-feature modals is open. null when none.
-			// Not a set of individual flags because the modals are
-			// mutually exclusive (only one dialog can be open at once).
-			quickAction: null,
 			// "Query as a different SuiteCRM username" — mirrors the same
 			// field in integration_forgejo_gitea. Empty string = use the
 			// OAuth-connected user (default). Non-empty = the backend
@@ -307,17 +239,6 @@ export default {
 	},
 
 	methods: {
-		openTalkModal() {
-			this.quickAction = 'talk'
-		},
-
-		openDeckModal() {
-			this.quickAction = 'deck'
-		},
-
-		openEmailModal() {
-			this.quickAction = 'email'
-		},
 
 		async loadCompanion() {
 			try {
@@ -364,16 +285,6 @@ export default {
 			const value = String(this.overrideUserName || '').trim()
 			this.overrideUserName = value
 			this.saveOptions({ override_user_name: value })
-		},
-
-		onQuickActionsFabChange(checked) {
-			// Server-side listener reads this on the next page render and
-			// skips the script tag, so the change takes effect after the
-			// user navigates or reloads. We deliberately do not force a
-			// reload here to avoid interrupting whatever the user is doing
-			// in the settings page.
-			this.state.quick_actions_enabled = checked
-			this.saveOptions({ quick_actions_enabled: checked ? '1' : '0' })
 		},
 
 		saveOptions(values) {
@@ -505,19 +416,6 @@ export default {
 
 	// Scoped h3 layout so the icon aligns inline with the section heading
 	// text instead of floating far to the right.
-	.suitecrm-quick-actions__fab-toggle {
-		margin-block-start: 20px;
-		padding-block-start: 12px;
-		border-block-start: 1px solid var(--color-border);
-		max-width: 500px;
-	}
-
-	.suitecrm-quick-actions__heading {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-block-start: 24px;
-	}
 
 	.suitecrm-override {
 		margin-block-start: 24px;

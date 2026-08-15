@@ -1,7 +1,7 @@
 # SuiteCRM integration for Nextcloud
 
 > **Actively maintained fork** of [julien-nc/integration_suitecrm](https://github.com/julien-nc/integration_suitecrm) by Julien Veyssier.
-> Updated for **Nextcloud 30 to 35** and **SuiteCRM 8.x**, migrated to Vue 3 / `@nextcloud/vue` v9, and extended with nine dashboard widgets (each with its own 3-dot settings menu — per-widget refresh cadence, records-to-show, and "Only records assigned to me" filter), Quick Action write flows (Talk to Note, Deck to SuiteCRM, Email to Case), a global floating action button, reference cards, smart picker, encrypted token storage, and a companion CalDAV sync module.
+> Updated for **Nextcloud 30 to 35** and **SuiteCRM 8.x**, migrated to Vue 3 / `@nextcloud/vue` v9. Focused on **read-side integration**: nine dashboard widgets (each with its own 3-dot settings menu — per-widget refresh cadence, records-to-show, "Only records assigned to me" filter), reference cards (paste any SuiteCRM URL for a rich preview), unified search, reminder notifications, encrypted token storage, and a companion CalDAV sync module. Write flows (log Talk conversations, link Deck cards, convert emails to Cases, follow-up Tasks, file → SuiteCRM link) live in the companion [`integration_suitecrm_bridge`](https://github.com/njordium/integration_suitecrm_bridge) app.
 
 Interact with your SuiteCRM instance from inside Nextcloud. Search records, see your schedule, workload, recent CRM activity, and newly-added people and companies on your dashboard, get notified about meeting reminders, log Talk conversations as Notes, link Deck cards to SuiteCRM records, convert emails to Cases, and paste CRM links into Talk or Notes for rich preview cards.
 
@@ -52,22 +52,9 @@ Nine home-dashboard widgets, grouped by intent, that answer the four questions a
 
 Row icons are chosen per widget for the record type — a person silhouette for Contacts, a handshake for Leads, an office building for Accounts, a briefcase for Cases, a task-list for Tasks, a trending-up arrow for Pipeline. Activities / Calendar / Events dispatch per row (calendar-clock for Meetings, phone for Calls, task-list for Tasks, note for Notes). All widgets share a single color SuiteCRM brand icon in the header. Empty-state uses a check-circle icon so a zero-result widget reads as "you're all caught up" rather than a blank card.
 
-### Quick Actions: write to SuiteCRM from Nextcloud
+### Want to write back to SuiteCRM from Nextcloud?
 
-Turn Nextcloud activity into linked SuiteCRM records without leaving the browser. Four write features ship:
-
-- **Log Talk conversation as a Note**. Pick a Nextcloud Talk conversation, pick a SuiteCRM record (by URL paste), select how many recent messages to include (10, 25, 50, 100, or 200). The Talk transcript is formatted as a markdown Note attached to the SuiteCRM record. System messages (joins, leaves, permission changes) are filtered out.
-- **Link Deck card to SuiteCRM record**. Paste a Deck card URL, pick a SuiteCRM record, optionally add a note. Creates a linked SuiteCRM Note on the record *and* posts a reciprocal comment on the Deck card via NC Deck's OCS API, so both sides discover the other.
-- **Convert email to Case**. Paste subject and body, optionally add sender name, email, date, and priority. A SuiteCRM Case is created with a stable `From:` / `Date:` header block prepended to the description.
-- **Follow-up Task from a calendar item**. From the SuiteCRM Events or Calendar widget, create a follow-up Task with a due date, priority, and description. The Task auto-links back to the source record (Meeting, Call, Contact, Account, Lead, Opportunity, Case, etc.) via `parent_type` / `parent_id`.
-
-Each write action can be launched from three places:
-
-1. **Personal Settings**. Under *Quick actions to SuiteCRM*, three buttons.
-2. **Global floating action button**. A fixed `+` button in the bottom-right corner of every Nextcloud page (visible once you're connected). Opens a menu with the three main Quick Actions.
-3. **Keyboard shortcut**. `⌘/Ctrl + Shift + K` from anywhere in Nextcloud toggles the FAB menu. While the menu is open, `1` / `2` / `3` jump directly to Talk, Deck, or Email.
-
-The write path is protected end-to-end. Every endpoint gates on the OAuth session token, whitelists source and target modules to the eight the fork integrates with, and propagates SuiteCRM errors as HTTP 502 with the original envelope so the frontend can distinguish user-fault from server-fault.
+Install the companion **[integration_suitecrm_bridge](https://github.com/njordium/integration_suitecrm_bridge)** app alongside this one. The bridge app adds the in-context write flows that used to live here: log Talk conversations as SuiteCRM Notes, link Deck cards, convert emails to Cases, create follow-up Tasks from Calendar / Events widget rows, and link Nextcloud files (including Talk call recordings and AI summaries) to any SuiteCRM record. The two apps are independent — you can run this one alone if all you need is dashboard visibility.
 
 ### Reference cards & smart picker
 Paste any SuiteCRM record URL (e.g. `.../index.php?module=Contacts&record=abc-123`) into Talk messages, Notes, Deck cards, or Files comments and it renders inline as a rich preview card.
