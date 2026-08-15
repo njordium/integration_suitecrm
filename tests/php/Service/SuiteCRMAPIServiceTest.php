@@ -1032,136 +1032,14 @@ class SuiteCRMAPIServiceTest extends TestCase {
 	}
 
 	// ---------------------------------------------------------------------
-	// createRecord + linkRecord write-path coverage.
+	// createRecord + linkRecord write-path coverage removed in 3.2.1.
 	//
-	// Guards the JSON:API envelope shape and endpoint routing that all
-	// four write features (Task from widget, Talk to Note, Email to
-	// Case, Deck linked to Opportunity) depend on. If SuiteCRM's V8 API
-	// rejects our payload shape at any point, these tests are where we
-	// notice, not in a production incident.
+	// Both write helpers were deleted from this service — write-side flows
+	// (Task from widget, Talk to Note, Email to Case, Deck linked to
+	// Opportunity) live in the sibling `integration_suitecrm_bridge` app
+	// starting from its v1.0.0. Coverage for the JSON:API envelope shape
+	// and relationship-endpoint routing moves with them.
 	// ---------------------------------------------------------------------
-
-	public function testCreateRecordWrapsAttributesInJsonApiEnvelope(): void {
-		$capturedEndpoint = null;
-		$capturedParams = null;
-		$capturedMethod = null;
-		$capturedJsonBody = null;
-
-		$service = $this->makeService(function (
-			string $suitecrmUrl, string $accessToken, string $userId,
-			string $endpoint, array $params, string $method,
-			int $retryCount, bool $jsonBody,
-		) use (&$capturedEndpoint, &$capturedParams, &$capturedMethod, &$capturedJsonBody) {
-			$capturedEndpoint = $endpoint;
-			$capturedParams = $params;
-			$capturedMethod = $method;
-			$capturedJsonBody = $jsonBody;
-			return ['data' => ['type' => 'Tasks', 'id' => 'abc-123', 'attributes' => []]];
-		});
-
-		$result = $service->createRecord(
-			'https://crm.example.com',
-			'access-token-xyz',
-			'alice',
-			'Tasks',
-			['name' => 'Follow up', 'description' => 'Called client', 'status' => 'Not Started'],
-		);
-
-		// v2.1.1 hotfix: creation endpoint is `module` (no module suffix);
-		// the module name is in `data.type` of the JSON:API payload. See
-		// createRecord() docblock for the SuiteCRM 8.10.x route-registration
-		// reasoning.
-		$this->assertSame('module', $capturedEndpoint);
-		$this->assertSame('POST', $capturedMethod);
-		$this->assertTrue($capturedJsonBody, 'createRecord() must set $jsonBody=true so request() sends application/vnd.api+json');
-		$this->assertSame([
-			'data' => [
-				'type' => 'Tasks',
-				'attributes' => [
-					'name' => 'Follow up',
-					'description' => 'Called client',
-					'status' => 'Not Started',
-				],
-			],
-		], $capturedParams, 'createRecord() must wrap attributes in the JSON:API data/type/attributes envelope');
-		$this->assertSame('abc-123', $result['data']['id']);
-	}
-
-	public function testCreateRecordEndpointIsAlwaysSuffixlessModule(): void {
-		// v2.1.1: with the JSON:API-compliant creation endpoint the module
-		// name never appears in the URL path; it lives in `data.type`.
-		// Weird module names therefore can't inject via the URL. This is a
-		// defensive check to guard the invariant.
-		$capturedEndpoint = null;
-		$capturedType = null;
-		$service = $this->makeService(function (...$args) use (&$capturedEndpoint, &$capturedType) {
-			$capturedEndpoint = $args[3];
-			$capturedType = $args[4]['data']['type'] ?? null;
-			return ['data' => []];
-		});
-		$service->createRecord('https://crm', 'tok', 'u', 'Weird Module/Name', []);
-		$this->assertSame('module', $capturedEndpoint);
-		$this->assertSame('Weird Module/Name', $capturedType);
-	}
-
-	public function testCreateRecordPropagatesRequestErrorEnvelope(): void {
-		// The write path must not swallow error envelopes; a failed POST
-		// should surface the same {'error' => msg, 'body' => raw} shape as
-		// failed reads, so controllers can render actionable admin
-		// messages.
-		$service = $this->makeService(fn (...$args) => [
-			'error' => 'Bad credentials',
-			'body' => '{"errors":[{"detail":"invalid token"}]}',
-		]);
-		$result = $service->createRecord('https://crm', 'tok', 'u', 'Tasks', []);
-		$this->assertSame('Bad credentials', $result['error']);
-		$this->assertStringContainsString('invalid token', $result['body']);
-	}
-
-	public function testLinkRecordBuildsRelationshipEndpoint(): void {
-		$capturedEndpoint = null;
-		$capturedParams = null;
-		$capturedMethod = null;
-		$capturedJsonBody = null;
-
-		$service = $this->makeService(function (
-			string $suitecrmUrl, string $accessToken, string $userId,
-			string $endpoint, array $params, string $method,
-			int $retryCount, bool $jsonBody,
-		) use (&$capturedEndpoint, &$capturedParams, &$capturedMethod, &$capturedJsonBody) {
-			$capturedEndpoint = $endpoint;
-			$capturedParams = $params;
-			$capturedMethod = $method;
-			$capturedJsonBody = $jsonBody;
-			return ['data' => []];
-		});
-
-		$service->linkRecord(
-			'https://crm', 'tok', 'alice',
-			'Meetings', 'meet-1',
-			'contacts',
-			'Contacts', 'contact-7',
-		);
-
-		$this->assertSame('module/Meetings/meet-1/relationships/contacts', $capturedEndpoint);
-		$this->assertSame('POST', $capturedMethod);
-		$this->assertTrue($capturedJsonBody);
-		$this->assertSame([
-			'data' => [
-				'type' => 'Contacts',
-				'id' => 'contact-7',
-			],
-		], $capturedParams, 'linkRecord() must send the resource-linkage envelope { data: { type, id } }');
-	}
-
-	public function testCreateRecordSignatureAcceptsEmptyAttributes(): void {
-		// SuiteCRM 8.x will 400 on empty attributes for most modules, but
-		// the SUT must let that happen rather than pre-emptively refuse.
-		// Users deserve the real API error message, not our guess.
-		$service = $this->makeService(fn (...$args) => ['data' => ['id' => 'ok']]);
-		$result = $service->createRecord('https://crm', 'tok', 'u', 'Tasks', []);
-		$this->assertSame('ok', $result['data']['id']);
-	}
 
 	// ---------------------------------------------------------------------
 	// Regression coverage for getMyCases().

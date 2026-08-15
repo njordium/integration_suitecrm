@@ -52,6 +52,14 @@ class SuiteCRMAPIController extends Controller {
 	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/url')]
 	public function getSuiteCRMUrl(): DataResponse {
+		// Gated behind a live OAuth token so the admin-configured
+		// SuiteCRM hostname is not enumerable by every NC user on the
+		// tenant. Non-connected users get an empty string, which the
+		// PersonalSettings.vue "Instance URL" link check treats as
+		// "not connected" (falsy hides the link).
+		if ($this->accessToken === '') {
+			return new DataResponse('');
+		}
 		return new DataResponse($this->suitecrmUrl);
 	}
 

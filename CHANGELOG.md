@@ -6,6 +6,26 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 3.2.1 – 2026-08-15
+
+Security-fix release folding every finding from the post-pivot 3.2.0 OWASP audit. No feature changes; every user should upgrade.
+
+### Fixed — security
+
+- **`oauthConnect` (POST `/oauth-connect`) is now brute-force + rate-limited + password-confirmed.** Adds `#[BruteForceProtection(action: 'suitecrmOAuth')]`, `#[UserRateLimit(limit: 5, period: 60)]`, `#[PasswordConfirmationRequired]`, and an up-front `throttler->sleepDelayOrThrowOnMax()` gate. The 401-return path calls `$response->throttle(['action' => 'suitecrmOAuth'])` so the counter increments only on failure. Closes the credential-spray path where any authenticated NC user could proxy unlimited SuiteCRM login attempts through this endpoint. `oauthCallback` (GET) is deliberately NOT password-gated — it's an external-redirect bounce-back and gating it would break the OAuth flow; the `state` parameter remains the CSRF defence there.
+- **Widget error responses no longer leak upstream SuiteCRM diagnostic bodies.** `SuiteCRMAPIService::request()`'s catch branch previously returned `['error' => $e->getMessage(), 'body' => $errorBody]` — every widget endpoint handed that straight back as a `DataResponse`, so any low-privilege NC user could trigger errors and read raw SuiteCRM 4xx/5xx bodies that routinely embed SQL fragments, module names, and PHP exception context. Now returns a generic `Upstream SuiteCRM request failed` string; the raw body + exception are still logged server-side at warning level for operator debugging.
+- **`getSuiteCRMUrl` (GET `/url`) no longer leaks the admin-configured SuiteCRM hostname to unconnected users.** Gated behind `$this->accessToken !== ''`; non-connected users get an empty string. Removes an internal-hostname enumeration path on tenants where SuiteCRM sits on a private URL.
+- **`setConfig`'s `override_user_name` transitions are now audit-logged.** The key lets a user re-target every widget query at another SuiteCRM user's `assigned_user_id`; ACL-clean (SuiteCRM enforces reads against the OAuth token holder), but silent framing was surprising for admins. A `logger->info` line at set-time makes the transition discoverable in the NC audit trail.
+- **`decodeJwtSub` regex now caps the `sub` claim at 64 characters.** Belt-and-braces bound so a hostile JWT can't produce an arbitrarily long URL path segment in the follow-up `module/Users/<sub>` request.
+
+### Removed
+
+- **`SuiteCRMAPIService::createRecord()` + `linkRecord()`.** Dead code from the 3.2.0 pivot — zero callers in this app (all write callers moved to `integration_suitecrm_bridge` which carries its own copy). Also drops the four `createRecord*` / `linkRecord*` regression tests they backed; write-path coverage moves to the bridge app's test suite.
+
+### Docs
+
+- README's opening paragraph clarified: "companion CalDAV sync module" (previously read as if bundled) now explicitly names `suitecrm_nextcloud_calendar` as a separate SuiteCRM-side module installed on the SuiteCRM host — distinct from the `integration_suitecrm_bridge` Nextcloud app. All three components (this app, the bridge app, the CalDAV module) are independent; install only what you need.
+
 ## 3.2.0 – 2026-08-15
 
 **Widget-only pivot.** Everything not related to fetching + presenting SuiteCRM data in dashboard widgets is removed from this app. Write flows (Quick Actions floating button, Talk-to-Note / Deck-to-SuiteCRM / Email-to-Case modals, follow-up-Task modal, Files "Link to SuiteCRM" action, Talk message action) move to a new companion app: **`integration_suitecrm_bridge`** — install alongside this one for the full read + write experience.

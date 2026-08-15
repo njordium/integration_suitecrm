@@ -1474,107 +1474,17 @@ class SuiteCRMAPIService {
 				'exception' => $e,
 				'body' => $errorBody,
 			]);
-			return ['error' => $e->getMessage(), 'body' => $errorBody];
+			// Do NOT return $e->getMessage() or the raw upstream body to
+			// the caller. Widget endpoints hand this array straight back
+			// as a DataResponse, and SuiteCRM 8.x 4xx/5xx bodies
+			// routinely embed SQL fragments, module names, and PHP
+			// exception context that a tenant admin never expected to
+			// leave SuiteCRM. The server-side warning above still carries
+			// the raw body + exception for operator debugging.
+			return ['error' => $this->l10n->t('Upstream SuiteCRM request failed')];
 		}
 	}
 
-	/**
-	 * Create a record in a SuiteCRM module via the V8 JSON:API.
-	 *
-	 * Foundation for the four write features (Task from widget, Talk to
-	 * Note, Email to Case, Deck to Opportunity link). Wraps the
-	 * caller-supplied attributes in the required JSON:API envelope, then
-	 * delegates to {@see request()} with $jsonBody=true so the
-	 * token-refresh retry and error handling stay in one place.
-	 *
-	 * Successful response shape (SuiteCRM 8.10.x):
-	 *   [
-	 *     'data' => [
-	 *       'type' => 'Tasks',       // module name
-	 *       'id'   => '<uuid>',      // the created record id
-	 *       'attributes' => [...],   // full attribute set of the new record
-	 *     ],
-	 *   ]
-	 *
-	 * Error response is whatever {@see request()} returns for that layer,
-	 * same envelope as read failures so callers can share error paths.
-	 *
-	 * @param string $suitecrmUrl  Base SuiteCRM instance URL (no trailing slash needed)
-	 * @param string $accessToken  Valid OAuth2 access token
-	 * @param string $userId       Nextcloud user id (used for token refresh on 401)
-	 * @param string $module       SuiteCRM module name (e.g. 'Tasks', 'Notes', 'Cases')
-	 * @param array $attributes    Field values for the new record (module-specific)
-	 * @return array               JSON:API response or {'error' => ...} envelope
-	 */
-	public function createRecord(string $suitecrmUrl, string $accessToken, string $userId,
-								 string $module, array $attributes): array {
-		$payload = [
-			'data' => [
-				'type' => $module,
-				'attributes' => $attributes,
-			],
-		];
-		// Endpoint is `/Api/V8/module` (WITHOUT the module suffix).
-		// This is the strict JSON:API creation route; the module name
-		// travels in `data.type`. Discovered while smoke-testing the
-		// email-to-case flow against SuiteCRM 8.10.1: `POST /module/Cases`
-		// returned 405 "Must be one of: GET" even though `POST
-		// /module/Tasks` worked fine during the initial push-test.
-		// Some modules (Tasks) tolerate the suffixed URL as a legacy
-		// path; Cases and probably others reject it. The suffix-less
-		// form is the JSON:API-compliant one and works uniformly.
-		return $this->request(
-			$suitecrmUrl, $accessToken, $userId,
-			'module',
-			$payload, 'POST', 0, true,
-		);
-	}
-
-	/**
-	 * Attach one SuiteCRM record to another via a named relationship.
-	 *
-	 * Used for the parent_type/parent_id linkages that the four write
-	 * features need: a follow-up Task linked back to the source Meeting,
-	 * a Note attached to a Contact, a Case attached to an Account, and so
-	 * on. SuiteCRM's V8 JSON:API exposes relationship management at
-	 * `/module/{module}/{id}/relationships/{relationship}`.
-	 *
-	 * For the common case of parent_type/parent_id, prefer setting those
-	 * two fields directly in the {@see createRecord()} attributes map:
-	 * it's one round trip instead of two. Use `linkRecord()` when you
-	 * need a many-to-many link that isn't reachable through the flat
-	 * attribute set (e.g. Contacts attached to a Meeting as attendees).
-	 *
-	 * @param string $suitecrmUrl
-	 * @param string $accessToken
-	 * @param string $userId
-	 * @param string $fromModule    Owning-side module (e.g. 'Meetings')
-	 * @param string $fromId        Owning-side record id
-	 * @param string $relationship  Relationship name (e.g. 'contacts')
-	 * @param string $toType        Related-side module (e.g. 'Contacts')
-	 * @param string $toId          Related-side record id
-	 * @return array
-	 */
-	public function linkRecord(string $suitecrmUrl, string $accessToken, string $userId,
-							   string $fromModule, string $fromId, string $relationship,
-							   string $toType, string $toId): array {
-		$payload = [
-			'data' => [
-				'type' => $toType,
-				'id' => $toId,
-			],
-		];
-		return $this->request(
-			$suitecrmUrl, $accessToken, $userId,
-			sprintf(
-				'module/%s/%s/relationships/%s',
-				rawurlencode($fromModule),
-				rawurlencode($fromId),
-				rawurlencode($relationship),
-			),
-			$payload, 'POST', 0, true,
-		);
-	}
 
 	/**
 	 * OAuth token endpoint call. Returns the decoded JSON on success. On

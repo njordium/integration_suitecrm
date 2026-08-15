@@ -18,12 +18,16 @@ use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
+use OCP\AppFramework\Http\Attribute\BruteForceProtection;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\PasswordConfirmationRequired;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Controller;
+use OCP\Security\Bruteforce\IThrottler;
 
 use OCA\SuiteCRM\Service\OAuthStateStore;
 use OCA\SuiteCRM\Service\SuiteCRMAPIService;
@@ -145,6 +149,7 @@ class ConfigController extends Controller {
                                                                 private IURLGenerator $urlGenerator,
                                                                 private IUserSession $userSession,
                                                                 private LoggerInterface $logger,
+                                                                private IThrottler $throttler,
                                                                 private ?string $userId) {
                 parent::__construct($appName, $request);
         }
@@ -227,6 +232,27 @@ class ConfigController extends Controller {
                 foreach ($values as $key => $value) {
                         if (!in_array($key, self::USER_ALLOWED_KEYS, true)) {
                                 continue;
+                        }
+                        // Audit-log the override_user_name transition. This
+                        // key lets a user re-target every widget query at
+                        // another SuiteCRM user's assigned_user_id (subject
+                        // to SuiteCRM ACLs on the OAuth token). ACL-clean
+                        // but silent framing is surprising for admins — the
+                        // log line makes the change discoverable in the NC
+                        // audit trail without changing behaviour.
+                        if ($key === 'override_user_name') {
+                                $previous = $this->config->getUserValue($this->userId, Application::APP_ID, 'override_user_name', '');
+                                if ((string) $value !== $previous) {
+                                        $this->logger->info(
+                                                'SuiteCRM override_user_name changed for {ncUser}: {previous} -> {next}',
+                                                [
+                                                        'app' => Application::APP_ID,
+                                                        'ncUser' => $this->userId,
+                                                        'previous' => $previous,
+                                                        'next' => (string) $value,
+                                                ],
+                                        );
+                                }
                         }
                         // IConfig::setUserValue requires string; a bool/int in the payload
                         // (Vue's NcCheckboxRadioSwitch can emit either) would TypeError on
@@ -526,7 +552,11 @@ class ConfigController extends Controller {
                 // Guard: reject anything that doesn't look like a UUID-ish sub so
                 // we can't be talked into requesting an arbitrary path via the API
                 // service. SuiteCRM's user ids are UUID-shaped.
-                if (!preg_match('/^[a-zA-Z0-9\-_]+$/', $json['sub'])) {
+                // 64-char cap keeps a hostile token from producing an
+                // arbitrarily long path segment in the follow-up
+                // `module/Users/<sub>` request — belt and braces since the
+                // token is already TLS-authenticated from SuiteCRM.
+                if (!preg_match('/^[a-zA-Z0-9\-_]{1,64}$/', $json['sub'])) {
                         return null;
                 }
                 return $json['sub'];
@@ -552,11 +582,24 @@ class ConfigController extends Controller {
          * @throws \OCP\PreConditionNotMetException
          */
         #[NoAdminRequired]
+        #[PasswordConfirmationRequired]
+        #[BruteForceProtection(action: 'suitecrmOAuth')]
+        #[UserRateLimit(limit: 5, period: 60)]
         #[FrontpageRoute(verb: 'POST', url: '/oauth-connect')]
         public function oauthConnect(string $login = '', string $password = ''): DataResponse {
                 if ($this->userId === null) {
                         return new DataResponse(['error' => 'No user session'], 401);
                 }
+                // NC throttle: refuse the call up-front once the per-IP
+                // sliding-window budget for the suitecrmOAuth action is
+                // spent. The #[BruteForceProtection] attribute reads the
+                // same action key and increments it on the 401 return
+                // path below via $response->throttle(). This is the
+                // standard NC pattern for a login-adjacent endpoint that
+                // proxies a foreign credential exchange; without it any
+                // NC-authenticated user could credential-spray SuiteCRM
+                // through here.
+                $this->throttler->sleepDelayOrThrowOnMax($this->request->getRemoteAddress(), 'suitecrmOAuth');
                 $suitecrmUrl = $this->appConfig->getValueString(Application::APP_ID, 'oauth_instance_url');
                 $clientID = $this->appConfig->getValueString(Application::APP_ID, 'client_id');
                 $clientSecret = $this->appConfig->getValueString(Application::APP_ID, 'client_secret');
@@ -593,7 +636,13 @@ class ConfigController extends Controller {
                         $this->config->setUserValue($this->userId, Application::APP_ID, 'user_id', $userId);
                         return new DataResponse(['user_name' => $userName]);
                 } else {
-                        return new DataResponse(['error' => 'Invalid login/password'], 401);
+                        // throttle() marks this response as an auth-failure
+                        // event for #[BruteForceProtection] — the counter for
+                        // 'suitecrmOAuth' increments only on this branch, so
+                        // successful connects don't burn a slot.
+                        $response = new DataResponse(['error' => 'Invalid login/password'], 401);
+                        $response->throttle(['action' => 'suitecrmOAuth']);
+                        return $response;
                 }
         }
 

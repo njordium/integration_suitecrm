@@ -14,6 +14,7 @@ use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
+use OCP\Security\Bruteforce\IThrottler;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -44,6 +45,7 @@ class ConfigControllerTest extends TestCase {
 	private IURLGenerator&MockObject $urlGenerator;
 	private IUserSession&MockObject $userSession;
 	private LoggerInterface&MockObject $logger;
+	private IThrottler&MockObject $throttler;
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -56,6 +58,7 @@ class ConfigControllerTest extends TestCase {
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
 		$this->userSession = $this->createMock(IUserSession::class);
 		$this->logger = $this->createMock(LoggerInterface::class);
+		$this->throttler = $this->createMock(IThrottler::class);
 	}
 
 	private function makeController(?string $userId): ConfigController {
@@ -70,6 +73,7 @@ class ConfigControllerTest extends TestCase {
 			$this->urlGenerator,
 			$this->userSession,
 			$this->logger,
+			$this->throttler,
 			$userId,
 		);
 	}
