@@ -27,6 +27,7 @@ use OCA\SuiteCRM\Dashboard\SuiteCRMTasksWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMWidget;
 use OCA\SuiteCRM\Listener\AddQuickActionsScriptListener;
 use OCA\SuiteCRM\Listener\LoadFilesScriptListener;
+use OCA\SuiteCRM\Listener\LoadTalkScriptListener;
 use OCA\SuiteCRM\Notification\Notifier;
 use OCA\SuiteCRM\Reference\SuiteCRMReferenceProvider;
 use OCA\SuiteCRM\Search\SuiteCRMSearchProvider;
@@ -65,6 +66,11 @@ class Application extends App implements IBootstrap {
 		// dispatched event, so a stray registration outside Files does
 		// nothing rather than corrupting the target-app surface.
 		$context->registerEventListener(\OCA\Files\Event\LoadAdditionalScriptsEvent::class, LoadFilesScriptListener::class);
+		// Talk (spreed) has no first-party "additional scripts" event,
+		// so the canonical pattern is to listen on the core template-
+		// rendered event and filter on the /call/ pathinfo. Same
+		// approach nextcloud/bookmarks uses to inject its Talk hook.
+		$context->registerEventListener(BeforeTemplateRenderedEvent::class, LoadTalkScriptListener::class);
 	}
 
 	public function boot(IBootContext $context): void {

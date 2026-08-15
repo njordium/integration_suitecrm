@@ -115,6 +115,26 @@ export default {
 			type: Boolean,
 			default: false,
 		},
+
+		// Pre-selected conversation token, set when the modal is
+		// launched from Talk's in-context message action instead of
+		// the FAB. When present, the conversation picker starts with
+		// this value selected so the user only picks the SuiteCRM
+		// record + message count. Empty string means "let the user
+		// pick from all rooms" (FAB flow).
+		prefillToken: {
+			type: String,
+			default: '',
+		},
+
+		// Human-readable name of the pre-selected conversation, used
+		// only for display in the header while the room list finishes
+		// loading in the background. Optional; if empty the modal
+		// falls back to the token.
+		prefillLabel: {
+			type: String,
+			default: '',
+		},
 	},
 
 	emits: ['close', 'created'],
@@ -122,7 +142,7 @@ export default {
 	data() {
 		return {
 			conversations: [],
-			selectedConversation: null,
+			selectedConversation: this.prefillToken || null,
 			selectedRecord: null,
 			messageLimit: 50,
 			loadingConversations: false,
@@ -153,14 +173,25 @@ export default {
 
 		selectedConversationLabel() {
 			const c = this.conversations.find((c) => c.token === this.selectedConversation)
-			return c ? (c.displayName || c.name || c.token) : ''
+			if (c) {
+				return c.displayName || c.name || c.token
+			}
+			// Prefill fallback: the modal may render before the room
+			// list finishes loading, so show the label the hook
+			// handed us until the picker catches up.
+			if (this.selectedConversation === this.prefillToken && this.prefillLabel) {
+				return this.prefillLabel
+			}
+			return ''
 		},
 	},
 
 	watch: {
 		open(isOpen) {
 			if (isOpen) {
-				this.selectedConversation = null
+				// Respect the prefill so a re-open of the modal from the
+				// Talk hook still lands on the intended conversation.
+				this.selectedConversation = this.prefillToken || null
 				this.selectedRecord = null
 				this.messageLimit = 50
 				this.loadError = ''
