@@ -39,6 +39,19 @@ class SuiteCRMAPIService {
 	private IClient $client;
 
 	/**
+	 * Per-request cache of `override_user_name → SuiteCRM user_id`
+	 * resolutions. Keyed by the Nextcloud userId so a multi-user
+	 * batch call (dashboard rendering multiple widgets in one PHP
+	 * request) reuses a single lookup per NC user without hitting
+	 * the SuiteCRM API more than once. Instance state = request
+	 * lifetime because IClientService gives a fresh service per
+	 * request.
+	 *
+	 * @var array<string, string>
+	 */
+	private array $effectiveUserIdCache = [];
+
+	/**
 	 * Service to make requests to SuiteCRM v8 REST (JSON:API)
 	 */
 	public function __construct(private string $appName,
@@ -52,6 +65,59 @@ class SuiteCRMAPIService {
 								private TokenStorage $tokens,
 								private IAppManager $appManager) {
 		$this->client = $clientService->newClient();
+	}
+
+	/**
+	 * Return the SuiteCRM user_id every widget's `assigned_user_id`
+	 * filter should be scoped by, taking the per-user
+	 * `override_user_name` pref into account.
+	 *
+	 * - No override → the OAuth-connected user's stored user_id
+	 *   (populated at token-exchange time).
+	 * - Override set → look up SuiteCRM Users where user_name=<override>,
+	 *   return the first match's id. Cached per NC-user for the request
+	 *   lifetime so nine widget calls don't fire nine SuiteCRM lookups.
+	 * - Lookup fails / returns nothing / errors → fall back to the
+	 *   OAuth user_id and log a warning so a bad override doesn't
+	 *   silently blank every widget. Same graceful-degrade contract
+	 *   the rest of the service uses.
+	 *
+	 * The override is intentionally scoped to widget assigned-user
+	 * filters only. Every write endpoint (`logNote`, `linkDeckCard`,
+	 * `emailToCase`, `createFollowupTask`) still uses the OAuth
+	 * user_id — records created from Nextcloud are always owned by
+	 * the actual authenticated user, never impersonated.
+	 */
+	private function resolveEffectiveScrmUserId(string $url, string $accessToken, string $userId): string {
+		$ownId = (string) $this->config->getUserValue($userId, Application::APP_ID, 'user_id');
+		$override = trim((string) $this->config->getUserValue($userId, Application::APP_ID, 'override_user_name'));
+		if ($override === '') {
+			return $ownId;
+		}
+		if (isset($this->effectiveUserIdCache[$userId])) {
+			return $this->effectiveUserIdCache[$userId];
+		}
+		$response = $this->request(
+			$url, $accessToken, $userId,
+			'module/Users?fields[Users]=user_name&filter[user_name][eq]=' . urlencode($override),
+		);
+		$resolved = '';
+		if (!isset($response['error'])
+			&& isset($response['data'][0]['id'])
+			&& is_string($response['data'][0]['id'])
+			&& $response['data'][0]['id'] !== ''
+		) {
+			$resolved = $response['data'][0]['id'];
+		} else {
+			$this->logger->warning(
+				'SuiteCRM override_user_name "' . $override . '" for NC user "' . $userId . '" '
+				. 'did not resolve to a SuiteCRM user; falling back to OAuth user_id.',
+				['app' => Application::APP_ID],
+			);
+			$resolved = $ownId;
+		}
+		$this->effectiveUserIdCache[$userId] = $resolved;
+		return $resolved;
 	}
 
 	/**
@@ -186,7 +252,7 @@ class SuiteCRMAPIService {
 								 ?int $reminderSinceTs = null, ?int $reminderUntilTs = null,
 								 ?int $eventSinceTs = null, ?int $eventUntilTs = null,
 								 ?int $limit = null): array {
-		$scrmUserId = $this->config->getUserValue($userId, Application::APP_ID, 'user_id');
+		$scrmUserId = $this->resolveEffectiveScrmUserId($url, $accessToken, $userId);
 		$filters = [];
 		if ($scrmUserId !== '') {
 			$filters[] = urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId);
@@ -273,7 +339,7 @@ class SuiteCRMAPIService {
 	 * @return array
 	 */
 	public function getAlerts(string $url, string $accessToken, string $userId, ?int $sinceTs = null, ?int $limit = null): array {
-		$scrmUserId = $this->config->getUserValue($userId, Application::APP_ID, 'user_id');
+		$scrmUserId = $this->resolveEffectiveScrmUserId($url, $accessToken, $userId);
 		$filters = [
 			urlencode('filter[assigned_user_id][eq]') . '=' . urlencode($scrmUserId),
 			urlencode('filter[is_read][eq]') . '=0',
@@ -440,7 +506,7 @@ class SuiteCRMAPIService {
 		// filter[assigned_user_id][eq] clause when the id is empty, so the
 		// query returns everything the caller's ACL permits.
 		$scrmUserId = $onlyMine
-			? (string) $this->config->getUserValue($userId, Application::APP_ID, 'user_id')
+			? (string) $this->resolveEffectiveScrmUserId($url, $accessToken, $userId)
 			: '';
 		$now = new DateTime();
 		$nowTs = $now->getTimestamp();
@@ -547,7 +613,7 @@ class SuiteCRMAPIService {
 	 */
 	public function getMyCases(string $url, string $accessToken, string $userId, int $limit = 20, bool $onlyMine = true): array {
 		$scrmUserId = $onlyMine
-			? (string) $this->config->getUserValue($userId, Application::APP_ID, 'user_id')
+			? (string) $this->resolveEffectiveScrmUserId($url, $accessToken, $userId)
 			: '';
 		if ($onlyMine && $scrmUserId === '') {
 			return [];
@@ -636,7 +702,7 @@ class SuiteCRMAPIService {
 	 */
 	public function getMyTasks(string $url, string $accessToken, string $userId, int $limit = 20, bool $onlyMine = true): array {
 		$scrmUserId = $onlyMine
-			? (string) $this->config->getUserValue($userId, Application::APP_ID, 'user_id')
+			? (string) $this->resolveEffectiveScrmUserId($url, $accessToken, $userId)
 			: '';
 		if ($onlyMine && $scrmUserId === '') {
 			return [];
@@ -800,7 +866,7 @@ class SuiteCRMAPIService {
 	 */
 	public function getMyPipeline(string $url, string $accessToken, string $userId, string $mode = self::DEFAULT_PIPELINE_MODE, int $limit = 20, bool $onlyMine = true): array {
 		$scrmUserId = $onlyMine
-			? (string) $this->config->getUserValue($userId, Application::APP_ID, 'user_id')
+			? (string) $this->resolveEffectiveScrmUserId($url, $accessToken, $userId)
 			: '';
 		if ($onlyMine && $scrmUserId === '') {
 			return [];
@@ -923,7 +989,7 @@ class SuiteCRMAPIService {
 		// pref (never linked) silently disables the filter — better
 		// than an empty result set the user cannot troubleshoot.
 		$scrmUserId = $onlyMine
-			? (string) $this->config->getUserValue($userId, Application::APP_ID, 'user_id')
+			? (string) $this->resolveEffectiveScrmUserId($url, $accessToken, $userId)
 			: '';
 
 		$combined = [];
@@ -985,7 +1051,7 @@ class SuiteCRMAPIService {
 		$now = new DateTime();
 		$lookback = (clone $now)->sub(new DateInterval('P' . $lookbackDays . 'D'));
 		$scrmUserId = $onlyMine
-			? (string) $this->config->getUserValue($userId, Application::APP_ID, 'user_id')
+			? (string) $this->resolveEffectiveScrmUserId($url, $accessToken, $userId)
 			: '';
 
 		$filters = [
@@ -1039,7 +1105,7 @@ class SuiteCRMAPIService {
 		$now = new DateTime();
 		$lookback = (clone $now)->sub(new DateInterval('P' . $lookbackDays . 'D'));
 		$scrmUserId = $onlyMine
-			? (string) $this->config->getUserValue($userId, Application::APP_ID, 'user_id')
+			? (string) $this->resolveEffectiveScrmUserId($url, $accessToken, $userId)
 			: '';
 
 		$filters = [
@@ -1099,7 +1165,7 @@ class SuiteCRMAPIService {
 		$now = new DateTime();
 		$lookback = (clone $now)->sub(new DateInterval('P' . $lookbackDays . 'D'));
 		$scrmUserId = $onlyMine
-			? (string) $this->config->getUserValue($userId, Application::APP_ID, 'user_id')
+			? (string) $this->resolveEffectiveScrmUserId($url, $accessToken, $userId)
 			: '';
 
 		$filters = [

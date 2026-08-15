@@ -101,41 +101,17 @@
 				</NcCheckboxRadioSwitch>
 			</div>
 
-			<div v-if="connected" class="suitecrm-widget-prefs">
-				<h3 class="suitecrm-widget-prefs__heading">
-					<ViewDashboardOutlineIcon :size="20" />
-					{{ t('integration_suitecrm', 'Dashboard widget preferences') }}
-				</h3>
-				<div class="suitecrm-widget-prefs__toggle">
-					<NcCheckboxRadioSwitch
-						:modelValue="!!state.calendar_show_tasks"
-						@update:modelValue="onCalendarShowTasksChange">
-						{{ t('integration_suitecrm', 'Include Tasks in the Calendar widget') }}
-					</NcCheckboxRadioSwitch>
-					<p class="settings-hint">
-						{{ t('integration_suitecrm', 'When enabled, the Calendar widget lists SuiteCRM Tasks alongside Meetings and Calls (dated Tasks within the horizon window). Turn off if you already use the standalone "My open Tasks" widget and want to stop seeing the same Task in both places. Takes effect on the next widget refresh.') }}
-					</p>
-				</div>
-				<div class="suitecrm-widget-prefs__group">
-					<span class="suitecrm-widget-prefs__group-label">
-						{{ t('integration_suitecrm', 'Pipeline widget mode') }}
-					</span>
-					<div
-						v-for="option in pipelineModeOptions"
-						:key="option.value"
-						class="suitecrm-widget-prefs__radio">
-						<input
-							:id="'pipeline-mode-' + option.value"
-							type="radio"
-							name="pipeline_mode"
-							:value="option.value"
-							:checked="pipelineMode === option.value"
-							@change="onPipelineModeChange(option.value)">
-						<label :for="'pipeline-mode-' + option.value">{{ option.label }}</label>
-					</div>
-				</div>
+			<div v-if="connected" class="suitecrm-override">
+				<label for="scrm-override-user" class="suitecrm-override__label">
+					{{ t('integration_suitecrm', 'Query as a different SuiteCRM username') }}
+				</label>
+				<NcTextField
+					id="scrm-override-user"
+					v-model="overrideUserName"
+					:placeholder="state.user_name"
+					@change="onOverrideChange" />
 				<p class="settings-hint">
-					{{ pipelineModeHint }}
+					{{ t('integration_suitecrm', 'Widgets filter SuiteCRM data by this username (assigned to me, my open cases, my pipeline, etc.). Leave empty to use the OAuth-connected user shown above. Set this only when your OAuth account and the account whose records you want on the dashboard are different — e.g. an SSO login that differs from your SuiteCRM username, or a shared / bot user. Takes effect on the next widget refresh.') }}
 				</p>
 			</div>
 
@@ -255,7 +231,6 @@ import LoginIcon from 'vue-material-design-icons/Login.vue'
 import LogoutIcon from 'vue-material-design-icons/Logout.vue'
 import MessageTextOutlineIcon from 'vue-material-design-icons/MessageTextOutline.vue'
 import PlusBoxOutlineIcon from 'vue-material-design-icons/PlusBoxOutline.vue'
-import ViewDashboardOutlineIcon from 'vue-material-design-icons/ViewDashboardOutline.vue'
 import EmailToCaseModal from './EmailToCaseModal.vue'
 import LinkDeckCardModal from './LinkDeckCardModal.vue'
 import TalkToNoteModal from './TalkToNoteModal.vue'
@@ -282,7 +257,6 @@ export default {
 		LogoutIcon,
 		MessageTextOutlineIcon,
 		PlusBoxOutlineIcon,
-		ViewDashboardOutlineIcon,
 	},
 
 	props: {},
@@ -299,35 +273,16 @@ export default {
 			// Not a set of individual flags because the modals are
 			// mutually exclusive (only one dialog can be open at once).
 			quickAction: null,
-			// Pipeline widget framing preference. Kept in component state
-			// (rather than reading state.pipeline_mode directly on each
-			// render) so NcSelect's v-model works without a two-way
-			// computed. Backend validates the value against
-			// SuiteCRMAPIService::PIPELINE_MODES on read; an unknown
-			// string here falls back silently to the default.
-			pipelineMode: loadState('integration_suitecrm', 'user-config').pipeline_mode || 'closing_quarter',
+			// "Query as a different SuiteCRM username" — mirrors the same
+			// field in integration_forgejo_gitea. Empty string = use the
+			// OAuth-connected user (default). Non-empty = the backend
+			// resolves this SuiteCRM user_name to its user_id and uses
+			// that id in the assigned_user_id filter every widget sends.
+			overrideUserName: loadState('integration_suitecrm', 'user-config').override_user_name || '',
 		}
 	},
 
 	computed: {
-		pipelineModeOptions() {
-			return [
-				{ label: t('integration_suitecrm', 'Closing this quarter'), value: 'closing_quarter' },
-				{ label: t('integration_suitecrm', 'Top value'), value: 'top_value' },
-				{ label: t('integration_suitecrm', 'Weighted value (amount × probability)'), value: 'weighted' },
-			]
-		},
-
-		pipelineModeHint() {
-			if (this.pipelineMode === 'top_value') {
-				return t('integration_suitecrm', 'The pipeline widget lists your open Opportunities sorted by amount, largest first, regardless of close date. Deals with no amount sort last.')
-			}
-			if (this.pipelineMode === 'weighted') {
-				return t('integration_suitecrm', 'The pipeline widget lists your open Opportunities sorted by forecast-weighted value (amount × probability), largest first. Matches the way finance tracks pipeline.')
-			}
-			return t('integration_suitecrm', 'The pipeline widget lists your open Opportunities whose close date falls in the current calendar quarter, earliest first.')
-		},
-
 		oAuthConfigured() {
 			return this.state.oauth_instance_url && this.state.client_id && this.state.client_secret
 		},
@@ -402,20 +357,13 @@ export default {
 			this.saveOptions({ search_enabled: checked ? '1' : '0' })
 		},
 
-		onPipelineModeChange(value) {
-			// NcCheckboxRadioSwitch in radio mode emits the selected
-			// `value` prop directly (a string), so we can store it as-is.
-			this.pipelineMode = value
-			this.saveOptions({ pipeline_mode: value })
-		},
-
-		onCalendarShowTasksChange(checked) {
-			// Widget picks up the change on the next 120s poll; no need
-			// to force a reload. The service reads the pref inside
-			// getUpcoming() so both the Vue-mounted and the server-side
-			// dashboard-API render paths respect it uniformly.
-			this.state.calendar_show_tasks = checked
-			this.saveOptions({ calendar_show_tasks: checked ? '1' : '0' })
+		onOverrideChange() {
+			// Trim whitespace before persisting so a stray leading/trailing
+			// space does not defeat the backend's exact user_name match.
+			// Empty string is a valid state (clears the override).
+			const value = String(this.overrideUserName || '').trim()
+			this.overrideUserName = value
+			this.saveOptions({ override_user_name: value })
 		},
 
 		onQuickActionsFabChange(checked) {
@@ -564,7 +512,6 @@ export default {
 		max-width: 500px;
 	}
 
-	.suitecrm-widget-prefs__heading,
 	.suitecrm-quick-actions__heading {
 		display: flex;
 		align-items: center;
@@ -572,39 +519,16 @@ export default {
 		margin-block-start: 24px;
 	}
 
-	.suitecrm-widget-prefs__toggle {
-		margin-block-start: 12px;
+	.suitecrm-override {
+		margin-block-start: 24px;
+		padding-block-start: 20px;
+		border-block-start: 1px solid var(--color-border);
 		max-width: 500px;
-	}
 
-	.suitecrm-widget-prefs {
-		&__group {
-			margin-block-start: 12px;
-			display: flex;
-			flex-direction: column;
-			gap: 6px;
-			max-width: 500px;
-		}
-
-		&__group-label {
+		&__label {
+			display: block;
 			font-weight: 500;
-			margin-block-end: 4px;
-		}
-
-		&__radio {
-			display: flex;
-			align-items: center;
-			gap: 8px;
-
-			input[type="radio"] {
-				accent-color: var(--color-primary-element);
-				cursor: pointer;
-			}
-
-			label {
-				cursor: pointer;
-				color: var(--color-main-text);
-			}
+			margin-block-end: 6px;
 		}
 	}
 

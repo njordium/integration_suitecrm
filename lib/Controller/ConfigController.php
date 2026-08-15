@@ -54,6 +54,15 @@ class ConfigController extends Controller {
                 // script tag entirely so opted-out users pay zero JS
                 // cost per page render. Default on missing row is '1'.
                 'quick_actions_enabled',
+                // "Query as a different SuiteCRM username" — mirrors the
+                // Forgejo/Gitea integration's `override_user_name`. Empty
+                // string means use the OAuth-connected user; non-empty
+                // string is resolved to a SuiteCRM user_id at Service
+                // layer and substituted into the assigned_user_id filter
+                // every widget sends. Whitelisted here so setConfig()
+                // can persist it via the same PUT /config flow every
+                // other user-scoped pref uses.
+                'override_user_name',
                 // Calendar widget: whether to include SuiteCRM Tasks
                 // alongside Meetings and Calls. Users running the
                 // standalone "My open Tasks" widget can drop Tasks
