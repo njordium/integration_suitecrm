@@ -3,7 +3,9 @@
 > **Actively maintained fork** of [julien-nc/integration_suitecrm](https://github.com/julien-nc/integration_suitecrm) by Julien Veyssier.
 > Updated for **Nextcloud 30 to 35** and **SuiteCRM 8.x**, migrated to Vue 3 / `@nextcloud/vue` v9. Focused on **read-side integration**: nine dashboard widgets (each with its own 3-dot settings menu — per-widget refresh cadence, records-to-show, "Only records assigned to me" filter), reference cards (paste any SuiteCRM URL for a rich preview), unified search, reminder notifications, encrypted token storage, and a companion CalDAV sync module. Write flows (log Talk conversations, link Deck cards, convert emails to Cases, follow-up Tasks, file → SuiteCRM link) live in the companion [`integration_suitecrm_bridge`](https://github.com/njordium/integration_suitecrm_bridge) app.
 
-Interact with your SuiteCRM instance from inside Nextcloud. Search records, see your schedule, workload, recent CRM activity, and newly-added people and companies on your dashboard, get notified about meeting reminders, log Talk conversations as Notes, link Deck cards to SuiteCRM records, convert emails to Cases, and paste CRM links into Talk or Notes for rich preview cards.
+See your SuiteCRM data from inside Nextcloud. Search records, watch your schedule, workload, recent CRM activity, and newly-added people and companies on your dashboard, get notified about meeting reminders, and paste any SuiteCRM record URL into Talk, Notes, or Files comments for a rich preview card. Every widget carries a 3-dot menu for per-widget refresh cadence, records-to-show, and "assigned to me" filtering.
+
+**Read-only by design.** This app never writes to your SuiteCRM. If you want to write back — log a Talk conversation as a Note, link a Deck card, convert an email to a Case, create a follow-up Task from a widget row, or link a Nextcloud file to any record — install the companion [`integration_suitecrm_bridge`](https://github.com/njordium/integration_suitecrm_bridge) alongside. The two apps are independent; you can run either without the other.
 
 ![SuiteCRM integration dashboard widgets](img/screenshot.png)
 
@@ -52,10 +54,6 @@ Nine home-dashboard widgets, grouped by intent, that answer the four questions a
 
 Row icons are chosen per widget for the record type — a person silhouette for Contacts, a handshake for Leads, an office building for Accounts, a briefcase for Cases, a task-list for Tasks, a trending-up arrow for Pipeline. Activities / Calendar / Events dispatch per row (calendar-clock for Meetings, phone for Calls, task-list for Tasks, note for Notes). All widgets share a single color SuiteCRM brand icon in the header. Empty-state uses a check-circle icon so a zero-result widget reads as "you're all caught up" rather than a blank card.
 
-### Want to write back to SuiteCRM from Nextcloud?
-
-Install the companion **[integration_suitecrm_bridge](https://github.com/njordium/integration_suitecrm_bridge)** app alongside this one. The bridge app adds the in-context write flows that used to live here: log Talk conversations as SuiteCRM Notes, link Deck cards, convert emails to Cases, create follow-up Tasks from Calendar / Events widget rows, and link Nextcloud files (including Talk call recordings and AI summaries) to any SuiteCRM record. The two apps are independent — you can run this one alone if all you need is dashboard visibility.
-
 ### Reference cards & smart picker
 Paste any SuiteCRM record URL (e.g. `.../index.php?module=Contacts&record=abc-123`) into Talk messages, Notes, Deck cards, or Files comments and it renders inline as a rich preview card.
 
@@ -64,10 +62,10 @@ Type `@` in any Nextcloud text field to open the smart picker and search SuiteCR
 ### Notifications
 Meeting and Call reminders from SuiteCRM show up in Nextcloud's notification tray.
 
-### Calendar sync (companion module)
-Pair with the [njordium/suitecrm_nextcloud_calendar](https://github.com/njordium/suitecrm_nextcloud_calendar) SuiteCRM module for two-way calendar sync via CalDAV, SuiteCRM Meetings/Calls appear in Nextcloud Calendar and vice-versa, with double-booking detection and Nextcloud Appointments booking → SuiteCRM Meeting conversion.
+### Companion apps
 
-The Personal Settings panel includes a Calendar Companion section that streamlines the setup: shows your Nextcloud URL and username with one-click copy, plus a link to generate an app password.
+- **[`integration_suitecrm_bridge`](https://github.com/njordium/integration_suitecrm_bridge)** — the write side. Log Talk conversations as SuiteCRM Notes, link Deck cards, convert emails to Cases, create follow-up Tasks from Calendar / Events widget rows, link Nextcloud files (including Talk call recordings and AI summaries) to any SuiteCRM record. Independent OAuth flow; install alongside this app for the full read + write experience.
+- **[`njordium/suitecrm_nextcloud_calendar`](https://github.com/njordium/suitecrm_nextcloud_calendar)** — a SuiteCRM-side module (not a Nextcloud app) for two-way calendar sync via CalDAV. SuiteCRM Meetings and Calls appear in Nextcloud Calendar and vice-versa, with double-booking detection and Nextcloud Appointments booking → SuiteCRM Meeting conversion. The Personal Settings panel here includes a Calendar Companion section that streamlines the SuiteCRM-side setup: shows your Nextcloud URL and username with one-click copy plus a link to generate an app password.
 
 ### Built-in diagnostics
 Ships with an `occ` command that walks every layer of the connection stack, admin config, SSRF guard, HTTP reachability, authorize endpoint, token endpoint, and reports exactly which layer is broken with the fix command:
@@ -81,8 +79,9 @@ Safe to run at any time; does not touch stored user tokens.
 ### Security
 - OAuth2 access + refresh tokens are encrypted at rest using Nextcloud's `ICrypto` service
 - Tokens migrated transparently from plaintext (installs upgraded from ≤ 1.1.x)
-- **OAuth 2.0 authorization-code flow** (RFC 6749) is the primary connect path, the password grant is kept as a labelled "Advanced" fallback only
-- 3.1.0 cleared a full OWASP-Top-10 static review with 0 High + 0 Medium findings (three Medium and four Low findings from the initial review pass are fixed; four remaining Low advisories are documented tradeoffs). Write endpoints carry `#[UserRateLimit(30/60s)]`, admin config writes go through an `ADMIN_ALLOWED_KEYS` whitelist with `sensitive: true` on `client_secret`, the avatar proxy pins Content-Type via image magic-byte sniff, the OAuth error log redacts the raw guzzle message, and the 2.x→3.x migration preserves the `sensitive` flag on `client_secret`.
+- **OAuth 2.0 authorization-code flow** (RFC 6749) is the primary connect path; the password grant is kept as a labelled "Advanced" fallback only
+- 3.1.0 cleared a full OWASP-Top-10 static review with 0 High + 0 Medium findings; the remaining Low advisories are documented tradeoffs. Widget endpoints clamp caller-supplied `?limit=` to `min(100, N)`. Admin-config writes go through an `ADMIN_ALLOWED_KEYS` whitelist with `sensitive: true` on `client_secret`. The avatar proxy pins Content-Type via image-magic-byte sniff. The OAuth error log redacts the raw guzzle message. The 2.x → 3.x migration preserves the `sensitive` flag on `client_secret`.
+- **Read-only surface.** Since 3.2.0 this app carries no write endpoints — nothing in `SuiteCRMAPIController` mutates SuiteCRM state. A compromised session at worst reads what the caller's SuiteCRM ACL already allows. Write flows live in `integration_suitecrm_bridge` where the write-side attack surface is contained.
 
 ---
 
@@ -160,7 +159,7 @@ Open **Settings → Personal → Connected accounts → SuiteCRM integration** a
 
 If your SuiteCRM instance cannot complete the browser redirect back to Nextcloud, expand the **"Advanced: username + password fallback"** section and enter your SuiteCRM login and password (used once to obtain an OAuth token, not stored).
 
-Then enable search and/or notifications.
+Then enable search and/or reminder notifications from the same panel. Optionally, set a **"Query as a different SuiteCRM username"** value if your OAuth-connected user isn't the one whose records you want the widgets to filter on (typical when the OAuth account is an SSO / shared account distinct from your SuiteCRM login).
 
 For the calendar-sync companion module, use the "Calendar sync (SuiteCRM module)" section for the pre-filled values.
 
