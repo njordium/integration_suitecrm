@@ -21,7 +21,7 @@
  *
  * @author Kim Haverblad
  */
-import { FileAction, registerFileAction } from '@nextcloud/files'
+import { registerFileAction } from '@nextcloud/files'
 import { translate as t } from '@nextcloud/l10n'
 import { createApp } from 'vue'
 import FileToSuiteCRMDialog from './components/FileToSuiteCRMDialog.vue'
@@ -84,10 +84,16 @@ function openDialog(node) {
 	app.mount(mount)
 }
 
-registerFileAction(new FileAction({
+registerFileAction({
 	id: 'suitecrm-link',
 
-	displayName(nodes) {
+	// Callbacks take an ActionContext (`{ nodes, view }`) in the v4
+	// registerFileAction API — plain-object form as used by
+	// integration_openproject/src/filesPlugin/filesPlugin.js. The
+	// v3 `new FileAction({...})` constructor form is NOT exported
+	// by the currently-shipped `@nextcloud/files` runtime and would
+	// throw `FileAction is not a constructor` on script load.
+	displayName({ nodes }) {
 		if (nodes.length === 1 && isTalkArtefact(nodes[0])) {
 			return t('integration_suitecrm', 'Log this Talk artefact as a SuiteCRM Meeting Note')
 		}
@@ -96,19 +102,19 @@ registerFileAction(new FileAction({
 
 	iconSvgInline: () => ICON_SVG_INLINE,
 
-	enabled(nodes) {
-		// Single-node action — file OR folder. Batch link is a
-		// follow-up feature; skipping it keeps the initial UX simple
-		// (user picks one file, one dialog, one record).
-		return nodes.length === 1
+	enabled({ nodes, view }) {
+		// Single-node action, only in the primary Files view. Batch
+		// link is a follow-up feature; skipping it keeps the initial
+		// UX simple (user picks one file, one dialog, one record).
+		return nodes.length === 1 && view?.id === 'files'
 	},
 
-	async exec(node) {
-		openDialog(node)
+	async exec({ nodes }) {
+		openDialog(nodes[0])
 		// Return null: we handled the interaction ourselves via the
 		// dialog; Files should not display any inline result.
 		return null
 	},
 
 	order: 25,
-}))
+})
