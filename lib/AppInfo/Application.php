@@ -26,6 +26,7 @@ use OCA\SuiteCRM\Dashboard\SuiteCRMPipelineWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMTasksWidget;
 use OCA\SuiteCRM\Dashboard\SuiteCRMWidget;
 use OCA\SuiteCRM\Listener\AddQuickActionsScriptListener;
+use OCA\SuiteCRM\Listener\LoadFilesScriptListener;
 use OCA\SuiteCRM\Notification\Notifier;
 use OCA\SuiteCRM\Reference\SuiteCRMReferenceProvider;
 use OCA\SuiteCRM\Search\SuiteCRMSearchProvider;
@@ -59,6 +60,11 @@ class Application extends App implements IBootstrap {
 		// Inject the global Quick Actions floating action button
 		// on every full page render for signed-in users.
 		$context->registerEventListener(BeforeTemplateRenderedEvent::class, AddQuickActionsScriptListener::class);
+		// Register the "Link to SuiteCRM record" file action when the
+		// Files app is rendering. The listener is a no-op on any other
+		// dispatched event, so a stray registration outside Files does
+		// nothing rather than corrupting the target-app surface.
+		$context->registerEventListener(\OCA\Files\Event\LoadAdditionalScriptsEvent::class, LoadFilesScriptListener::class);
 	}
 
 	public function boot(IBootContext $context): void {

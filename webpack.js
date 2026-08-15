@@ -23,6 +23,7 @@ webpackConfig.entry = {
     recentcontacts: { import: path.join(__dirname, 'src', 'recentContacts.js'), filename: 'integration_suitecrm-recentcontacts.js' },
     recentaccounts: { import: path.join(__dirname, 'src', 'recentAccounts.js'), filename: 'integration_suitecrm-recentaccounts.js' },
     recentleads: { import: path.join(__dirname, 'src', 'recentLeads.js'), filename: 'integration_suitecrm-recentleads.js' },
+    fileshook: { import: path.join(__dirname, 'src', 'filesHook.js'), filename: 'integration_suitecrm-fileshook.js' },
 }
 
 module.exports = webpackConfig

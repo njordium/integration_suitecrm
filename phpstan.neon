@@ -10,4 +10,9 @@ parameters:
     # Legacy properties from the julien-nc port that are set in the constructor
     # but only consumed elsewhere; not worth touching in a CI-focused pass.
     - '#Property .* is never read, only written\.#'
+    # OCA\Files\Event\LoadAdditionalScriptsEvent is a Files-app class, not part
+    # of the nextcloud/ocp stubs phpstan resolves against. It's dispatched at
+    # runtime by the Files app whenever installed; our listener is a no-op if
+    # the event's class-name doesn't match, so a missing Files app is safe.
+    - '#OCA\\Files\\Event\\LoadAdditionalScriptsEvent#'
   
