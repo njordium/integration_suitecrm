@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 3.2.3 – 2026-08-15
+
+Admin-panel copy polish.
+
+- **"OAuth authorize endpoint path"** label shortened to **"Authorize path"** so it lines up visually with the other short-form labels ("Instance address", "OAuth client ID / secret", "Redirect URI") in the harmonised grid layout.
+- The trailing helper text ("SuiteCRM 8.10.x default: /Api/authorize. Older installs may use /legacy/oauth2/authorize.") is removed. The field still pre-fills with `/Api/authorize` on a fresh install via `Admin.php`'s `getValueString(..., '/Api/authorize')` default, so an admin who never had to touch this row still sees the correct value.
+
 ## 3.2.2 – 2026-08-15
 
 UX-only release: harmonises the admin OAuth-config panel with the layout of the sibling `integration_forgejo_gitea` app so the two apps read as one connected-account family in Settings → Administration → Connected accounts.

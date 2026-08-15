@@ -53,12 +53,11 @@
 
 			<label for="oauth_authorize_path">
 				<span class="icon icon-rename" />
-				{{ t('integration_suitecrm', 'OAuth authorize endpoint path') }}
+				{{ t('integration_suitecrm', 'Authorize path') }}
 			</label>
 			<NcTextField
 				id="oauth_authorize_path"
 				v-model="state.oauth_authorize_path"
-				:helperText="t('integration_suitecrm', 'SuiteCRM 8.10.x default: /Api/authorize. Older installs may use /legacy/oauth2/authorize.')"
 				@update:value="onInput" />
 
 			<label>
