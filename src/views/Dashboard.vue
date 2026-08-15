@@ -29,8 +29,28 @@
 						{{ getSubline(n) }}
 					</div>
 				</a>
+				<NcButton
+					v-if="canFollowup(n)"
+					variant="tertiary-no-background"
+					class="scw-item__followup"
+					:title="t('integration_suitecrm', 'Create follow-up Task from this reminder')"
+					:aria-label="t('integration_suitecrm', 'Create follow-up Task from this reminder')"
+					@click="openFollowup(n)">
+					<template #icon>
+						<PlaylistPlusIcon :size="16" />
+					</template>
+				</NcButton>
 			</li>
 		</ul>
+
+		<TaskFollowupModal
+			v-if="followupSource"
+			:open="!!followupSource"
+			:sourceModule="followupSource.module"
+			:sourceId="followupSource.id"
+			:sourceLabel="followupSource.label"
+			@close="followupSource = null"
+			@created="followupSource = null" />
 	</SuiteCRMWidgetShell>
 </template>
 
@@ -39,10 +59,13 @@ import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import moment from '@nextcloud/moment'
 import { generateUrl } from '@nextcloud/router'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import BellRingIcon from 'vue-material-design-icons/BellRing.vue'
 import CalendarClockIcon from 'vue-material-design-icons/CalendarClock.vue'
 import PhoneOutlineIcon from 'vue-material-design-icons/PhoneOutline.vue'
+import PlaylistPlusIcon from 'vue-material-design-icons/PlaylistPlus.vue'
 import SuiteCRMWidgetShell from '../components/SuiteCRMWidgetShell.vue'
+import TaskFollowupModal from '../components/TaskFollowupModal.vue'
 import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 export default {
@@ -50,9 +73,12 @@ export default {
 
 	components: {
 		SuiteCRMWidgetShell,
+		TaskFollowupModal,
+		NcButton,
 		BellRingIcon,
 		CalendarClockIcon,
 		PhoneOutlineIcon,
+		PlaylistPlusIcon,
 	},
 
 	setup() {
@@ -70,6 +96,11 @@ export default {
 			refreshSeconds: 300,
 			maxItems: 20,
 			saving: false,
+			// { module, id, label } while the follow-up-Task modal is
+			// open on a specific reminder; null when closed. Modal reads
+			// these as source-record props so the created Task
+			// auto-links back via parent_type / parent_id.
+			followupSource: null,
 		}
 	},
 
@@ -170,6 +201,24 @@ export default {
 				return 'CalendarClockIcon'
 			}
 			return 'BellRingIcon'
+		},
+
+		canFollowup(n) {
+			// Reminders always carry related_event_module + _id (see
+			// SuiteCRMWidget::getItems → WidgetItem construction) but be
+			// defensive against a null upstream row so we don't render
+			// an obviously-broken button.
+			const m = n.attributes?.related_event_module
+			const id = n.attributes?.related_event_module_id
+			return !!(m && id && (m === 'Meetings' || m === 'Calls' || m === 'Tasks'))
+		},
+
+		openFollowup(n) {
+			this.followupSource = {
+				module: String(n.attributes.related_event_module),
+				id: String(n.attributes.related_event_module_id),
+				label: this.getTargetTitle(n),
+			}
 		},
 
 		getSubline(n) {

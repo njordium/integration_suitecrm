@@ -114,6 +114,26 @@
 }
 
 /*
+ * Row-hover-reveal follow-up-Task button. Kept invisible by default
+ * so the row content isn't cluttered; fades in when the row is
+ * hovered or the button itself is keyboard-focused. Only rendered on
+ * Calendar / Events widgets today; other widgets can drop the same
+ * class into their row template without any CSS change.
+ */
+.scw-item__followup {
+	flex-shrink: 0;
+	align-self: center;
+	margin-inline-end: 4px;
+	opacity: 0;
+	transition: opacity 120ms ease-in;
+}
+
+.scw-item:hover .scw-item__followup,
+.scw-item__followup:focus-visible {
+	opacity: 1;
+}
+
+/*
  * Per-widget semantic icon slot. Sits where a per-row avatar
  * would go and carries a Material Design icon (Account, Domain,
  * Briefcase, TrendingUp, etc.) picked by each widget for the

@@ -45,8 +45,28 @@
 						{{ getSubline(e) }}
 					</div>
 				</a>
+				<NcButton
+					v-if="canFollowup(e)"
+					variant="tertiary-no-background"
+					class="scw-item__followup"
+					:title="t('integration_suitecrm', 'Create follow-up Task from this item')"
+					:aria-label="t('integration_suitecrm', 'Create follow-up Task from this item')"
+					@click="openFollowup(e)">
+					<template #icon>
+						<PlaylistPlusIcon :size="16" />
+					</template>
+				</NcButton>
 			</li>
 		</ul>
+
+		<TaskFollowupModal
+			v-if="followupSource"
+			:open="!!followupSource"
+			:sourceModule="followupSource.module"
+			:sourceId="followupSource.id"
+			:sourceLabel="followupSource.label"
+			@close="followupSource = null"
+			@created="followupSource = null" />
 	</SuiteCRMWidgetShell>
 </template>
 
@@ -63,11 +83,14 @@ import axios from '@nextcloud/axios'
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import moment from '@nextcloud/moment'
 import { generateUrl } from '@nextcloud/router'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import CalendarClockIcon from 'vue-material-design-icons/CalendarClock.vue'
 import CalendarMonthIcon from 'vue-material-design-icons/CalendarMonth.vue'
 import FormatListChecksIcon from 'vue-material-design-icons/FormatListChecks.vue'
 import PhoneOutlineIcon from 'vue-material-design-icons/PhoneOutline.vue'
+import PlaylistPlusIcon from 'vue-material-design-icons/PlaylistPlus.vue'
 import SuiteCRMWidgetShell from '../components/SuiteCRMWidgetShell.vue'
+import TaskFollowupModal from '../components/TaskFollowupModal.vue'
 import { useAutoRefresh } from '../composables/useAutoRefresh.js'
 
 const TYPE_MODULE = {
@@ -81,10 +104,13 @@ export default {
 
 	components: {
 		SuiteCRMWidgetShell,
+		TaskFollowupModal,
+		NcButton,
 		CalendarClockIcon,
 		CalendarMonthIcon,
 		FormatListChecksIcon,
 		PhoneOutlineIcon,
+		PlaylistPlusIcon,
 	},
 
 	setup() {
@@ -104,6 +130,12 @@ export default {
 			maxItems: 20,
 			saving: false,
 			calendarShowTasks: true,
+			// null when the follow-up-Task modal is closed; a
+			// { module, id, label } bundle when a row's + button was
+			// clicked. The modal reads these as its source-record props
+			// so the created Task auto-links back via parent_type /
+			// parent_id on the SuiteCRM side.
+			followupSource: null,
 		}
 	},
 
@@ -224,6 +256,22 @@ export default {
 				case 'call': return 'PhoneOutlineIcon'
 				case 'task': return 'FormatListChecksIcon'
 				default: return 'CalendarMonthIcon'
+			}
+		},
+
+		canFollowup(e) {
+			// Only surface the "+" affordance when we know the parent
+			// module — createFollowupTask requires a non-empty
+			// sourceModule + sourceId whitelist match, so hiding the
+			// button on unknown-type rows avoids an obvious dead click.
+			return !!(TYPE_MODULE[e.type] && e.id)
+		},
+
+		openFollowup(e) {
+			this.followupSource = {
+				module: TYPE_MODULE[e.type],
+				id: String(e.id),
+				label: this.getMainText(e),
 			}
 		},
 
