@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## 3.2.2 – 2026-08-15
+
+UX-only release: harmonises the admin OAuth-config panel with the layout of the sibling `integration_forgejo_gitea` app so the two apps read as one connected-account family in Settings → Administration → Connected accounts.
+
+### Changed — admin OAuth config panel
+
+- Compact two-column `grid-form` layout with leading icon labels replaces the previous stacked `NcTextField`-with-embedded-label rows. Same rendering as Forgejo/Gitea's admin panel.
+- **Redirect URI** is now shown read-only at the bottom of the form with a copy button — value is computed server-side via `IURLGenerator::linkToRouteAbsolute('integration_suitecrm.config.oauthCallback')` so an admin on any Nextcloud base URL sees the exact string to paste into SuiteCRM's OAuth2 Client "redirect URI" field. Removes the need to hand-assemble it.
+- Field labels renamed for cross-app consistency: "Application ID / Application secret" → "OAuth client ID / OAuth client secret", "SuiteCRM instance address" → "Instance address".
+- Intro block simplified: the two-paragraph `NcNoteCard` becomes one paragraph of `settings-hint` prose ending in the same SuiteCRM OAuth2 docs link.
+- Stored-secret placeholder wording aligned with Forgejo's — "Leave empty to keep the stored secret" instead of "A secret is stored, type to replace". Same behaviour on save (empty means "don't touch stored value"); the copy just reads more naturally alongside the sibling app.
+
+### Unchanged
+
+- All admin-config write endpoints, whitelists, `sensitive: true` on `client_secret`, reset-connection dialog, and OAuth authorize-path override survive verbatim. This is a template + component overhaul, not a config-plumbing change.
+
 ## 3.2.1 – 2026-08-15
 
 Security-fix release folding every finding from the post-pivot 3.2.0 OWASP audit. No feature changes; every user should upgrade.

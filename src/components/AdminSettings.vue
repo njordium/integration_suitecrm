@@ -8,52 +8,72 @@
 			{{ t('integration_suitecrm', 'SuiteCRM integration') }}
 		</h2>
 
-		<NcNoteCard type="info">
-			<p>
-				{{ t('integration_suitecrm', 'If you want to allow your Nextcloud users to use OAuth to authenticate to a SuiteCRM instance, create a "new password client" in your SuiteCRM admin settings ("OAuth2 Clients and Tokens" section) and put the client ID and secret below.') }}
-			</p>
-			<p>
-				{{ t('integration_suitecrm', 'Make sure you created private and public keys for your SuiteCRM instance. Authentication won\'t work if those keys are missing.') }}
-				<a
-					href="https://docs.suitecrm.com/developer/api/developer-setup-guide/json-api/#_generate_private_and_public_key_for_oauth2"
-					target="_blank"
-					rel="noopener noreferrer"
-					class="external-link">
-					{{ t('integration_suitecrm', 'SuiteCRM OAuth2 documentation') }}
-					<OpenInNewIcon :size="14" />
-				</a>
-			</p>
-		</NcNoteCard>
+		<p class="settings-hint">
+			{{ t('integration_suitecrm', 'Create an OAuth2 Client in your SuiteCRM admin ("OAuth2 Clients and Tokens" section) with the redirect URI shown below, then paste the resulting Client ID and Client Secret here. Make sure private and public keys are generated on the SuiteCRM instance — authentication won\'t work without them.') }}
+			<a
+				href="https://docs.suitecrm.com/developer/api/developer-setup-guide/json-api/#_generate_private_and_public_key_for_oauth2"
+				target="_blank"
+				rel="noopener noreferrer"
+				class="external-link">
+				{{ t('integration_suitecrm', 'SuiteCRM OAuth2 documentation') }}
+				<OpenInNewIcon :size="14" />
+			</a>
+		</p>
 
-		<div class="fields">
+		<div class="grid-form">
+			<label for="oauth_instance_url">
+				<span class="icon icon-link" />
+				{{ t('integration_suitecrm', 'Instance address') }}
+			</label>
 			<NcTextField
+				id="oauth_instance_url"
 				v-model="state.oauth_instance_url"
-				:label="t('integration_suitecrm', 'SuiteCRM instance address')"
 				:placeholder="t('integration_suitecrm', 'https://my.suitecrm.org')"
 				@update:value="onInput" />
 
+			<label for="client_id">
+				<span class="icon icon-category-auth" />
+				{{ t('integration_suitecrm', 'OAuth client ID') }}
+			</label>
 			<NcPasswordField
+				id="client_id"
 				v-model="state.client_id"
-				:label="t('integration_suitecrm', 'Application ID')"
-				:placeholder="t('integration_suitecrm', 'ID of your application')"
+				:placeholder="t('integration_suitecrm', 'ID of your OAuth application')"
 				@update:value="onInput" />
 
+			<label for="client_secret">
+				<span class="icon icon-category-auth" />
+				{{ t('integration_suitecrm', 'OAuth client secret') }}
+			</label>
 			<NcPasswordField
+				id="client_secret"
 				v-model="newSecret"
-				:label="t('integration_suitecrm', 'Application secret')"
 				:placeholder="secretPlaceholder"
 				@update:value="onInput" />
 
-			<!--
-				The OAuth authorize endpoint path is editable from the admin UI.
-				Fresh SuiteCRM 8.4+ installs don't need to touch this; installs
-				upgraded from 7.x or fronted by a rewriting proxy sometimes do.
-			-->
+			<label for="oauth_authorize_path">
+				<span class="icon icon-rename" />
+				{{ t('integration_suitecrm', 'OAuth authorize endpoint path') }}
+			</label>
 			<NcTextField
+				id="oauth_authorize_path"
 				v-model="state.oauth_authorize_path"
-				:label="t('integration_suitecrm', 'OAuth authorize endpoint path')"
-				:helperText="t('integration_suitecrm', '(SuiteCRM 8.10.x default: /Api/authorize. Older installs may use /legacy/oauth2/authorize.)')"
+				:helperText="t('integration_suitecrm', 'SuiteCRM 8.10.x default: /Api/authorize. Older installs may use /legacy/oauth2/authorize.')"
 				@update:value="onInput" />
+
+			<label>
+				<span class="icon icon-external" />
+				{{ t('integration_suitecrm', 'Redirect URI') }}
+			</label>
+			<div class="redirect-uri">
+				<code>{{ redirectUri }}</code>
+				<NcButton variant="tertiary" @click="copyRedirect">
+					<template #icon>
+						<ContentCopyIcon :size="20" />
+					</template>
+					{{ t('integration_suitecrm', 'Copy') }}
+				</NcButton>
+			</div>
 		</div>
 
 		<!--
@@ -94,9 +114,9 @@ import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
-import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcPasswordField from '@nextcloud/vue/components/NcPasswordField'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
+import ContentCopyIcon from 'vue-material-design-icons/ContentCopy.vue'
 import DeleteIcon from 'vue-material-design-icons/Delete.vue'
 import OpenInNewIcon from 'vue-material-design-icons/OpenInNew.vue'
 import { delay } from '../utils.js'
@@ -105,10 +125,10 @@ export default {
 	name: 'AdminSettings',
 
 	components: {
+		ContentCopyIcon,
 		DeleteIcon,
 		NcButton,
 		NcDialog,
-		NcNoteCard,
 		NcPasswordField,
 		NcTextField,
 		OpenInNewIcon,
@@ -117,12 +137,25 @@ export default {
 	props: {},
 
 	data() {
+		const initial = loadState('integration_suitecrm', 'admin-config') ?? {}
 		return {
-			state: loadState('integration_suitecrm', 'admin-config'),
+			state: {
+				oauth_instance_url: initial.oauth_instance_url ?? '',
+				client_id: initial.client_id ?? '',
+				oauth_authorize_path: initial.oauth_authorize_path ?? '/Api/authorize',
+				// Preserved so the legacy plaintext-payload branch of
+				// secretIsStored below keeps working during a partial deploy.
+				client_secret: initial.client_secret ?? '',
+				client_secret_set: !!initial.client_secret_set,
+			},
+
 			// Secret input is separate from `state` so we can distinguish
 			// "user typed a new value" (send it) from "user hasn't touched
 			// this field" (leave the stored secret untouched).
 			newSecret: '',
+			// Redirect URI is server-supplied (linkToRouteAbsolute); read-only
+			// in the UI so the admin can't miscopy the path segment.
+			redirectUri: initial.redirect_uri ?? '',
 			// Reset confirmation dialog visibility.
 			showResetDialog: false,
 		}
@@ -143,8 +176,8 @@ export default {
 
 		secretPlaceholder() {
 			return this.secretIsStored
-				? t('integration_suitecrm', 'A secret is stored, type to replace')
-				: t('integration_suitecrm', 'Client secret of your application')
+				? t('integration_suitecrm', 'Leave empty to keep the stored secret')
+				: t('integration_suitecrm', 'Secret of your OAuth application')
 		},
 
 		/**
@@ -177,6 +210,15 @@ export default {
 			}, 2000)()
 		},
 
+		async copyRedirect() {
+			try {
+				await navigator.clipboard.writeText(this.redirectUri)
+				showSuccess(t('integration_suitecrm', 'Redirect URI copied'))
+			} catch {
+				showError(t('integration_suitecrm', 'Failed to copy'))
+			}
+		},
+
 		/**
 		 * DELETE the admin-config endpoint, then clear the local form
 		 * state so the fields reset without a page reload. User tokens
@@ -204,7 +246,7 @@ export default {
 		saveOptions() {
 			const values = {
 				client_id: this.state.client_id,
-				oauth_instance_url: this.state.oauth_instance_url,
+				oauth_instance_url: (this.state.oauth_instance_url ?? '').replace(/\/+$/, ''),
 				oauth_authorize_path: this.state.oauth_authorize_path,
 			}
 			// Only include client_secret when the admin actually typed a new
@@ -238,19 +280,18 @@ export default {
 
 <style scoped lang="scss">
 #suitecrm_prefs {
+	max-width: 720px;
+
 	h2 {
 		display: flex;
 		align-items: center;
 		gap: 8px;
+		margin-bottom: 8px;
 	}
 
-	.fields {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		max-width: 500px;
-		margin-block-start: 20px;
-		margin-inline-start: 30px;
+	.settings-hint {
+		margin: 8px 0 16px;
+		color: var(--color-text-maxcontrast);
 	}
 
 	.external-link {
@@ -259,10 +300,44 @@ export default {
 		gap: 4px;
 	}
 
+	.grid-form {
+		display: grid;
+		grid-template-columns: max-content 1fr;
+		column-gap: 12px;
+		row-gap: 10px;
+		align-items: center;
+
+		label {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			white-space: nowrap;
+
+			.icon {
+				display: inline-block;
+				width: 20px;
+				height: 20px;
+			}
+		}
+	}
+
+	.redirect-uri {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+
+		code {
+			padding: 4px 8px;
+			background: var(--color-background-hover);
+			border-radius: var(--border-radius);
+			font-size: 12px;
+			word-break: break-all;
+		}
+	}
+
 	.reset-zone {
 		max-width: 500px;
 		margin-block-start: 40px;
-		margin-inline-start: 30px;
 		padding-block-start: 20px;
 		border-block-start: 1px solid var(--color-border);
 

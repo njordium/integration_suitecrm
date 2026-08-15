@@ -9,6 +9,7 @@ namespace OCA\SuiteCRM\Settings;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IAppConfig;
+use OCP\IURLGenerator;
 use OCP\Settings\ISettings;
 
 use OCA\SuiteCRM\AppInfo\Application;
@@ -18,6 +19,7 @@ class Admin implements ISettings {
 	public function __construct(
 		private IAppConfig $appConfig,
 		private IInitialState $initialStateService,
+		private IURLGenerator $urlGenerator,
 	) {
 	}
 
@@ -39,6 +41,11 @@ class Admin implements ISettings {
 			// `occ config:app:set`. Default matches the fresh-8.x path used
 			// elsewhere in this app.
 			'oauth_authorize_path' => $this->appConfig->getValueString(Application::APP_ID, 'oauth_authorize_path', '/Api/authorize'),
+			// Absolute URL the admin must paste into the SuiteCRM OAuth2
+			// Client's "redirect URI" field. Rendered read-only in the
+			// admin form with a copy button so the admin doesn't have to
+			// hand-assemble it from the Nextcloud base URL + route path.
+			'redirect_uri' => $this->urlGenerator->linkToRouteAbsolute('integration_suitecrm.config.oauthCallback'),
 		]);
 		return new TemplateResponse(Application::APP_ID, 'adminSettings');
 	}
