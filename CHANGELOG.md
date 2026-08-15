@@ -4,7 +4,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## [Unreleased]
+## [Unreleased] — 3.2.0 development
+
+**In-context Quick Actions** — kill the copy-paste UX. Every place a user has content that belongs in SuiteCRM (an email in Nextcloud Mail, a Talk conversation transcript, a file, a calendar item on the dashboard) now carries a menu item that sends it directly. Same OAuth-authenticated backend endpoints as 3.1.0, just launched from the native context so no more paste-URL-here dialogs.
+
+### In flight (details land as items ship)
+- Mail message action — "Send to SuiteCRM as Case" from the Mail message menu
+- Talk conversation action — "Log to SuiteCRM as Note" from the Talk conversation menu
+- Files action — "Link to SuiteCRM" from any file (covers Talk transcripts as a subset)
+- Files action smart variant — pre-fills the Meeting picker when the file is a Talk transcript
+- Widget action — "Create follow-up Task" re-wired on Calendar/Events widget rows (regression fix from the 3.1.0 Vue rewrite)
 
 ## 3.1.0 – 2026-08-14
 

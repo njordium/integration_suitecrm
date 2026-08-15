@@ -31,7 +31,7 @@ SuiteCRM 8.10.x or later with the v8 REST/JSON:API enabled. SuiteCRM 7.x is no l
 ## Upgrading from 2.x
 
 The 3.0.0 release restored the original `integration_suitecrm` app id after the App Store record transfer. A repair step copies admin config and per-user OAuth tokens forward from the 2.x `njordium_suitecrm` install automatically on `occ upgrade`. See `docs/upgrade-2.x-to-3.0.md` in the repository for the manual rollback path if needed.]]></description>
-	<version>3.1.0</version>
+	<version>3.2.0</version>
 	<licence>AGPL-3.0-or-later</licence>
 	<author homepage="https://njordium.com">Kim Haverblad</author>
 	<author>Julien Veyssier</author>
