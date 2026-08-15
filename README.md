@@ -1,11 +1,11 @@
 # SuiteCRM integration for Nextcloud
 
 > **Actively maintained fork** of [julien-nc/integration_suitecrm](https://github.com/julien-nc/integration_suitecrm) by Julien Veyssier.
-> Updated for **Nextcloud 30 to 35** and **SuiteCRM 8.x**, migrated to Vue 3 / `@nextcloud/vue` v9. Focused on **read-side integration**: nine dashboard widgets (each with its own 3-dot settings menu — per-widget refresh cadence, records-to-show, "Only records assigned to me" filter), reference cards (paste any SuiteCRM URL for a rich preview), unified search, reminder notifications, and encrypted token storage. Write flows (log Talk conversations, link Deck cards, convert emails to Cases, follow-up Tasks, file → SuiteCRM link) live in a separate app: [`integration_suitecrm_bridge`](https://github.com/njordium/integration_suitecrm_bridge). CalDAV two-way calendar sync is a separate SuiteCRM-side module: [`suitecrm_nextcloud_calendar`](https://github.com/njordium/suitecrm_nextcloud_calendar) — installed on the SuiteCRM host, not inside Nextcloud. All three are independent; install only what you need.
+> Updated for **Nextcloud 30 to 35** and **SuiteCRM 8.x**, migrated to Vue 3 / `@nextcloud/vue` v9. Focused on **read-side integration**: nine dashboard widgets (each with its own 3-dot settings menu — per-widget refresh cadence, records-to-show, "Only records assigned to me" filter), reference cards (paste any SuiteCRM URL for a rich preview), unified search, reminder notifications, and encrypted token storage.
 
 See your SuiteCRM data from inside Nextcloud. Search records, watch your schedule, workload, recent CRM activity, and newly-added people and companies on your dashboard, get notified about meeting reminders, and paste any SuiteCRM record URL into Talk, Notes, or Files comments for a rich preview card. Every widget carries a 3-dot menu for per-widget refresh cadence, records-to-show, and "assigned to me" filtering.
 
-**Read-only by design.** This app never writes to your SuiteCRM. If you want to write back — log a Talk conversation as a Note, link a Deck card, convert an email to a Case, create a follow-up Task from a widget row, or link a Nextcloud file to any record — install the companion [`integration_suitecrm_bridge`](https://github.com/njordium/integration_suitecrm_bridge) alongside. The two apps are independent; you can run either without the other.
+**Read-only by design.** This app never writes to your SuiteCRM.
 
 ![SuiteCRM integration dashboard widgets](img/screenshot.png)
 
@@ -62,11 +62,6 @@ Type `@` in any Nextcloud text field to open the smart picker and search SuiteCR
 ### Notifications
 Meeting and Call reminders from SuiteCRM show up in Nextcloud's notification tray.
 
-### Companion apps
-
-- **[`integration_suitecrm_bridge`](https://github.com/njordium/integration_suitecrm_bridge)** — the write side. Log Talk conversations as SuiteCRM Notes, link Deck cards, convert emails to Cases, create follow-up Tasks from Calendar / Events widget rows, link Nextcloud files (including Talk call recordings and AI summaries) to any SuiteCRM record. Independent OAuth flow; install alongside this app for the full read + write experience.
-- **[`njordium/suitecrm_nextcloud_calendar`](https://github.com/njordium/suitecrm_nextcloud_calendar)** — a SuiteCRM-side module (not a Nextcloud app) for two-way calendar sync via CalDAV. SuiteCRM Meetings and Calls appear in Nextcloud Calendar and vice-versa, with double-booking detection and Nextcloud Appointments booking → SuiteCRM Meeting conversion. The Personal Settings panel here includes a Calendar Companion section that streamlines the SuiteCRM-side setup: shows your Nextcloud URL and username with one-click copy plus a link to generate an app password.
-
 ### Built-in diagnostics
 Ships with an `occ` command that walks every layer of the connection stack, admin config, SSRF guard, HTTP reachability, authorize endpoint, token endpoint, and reports exactly which layer is broken with the fix command:
 
@@ -81,7 +76,7 @@ Safe to run at any time; does not touch stored user tokens.
 - Tokens migrated transparently from plaintext (installs upgraded from ≤ 1.1.x)
 - **OAuth 2.0 authorization-code flow** (RFC 6749) is the primary connect path; the password grant is kept as a labelled "Advanced" fallback only
 - 3.1.0 cleared a full OWASP-Top-10 static review with 0 High + 0 Medium findings; the remaining Low advisories are documented tradeoffs. Widget endpoints clamp caller-supplied `?limit=` to `min(100, N)`. Admin-config writes go through an `ADMIN_ALLOWED_KEYS` whitelist with `sensitive: true` on `client_secret`. The avatar proxy pins Content-Type via image-magic-byte sniff. The OAuth error log redacts the raw guzzle message. The 2.x → 3.x migration preserves the `sensitive` flag on `client_secret`.
-- **Read-only surface.** Since 3.2.0 this app carries no write endpoints — nothing in `SuiteCRMAPIController` mutates SuiteCRM state. A compromised session at worst reads what the caller's SuiteCRM ACL already allows. Write flows live in `integration_suitecrm_bridge` where the write-side attack surface is contained.
+- **Read-only surface.** Since 3.2.0 this app carries no write endpoints — nothing in `SuiteCRMAPIController` mutates SuiteCRM state. A compromised session at worst reads what the caller's SuiteCRM ACL already allows.
 
 ---
 
@@ -160,8 +155,6 @@ Open **Settings → Personal → Connected accounts → SuiteCRM integration** a
 If your SuiteCRM instance cannot complete the browser redirect back to Nextcloud, expand the **"Advanced: username + password fallback"** section and enter your SuiteCRM login and password (used once to obtain an OAuth token, not stored).
 
 Then enable search and/or reminder notifications from the same panel. Optionally, set a **"Query as a different SuiteCRM username"** value if your OAuth-connected user isn't the one whose records you want the widgets to filter on (typical when the OAuth account is an SSO / shared account distinct from your SuiteCRM login).
-
-For the calendar-sync companion module, use the "Calendar sync (SuiteCRM module)" section for the pre-filled values.
 
 ### Connect flow
 
